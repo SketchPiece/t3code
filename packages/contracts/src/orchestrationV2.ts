@@ -351,6 +351,13 @@ export const OrchestrationV2LimitRecoveryUpdate = Schema.Struct({
 );
 export type OrchestrationV2LimitRecoveryUpdate = typeof OrchestrationV2LimitRecoveryUpdate.Type;
 
+/** A rollback request whose provider rollback failed after every retry. */
+export const OrchestrationV2RollbackFailure = Schema.Struct({
+  requestId: CommandId,
+  message: TrimmedNonEmptyString,
+});
+export type OrchestrationV2RollbackFailure = typeof OrchestrationV2RollbackFailure.Type;
+
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
@@ -414,6 +421,8 @@ export const OrchestrationV2AppThread = Schema.Struct({
       }),
     ),
   ),
+  /** Latest rollback that failed for good; cleared when the next rollback starts. */
+  rollbackFailure: Schema.optional(Schema.NullOr(OrchestrationV2RollbackFailure)),
   deletedAt: Schema.NullOr(Schema.DateTimeUtc),
 });
 export type OrchestrationV2AppThread = typeof OrchestrationV2AppThread.Type;
@@ -2592,6 +2601,14 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     scopeId: CheckpointScopeId,
     checkpointId: CheckpointId,
+  }),
+  /** Server-only: records that the provider rollback for `requestId` failed for good. */
+  Schema.Struct({
+    type: Schema.Literal("checkpoint.rollback.fail"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    requestId: CommandId,
+    message: TrimmedNonEmptyString,
   }),
   Schema.Struct({
     type: Schema.Literal("thread.fork"),
