@@ -13,7 +13,9 @@ const { AndroidConfig, withStringsXml } = NodeModule.createRequire(import.meta.u
 
 const ASSETS = "./shturval/assets";
 
-export const SHTURVAL_APP_NAME = "Штурвал";
+import { SHTURVAL_APP_NAME } from "./name.ts";
+
+export { SHTURVAL_APP_NAME };
 
 const DISPLAY_NAMES = {
   development: `${SHTURVAL_APP_NAME} Dev`,

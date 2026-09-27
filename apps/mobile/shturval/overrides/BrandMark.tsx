@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import { View } from "react-native";
 
 import { AppText as Text } from "../../src/components/AppText";
-import { SHTURVAL_APP_NAME } from "../brand";
+import { SHTURVAL_APP_NAME } from "../name";
 import { HelmMark } from "./HelmMark";
 
 // Shturval fork: replaces src/components/BrandMark.tsx (see ../metro.cjs).

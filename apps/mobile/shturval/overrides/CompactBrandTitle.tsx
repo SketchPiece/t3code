@@ -5,7 +5,7 @@ import { Platform, View } from "react-native";
 import { AppText as Text } from "../../src/components/AppText";
 import { useAndroidControlSizing } from "../../src/components/useAndroidControlSizing";
 import { IPAD_HOME_TITLE_OFFSET } from "../../src/lib/layoutMetrics";
-import { SHTURVAL_APP_NAME } from "../brand";
+import { SHTURVAL_APP_NAME } from "../name";
 
 // Shturval fork: replaces src/components/CompactBrandTitle.tsx (see ../metro.cjs).
 // The navigation bar shows the app's name; builds other than production keep a
