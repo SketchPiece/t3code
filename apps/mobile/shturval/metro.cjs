@@ -15,6 +15,7 @@ const OVERRIDES = new Map(
     "components/T3Wordmark.tsx": "T3Wordmark.tsx",
     "lib/useFontFamily.ts": "useFontFamily.ts",
     "features/home/home-list-filter-menu.ts": "home-list-filter-menu.ts",
+    "widgets/AgentActivity.tsx": "AgentActivity.tsx",
   }).map(([upstream, fork]) => [path.join(SRC, upstream), path.join(__dirname, "overrides", fork)]),
 );
 
