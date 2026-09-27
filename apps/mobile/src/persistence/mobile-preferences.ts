@@ -7,7 +7,13 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import type { ProviderInstanceId, SidebarProjectGroupingMode } from "@t3tools/contracts";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
-import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
+import {
+  isMobileThemeSelection,
+  MOBILE_THEME_IDS,
+  type MobileThemeId,
+  type MobileThemeMode,
+  type MobileThemeSelection,
+} from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
 import * as MobileSecureStorage from "./mobile-secure-storage";
 import { MobileStorageDecodeError, MobileStorageEncodeError } from "./mobile-storage";
@@ -18,8 +24,8 @@ const PREFERENCES_FALLBACK_KEY = "t3code.preferences.fallback";
 export interface Preferences {
   readonly liveActivitiesEnabled?: boolean;
   readonly themeId?: MobileThemeId;
-  readonly lightThemeId?: MobileThemeId;
-  readonly darkThemeId?: MobileThemeId;
+  readonly lightThemeId?: MobileThemeSelection;
+  readonly darkThemeId?: MobileThemeSelection;
   readonly themeMode?: MobileThemeMode;
   readonly baseFontSize?: number;
   readonly terminalFontSize?: number | null;
@@ -86,8 +92,8 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   const preferences: {
     liveActivitiesEnabled?: boolean;
     themeId?: MobileThemeId;
-    lightThemeId?: MobileThemeId;
-    darkThemeId?: MobileThemeId;
+    lightThemeId?: MobileThemeSelection;
+    darkThemeId?: MobileThemeSelection;
     themeMode?: MobileThemeMode;
     baseFontSize?: number;
     terminalFontSize?: number | null;
@@ -114,17 +120,11 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   ) {
     preferences.themeId = parsed.themeId as MobileThemeId;
   }
-  if (
-    typeof parsed.lightThemeId === "string" &&
-    (MOBILE_THEME_IDS as readonly string[]).includes(parsed.lightThemeId)
-  ) {
-    preferences.lightThemeId = parsed.lightThemeId as MobileThemeId;
+  if (isMobileThemeSelection(parsed.lightThemeId)) {
+    preferences.lightThemeId = parsed.lightThemeId;
   }
-  if (
-    typeof parsed.darkThemeId === "string" &&
-    (MOBILE_THEME_IDS as readonly string[]).includes(parsed.darkThemeId)
-  ) {
-    preferences.darkThemeId = parsed.darkThemeId as MobileThemeId;
+  if (isMobileThemeSelection(parsed.darkThemeId)) {
+    preferences.darkThemeId = parsed.darkThemeId;
   }
   if (
     parsed.themeMode === "system" ||

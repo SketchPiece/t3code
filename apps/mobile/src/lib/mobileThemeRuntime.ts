@@ -3,9 +3,10 @@ import { BUILT_IN_THEME_IDS, type BuiltInThemeId } from "@t3tools/shared/themePa
 import {
   DEFAULT_MOBILE_THEME_ID,
   type MobileThemeAppearance,
-  type MobileThemeId,
   type MobileThemeMode,
+  type MobileThemeSelection,
 } from "./mobileTheme";
+import { isPublishedMobileThemeId } from "./publishedMobileThemes";
 
 export type MobileUniwindThemeName =
   | MobileThemeAppearance
@@ -39,10 +40,14 @@ const UNIWIND_THEME_NAMES: ReadonlyArray<"light" | "dark" | MobileUniwindThemeNa
 ];
 
 export function getMobileUniwindThemeName(
-  themeId: MobileThemeId,
+  themeId: MobileThemeSelection,
   appearance: MobileThemeAppearance,
 ): MobileUniwindThemeName {
-  return themeId === DEFAULT_MOBILE_THEME_ID || themeId === "material-you"
+  // Published palettes, like Material You, paint every role through
+  // ScopedVariables over the base appearance theme.
+  return themeId === DEFAULT_MOBILE_THEME_ID ||
+    themeId === "material-you" ||
+    isPublishedMobileThemeId(themeId)
     ? appearance
     : `${themeId}-${appearance}`;
 }

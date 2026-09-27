@@ -10,6 +10,7 @@ import {
   type ThemeAppearance,
   type ThemeColors,
 } from "@t3tools/shared/themePalettes";
+import { isPublishedMobileThemeId, type PublishedMobileThemeId } from "./publishedMobileThemes";
 import {
   STANDARD_THEME_PREVIEW_COLORS,
   type ThemePreviewColors,
@@ -20,7 +21,9 @@ export const MOBILE_THEME_IDS = [...SHARED_MOBILE_THEME_IDS, "material-you"] as 
 export type MobileThemeId = SharedMobileThemeId | "material-you";
 export type MobileThemeAppearance = ThemeAppearance;
 export type MobileThemeMode = MobileThemeAppearance | "system";
-export type MobileThemeIds = Readonly<Record<MobileThemeAppearance, MobileThemeId>>;
+/** What a user picks per appearance: a built-in, or a theme a connected machine publishes. */
+export type MobileThemeSelection = MobileThemeId | PublishedMobileThemeId;
+export type MobileThemeIds = Readonly<Record<MobileThemeAppearance, MobileThemeSelection>>;
 
 export const MOBILE_THEME_OPTIONS: ReadonlyArray<{
   readonly id: MobileThemeId;
@@ -42,6 +45,18 @@ export function normalizeMobileThemeId(value: unknown): MobileThemeId {
     : DEFAULT_MOBILE_THEME_ID;
 }
 
+export function isMobileThemeSelection(value: unknown): value is MobileThemeSelection {
+  return (
+    isPublishedMobileThemeId(value) ||
+    (typeof value === "string" && (MOBILE_THEME_IDS as readonly string[]).includes(value))
+  );
+}
+
+/** Keeps a published selection even while its machine is offline; it resolves once themes load. */
+export function normalizeMobileThemeSelection(value: unknown): MobileThemeSelection {
+  return isPublishedMobileThemeId(value) ? value : normalizeMobileThemeId(value);
+}
+
 export function normalizeMobileThemeMode(value: unknown): MobileThemeMode {
   return value === "light" || value === "dark" || value === "system" ? value : "system";
 }
@@ -56,11 +71,11 @@ export function resolveMobileThemeIds(preferences: {
     light:
       preferences.lightThemeId === undefined
         ? legacyThemeId
-        : normalizeMobileThemeId(preferences.lightThemeId),
+        : normalizeMobileThemeSelection(preferences.lightThemeId),
     dark:
       preferences.darkThemeId === undefined
         ? legacyThemeId
-        : normalizeMobileThemeId(preferences.darkThemeId),
+        : normalizeMobileThemeSelection(preferences.darkThemeId),
   };
 }
 
@@ -68,7 +83,7 @@ export function createMobileThemeSelectionPatch(
   themeIds: MobileThemeIds,
   activeAppearance: MobileThemeAppearance,
   selectedAppearance: MobileThemeAppearance,
-  value: MobileThemeId,
+  value: MobileThemeSelection,
 ) {
   const nextThemeIds: MobileThemeIds = {
     light: selectedAppearance === "light" ? value : themeIds.light,
@@ -78,16 +93,25 @@ export function createMobileThemeSelectionPatch(
     lightThemeId: nextThemeIds.light,
     darkThemeId: nextThemeIds.dark,
     // Keep older OTA bundles on the theme for the appearance currently in use.
-    themeId: nextThemeIds[activeAppearance],
+    themeId: legacyMobileThemeId(nextThemeIds[activeAppearance]),
   };
 }
 
-export function createMobileThemePairPatch(value: MobileThemeId) {
+export function createMobileThemePairPatch(value: MobileThemeSelection) {
   return {
     lightThemeId: value,
     darkThemeId: value,
-    themeId: value,
+    themeId: legacyMobileThemeId(value),
   };
+}
+
+/**
+ * The built-in a selection falls back to wherever only built-ins apply: the
+ * legacy single-theme preference, and surfaces with their own per-theme
+ * palettes (terminal, diffs) that have no published counterpart.
+ */
+export function legacyMobileThemeId(value: MobileThemeSelection): MobileThemeId {
+  return isPublishedMobileThemeId(value) ? DEFAULT_MOBILE_THEME_ID : value;
 }
 
 const OKLCH_PATTERN = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+(-?[\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)$/;

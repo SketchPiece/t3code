@@ -7,14 +7,17 @@ import { mixThemePreviewBase, THEME_PREVIEW_RENDER_SPECS } from "@t3tools/shared
 
 import { SymbolView } from "../../../../components/AppSymbol";
 import { AppText as Text } from "../../../../components/AppText";
+import type { ThemePreviewColors } from "@t3tools/shared/themePreview";
 import {
   getMobileThemePreviewColors,
   MOBILE_THEME_OPTIONS,
+  themeColorToNativeColor,
   type MobileThemeAppearance,
   type MobileThemeId,
   type MobileThemeIds,
   type MobileThemeMode,
 } from "../../../../lib/mobileTheme";
+import type { PublishedMobileTheme } from "../../../../lib/publishedMobileThemes";
 import { getMobileUniwindThemeName } from "../../../../lib/mobileThemeRuntime";
 import { cn } from "../../../../lib/cn";
 import { useAppearancePreferences } from "../AppearancePreferencesProvider";
@@ -34,14 +37,17 @@ const PreviewOrb = memo(function PreviewOrb(props: {
   readonly appearance: MobileThemeAppearance;
   readonly compact?: boolean;
   readonly themeId: MobileThemeId;
+  /** Published themes carry their own colors instead of a built-in id. */
+  readonly colors?: ThemePreviewColors;
 }) {
   const idPrefix = useId().replaceAll(":", "");
   const accentGradientId = `${idPrefix}-accent-glow`;
   const actionGradientId = `${idPrefix}-action-glow`;
   const { systemColorPalettes } = useAppearancePreferences();
   const palette = systemColorPalettes?.[props.appearance];
-  const colors =
-    props.themeId === "material-you" && palette
+  const colors = props.colors
+    ? props.colors
+    : props.themeId === "material-you" && palette
       ? { canvas: palette.surface, accent: palette.primary, messageAction: palette.tertiary }
       : getMobileThemePreviewColors(props.themeId, props.appearance);
   const spec = THEME_PREVIEW_RENDER_SPECS[props.appearance];
@@ -121,34 +127,50 @@ function ThemeCard(props: {
   readonly onSelectBoth: () => void;
   readonly onSelect: (appearance: MobileThemeAppearance) => void;
   readonly themeId: MobileThemeId;
+  readonly previewColors?: Partial<Record<MobileThemeAppearance, ThemePreviewColors>>;
+  /** Shown under the name, e.g. the machine a published theme comes from. */
+  readonly detail?: string;
 }) {
-  const choice = (appearance: MobileThemeAppearance, selected: boolean) => (
-    <Pressable
-      accessibilityHint={`Sets the ${appearance} appearance only`}
-      accessibilityLabel={`${props.label} ${appearance} theme`}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: props.disabled, selected }}
-      className={cn(
-        "size-[66px] items-center justify-center rounded-full border-[3px] active:scale-[0.94]",
-        selected ? "border-primary" : "border-transparent",
-      )}
-      disabled={props.disabled}
-      onPress={() => props.onSelect(appearance)}
-    >
-      <PreviewOrb appearance={appearance} compact themeId={props.themeId} />
-      {selected ? (
-        <View className="absolute -bottom-0.5 -right-0.5 size-5 items-center justify-center rounded-full border border-border bg-card">
-          <SymbolView
-            name={appearance === "light" ? "sun.max" : "moon"}
-            size={12}
-            tintColorClassName="accent-icon"
-            type="monochrome"
-            weight="medium"
-          />
-        </View>
-      ) : null}
-    </Pressable>
-  );
+  const choice = (appearance: MobileThemeAppearance, selected: boolean) => {
+    // A published theme may describe only one appearance.
+    const unavailable = props.previewColors !== undefined && !props.previewColors[appearance];
+    return unavailable ? (
+      <View className="size-[66px] items-center justify-center">
+        <View className="size-14 rounded-full border border-dashed border-border" />
+      </View>
+    ) : (
+      <Pressable
+        accessibilityHint={`Sets the ${appearance} appearance only`}
+        accessibilityLabel={`${props.label} ${appearance} theme`}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: props.disabled, selected }}
+        className={cn(
+          "size-[66px] items-center justify-center rounded-full border-[3px] active:scale-[0.94]",
+          selected ? "border-primary" : "border-transparent",
+        )}
+        disabled={props.disabled}
+        onPress={() => props.onSelect(appearance)}
+      >
+        <PreviewOrb
+          appearance={appearance}
+          colors={props.previewColors?.[appearance]}
+          compact
+          themeId={props.themeId}
+        />
+        {selected ? (
+          <View className="absolute -bottom-0.5 -right-0.5 size-5 items-center justify-center rounded-full border border-border bg-card">
+            <SymbolView
+              name={appearance === "light" ? "sun.max" : "moon"}
+              size={12}
+              tintColorClassName="accent-icon"
+              type="monochrome"
+              weight="medium"
+            />
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
 
   return (
     <View className="min-w-36 flex-1 basis-[47%] gap-3 rounded-[24px] border border-border bg-grouped-card px-2 py-4">
@@ -175,8 +197,33 @@ function ThemeCard(props: {
       >
         {props.label}
       </Text>
+      {props.detail ? (
+        <Text
+          className="-mt-2 px-1 text-sm text-foreground-muted"
+          numberOfLines={1}
+          pointerEvents="none"
+        >
+          {props.detail}
+        </Text>
+      ) : null}
     </View>
   );
+}
+
+function publishedPreviewColors(
+  theme: PublishedMobileTheme,
+): Partial<Record<MobileThemeAppearance, ThemePreviewColors>> {
+  const preview: Partial<Record<MobileThemeAppearance, ThemePreviewColors>> = {};
+  for (const appearance of ["light", "dark"] as const) {
+    const colors = theme.colors[appearance];
+    if (!colors) continue;
+    preview[appearance] = {
+      canvas: themeColorToNativeColor(colors.canvas),
+      accent: themeColorToNativeColor(colors.accent),
+      messageAction: themeColorToNativeColor(colors.messageAction),
+    };
+  }
+  return preview;
 }
 
 function PreviewPane(props: { readonly compact?: boolean }) {
@@ -292,8 +339,14 @@ export function ThemeAppearanceSection() {
     setThemeMode,
     themeIds,
     themeMode,
+    publishedThemes,
     systemColorsAvailable,
   } = useAppearancePreferences();
+  const selectBoth = (theme: PublishedMobileTheme) => {
+    // Pairing a one-appearance theme sets only the appearance it describes.
+    if (theme.colors.light && theme.colors.dark) setThemeIdForBothAppearances(theme.id);
+    else setThemeIdForAppearance(theme.colors.dark ? "dark" : "light", theme.id);
+  };
 
   return (
     <View className="gap-6">
@@ -313,6 +366,28 @@ export function ThemeAppearanceSection() {
           ))}
         </View>
       </View>
+
+      {publishedThemes.length > 0 ? (
+        <View className="gap-3">
+          <SectionLabel>From your machines</SectionLabel>
+          <View className="flex-row flex-wrap gap-3">
+            {publishedThemes.map((theme) => (
+              <ThemeCard
+                disabled={!isReady}
+                key={theme.id}
+                label={theme.label}
+                detail={theme.environmentLabel}
+                darkSelected={theme.id === themeIds.dark}
+                lightSelected={theme.id === themeIds.light}
+                onSelect={(appearance) => setThemeIdForAppearance(appearance, theme.id)}
+                onSelectBoth={() => selectBoth(theme)}
+                previewColors={publishedPreviewColors(theme)}
+                themeId="t3-code"
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       <View className="gap-3">
         <SectionLabel>Themes</SectionLabel>
