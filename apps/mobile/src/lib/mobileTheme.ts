@@ -10,7 +10,7 @@ import {
   type ThemeAppearance,
   type ThemeColors,
 } from "@t3tools/shared/themePalettes";
-import { isPublishedMobileThemeId, type PublishedMobileThemeId } from "./publishedMobileThemes";
+import { isPublishedMobileThemeId, type PublishedMobileThemeId } from "./publishedMobileThemes.ts";
 import {
   STANDARD_THEME_PREVIEW_COLORS,
   type ThemePreviewColors,

@@ -90,31 +90,32 @@ describe("theme files", () => {
     }
   });
 
-  it("keeps stock dark controls in the neutral-black surface hierarchy", () => {
+  // Shturval fork: the stock palette is Bakelite (packages/shared/src/shturvalPalette.ts).
+  it("keeps stock dark controls in the bakelite surface hierarchy", () => {
     expectThemeColors(getStandardThemeColors("dark"), {
-      canvas: "#0a0a0a",
-      surface: "#111111",
-      surfaceRaised: "#111111",
-      surfaceOverlay: "#111111",
-      toolbarControl: "#111111",
-      secondary: "#111111",
-      muted: "#111111",
-      accentSurface: "#141414",
+      canvas: "#161310",
+      surface: "#1f1b18",
+      surfaceRaised: "#26211d",
+      surfaceOverlay: "#26211d",
+      toolbarControl: "#1f1b18",
+      secondary: "#1f1b18",
+      muted: "#1f1b18",
+      accentSurface: "#26211d",
     });
   });
 
   it("keeps the stock sidebar and chat on distinct surfaces in both appearances", () => {
     expectThemeColors(getStandardThemeColors("light"), {
-      canvas: "#fcfcfc",
-      sidebar: "#fafafa",
-      sidebarRowActive: "#ffffff",
-      messageSurface: "#f4f4f5",
+      canvas: "#e7e0d2",
+      sidebar: "#ddd5c6",
+      sidebarRowActive: "#cfc6b6",
+      messageSurface: "#ddd5c6",
     });
     expectThemeColors(getStandardThemeColors("dark"), {
-      canvas: "#0a0a0a",
-      sidebar: "#000000",
-      sidebarRowActive: "#1a1b1b",
-      messageSurface: "#141414",
+      canvas: "#161310",
+      sidebar: "#0c0a08",
+      sidebarRowActive: "#26211d",
+      messageSurface: "#221e1a",
     });
   });
 
