@@ -1,25 +1,56 @@
+import type { ExpoConfig } from "expo/config";
+import * as NodeModule from "node:module";
+
+// Loaded like the repo's other config plugins: the package has no ESM entry.
+const { AndroidConfig, withStringsXml } = NodeModule.createRequire(import.meta.url)(
+  "expo/config-plugins",
+) as typeof import("expo/config-plugins");
+
 // Shturval fork: the app's name and artwork. app.config.ts passes each build
-// variant through applyShturvalBrand, so upstream's VARIANT_CONFIG stays as is
-// and bundle ids, schemes and relying parties keep T3 Code's values.
+// variant through applyShturvalBrand and the finished config through
+// withShturvalDisplayName, so upstream's VARIANT_CONFIG stays as is and bundle
+// ids, schemes and relying parties keep T3 Code's values.
 
 const ASSETS = "./shturval/assets";
 
 export const SHTURVAL_APP_NAME = "Штурвал";
 
-const APP_NAMES = {
+const DISPLAY_NAMES = {
   development: `${SHTURVAL_APP_NAME} Dev`,
   preview: `${SHTURVAL_APP_NAME} Preview`,
   production: SHTURVAL_APP_NAME,
 } as const;
 
-type Variant = keyof typeof APP_NAMES;
+type Variant = keyof typeof DISPLAY_NAMES;
+
+/**
+ * Sets the name under the icon. Expo derives the native project name from
+ * `name`, which must stay ASCII (and T3 Code's, for the build scripts), so the
+ * Cyrillic name goes into the display name only.
+ */
+export function withShturvalDisplayName(config: ExpoConfig, variantName: Variant): ExpoConfig {
+  const displayName = DISPLAY_NAMES[variantName];
+  const withIosName: ExpoConfig = {
+    ...config,
+    ios: {
+      ...config.ios,
+      infoPlist: { ...config.ios?.infoPlist, CFBundleDisplayName: displayName },
+    },
+  };
+  return withStringsXml(withIosName, (stringsConfig) => {
+    stringsConfig.modResults = AndroidConfig.Strings.setStringItem(
+      [{ $: { name: "app_name" }, _: displayName }],
+      stringsConfig.modResults,
+    );
+    return stringsConfig;
+  });
+}
 
 export function applyShturvalBrand<
-  T extends { readonly appName: string; readonly assets: Readonly<Record<string, unknown>> },
->(variantName: Variant, variant: T): T {
+  T extends { readonly assets: Readonly<Record<string, unknown>> },
+>(variant: T): T {
   return {
     ...variant,
-    appName: APP_NAMES[variantName],
     assets: {
       ...variant.assets,
       appIcon: `${ASSETS}/ios-1024.png`,

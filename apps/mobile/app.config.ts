@@ -2,7 +2,11 @@ import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
-import { applyShturvalBrand, shturvalFontPlugin } from "./shturval/brand.ts";
+import {
+  applyShturvalBrand,
+  shturvalFontPlugin,
+  withShturvalDisplayName,
+} from "./shturval/brand.ts";
 
 type AppVariant = "development" | "preview" | "production";
 
@@ -110,7 +114,7 @@ function resolveAppVariant(value: string | undefined): AppVariant {
   }
 }
 
-const variant = applyShturvalBrand(APP_VARIANT, VARIANT_CONFIG[APP_VARIANT]);
+const variant = applyShturvalBrand(VARIANT_CONFIG[APP_VARIANT]);
 const iosBundleIdentifier = isIosPersonalTeamBuild
   ? personalTeamBundleIdentifier!
   : variant.iosBundleIdentifier;
@@ -433,4 +437,4 @@ const config: ExpoConfig = {
   owner: "pingdotgg",
 };
 
-export default config;
+export default withShturvalDisplayName(config, APP_VARIANT);
