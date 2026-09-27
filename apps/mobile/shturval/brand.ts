@@ -8,7 +8,7 @@ const { AndroidConfig, withStringsXml } = NodeModule.createRequire(import.meta.u
 
 // Shturval fork: the app's name and artwork. app.config.ts passes each build
 // variant through applyShturvalBrand and the finished config through
-// withShturvalDisplayName, so upstream's VARIANT_CONFIG stays as is and bundle
+// withShturvalConfig, so upstream's VARIANT_CONFIG stays as is and bundle
 // ids, schemes and relying parties keep T3 Code's values.
 
 const ASSETS = "./shturval/assets";
@@ -25,15 +25,30 @@ const DISPLAY_NAMES = {
 
 type Variant = keyof typeof DISPLAY_NAMES;
 
+// The splash sits on Bakelite: ivory in light, bakelite in dark.
+function withBakeliteSplash(plugin: NonNullable<ExpoConfig["plugins"]>[number]) {
+  if (!Array.isArray(plugin) || plugin[0] !== "expo-splash-screen") return plugin;
+  const options = plugin[1] as { dark?: object };
+  return [
+    plugin[0],
+    {
+      ...options,
+      backgroundColor: "#E7E0D2",
+      dark: { ...options.dark, backgroundColor: "#161310" },
+    },
+  ] as typeof plugin;
+}
+
 /**
- * Sets the name under the icon. Expo derives the native project name from
+ * Sets the name under the icon and the splash colors. Expo derives the native project name from
  * `name`, which must stay ASCII (and T3 Code's, for the build scripts), so the
  * Cyrillic name goes into the display name only.
  */
-export function withShturvalDisplayName(config: ExpoConfig, variantName: Variant): ExpoConfig {
+export function withShturvalConfig(config: ExpoConfig, variantName: Variant): ExpoConfig {
   const displayName = DISPLAY_NAMES[variantName];
   const withIosName: ExpoConfig = {
     ...config,
+    plugins: config.plugins?.map(withBakeliteSplash),
     ios: {
       ...config.ios,
       infoPlist: { ...config.ios?.infoPlist, CFBundleDisplayName: displayName },
@@ -57,7 +72,7 @@ export function applyShturvalBrand<
       ...variant.assets,
       appIcon: `${ASSETS}/ios-1024.png`,
       iosIcon: `${ASSETS}/ios-1024.png`,
-      splashIcon: `${ASSETS}/ios-1024.png`,
+      splashIcon: `${ASSETS}/splash.png`,
       androidAdaptiveForeground: `${ASSETS}/android-foreground.png`,
       androidAdaptiveBackgroundColor: "#B8321F",
       androidAdaptiveBackgroundImage: undefined,

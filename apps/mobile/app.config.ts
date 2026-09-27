@@ -2,11 +2,7 @@ import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
-import {
-  applyShturvalBrand,
-  shturvalFontPlugin,
-  withShturvalDisplayName,
-} from "./shturval/brand.ts";
+import { applyShturvalBrand, shturvalFontPlugin, withShturvalConfig } from "./shturval/brand.ts";
 
 type AppVariant = "development" | "preview" | "production";
 
@@ -437,4 +433,4 @@ const config: ExpoConfig = {
   owner: "pingdotgg",
 };
 
-export default withShturvalDisplayName(config, APP_VARIANT);
+export default withShturvalConfig(config, APP_VARIANT);
