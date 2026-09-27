@@ -2,7 +2,7 @@
 
 // Shturval fork: swaps selected upstream modules for the fork's versions at
 // bundle time, so upstream files stay untouched. Keys are upstream paths
-// relative to apps/mobile/src; values live in apps/mobile/shturval/components.
+// relative to apps/mobile/src; values live in apps/mobile/shturval/overrides.
 // A replacement must keep the upstream module's exports.
 
 const path = require("node:path");
@@ -13,10 +13,8 @@ const OVERRIDES = new Map(
     "components/CompactBrandTitle.tsx": "CompactBrandTitle.tsx",
     "components/BrandMark.tsx": "BrandMark.tsx",
     "components/T3Wordmark.tsx": "T3Wordmark.tsx",
-  }).map(([upstream, fork]) => [
-    path.join(SRC, upstream),
-    path.join(__dirname, "components", fork),
-  ]),
+    "lib/useFontFamily.ts": "useFontFamily.ts",
+  }).map(([upstream, fork]) => [path.join(SRC, upstream), path.join(__dirname, "overrides", fork)]),
 );
 
 module.exports = function withShturvalOverrides(config) {

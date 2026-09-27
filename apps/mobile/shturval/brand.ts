@@ -35,3 +35,28 @@ export function applyShturvalBrand<
     },
   } as T;
 }
+
+// Shturval fork: IBM Plex Sans for the interface, Plex Mono for code, Unbounded
+// for the name. Files are SIL OFL 1.1 (shturval/fonts/LICENSE.md). Family names
+// are the fonts' PostScript names; global.css refers to the same names.
+const FONTS = "./shturval/fonts";
+const SHTURVAL_FONT_FAMILIES = [
+  ["IBMPlexSans-Regular", 400],
+  ["IBMPlexSans-Medium", 500],
+  ["IBMPlexSans-SemiBold", 600],
+  ["IBMPlexMono-Regular", 400],
+  ["Unbounded-SemiBold", 600],
+] as const;
+
+export const shturvalFontPlugin: [string, unknown] = [
+  "expo-font",
+  {
+    ios: { fonts: SHTURVAL_FONT_FAMILIES.map(([family]) => `${FONTS}/${family}.ttf`) },
+    android: {
+      fonts: SHTURVAL_FONT_FAMILIES.map(([family, weight]) => ({
+        fontFamily: family,
+        fontDefinitions: [{ path: `${FONTS}/${family}.ttf`, weight }],
+      })),
+    },
+  },
+];

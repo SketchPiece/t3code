@@ -20,7 +20,7 @@ export function BrandMark(props: { readonly compact?: boolean; readonly stageLab
       <HelmMark size={compact ? 34 : 44} />
       <View className="gap-1">
         <View className="flex-row items-center gap-2">
-          <Text className="font-t3-bold text-xl text-foreground">{SHTURVAL_APP_NAME}</Text>
+          <Text className="font-brand text-xl text-foreground">{SHTURVAL_APP_NAME}</Text>
           {stageLabel ? (
             <View className="rounded-full bg-subtle px-2 py-1">
               <Text className="text-3xs font-t3-bold tracking-[1.1px] uppercase text-foreground-muted">

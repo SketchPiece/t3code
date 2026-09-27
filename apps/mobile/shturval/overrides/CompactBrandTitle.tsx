@@ -37,7 +37,7 @@ export function CompactBrandTitle(
     >
       <Text
         allowFontScaling={props.allowFontScaling}
-        className="font-t3-bold text-foreground"
+        className="font-brand text-foreground"
         style={{ fontSize: 19 * scale, letterSpacing: 0.2 * scale }}
       >
         {SHTURVAL_APP_NAME}

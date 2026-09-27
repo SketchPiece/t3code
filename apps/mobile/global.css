@@ -6,7 +6,7 @@
 @layer theme {
   :root {
     @variant android {
-      --font-mono: "monospace";
+      --font-mono: "IBMPlexMono-Regular";
     }
   }
 }
@@ -14,9 +14,12 @@
 /* ─── Typography ────────────────────────────────────────────────────── */
 @theme {
   /* Keep these native family names aligned with app.config.ts. */
-  --font-sans: "DMSans-Regular";
-  --font-medium: "DMSans-Medium";
-  --font-bold: "DMSans-Bold";
+  /* Shturval fork: IBM Plex and Unbounded (apps/mobile/shturval/brand.ts). */
+  --font-sans: "IBMPlexSans-Regular";
+  --font-medium: "IBMPlexSans-Medium";
+  --font-bold: "IBMPlexSans-SemiBold";
+  --font-mono: "IBMPlexMono-Regular";
+  --font-brand: "Unbounded-SemiBold";
 
   /* Keep this scale aligned with src/lib/typography.ts for native style props. */
   --text-3xs: 11px;
@@ -46,6 +49,10 @@
 
 @utility font-t3-bold {
   font-family: var(--font-bold);
+}
+
+@utility font-brand {
+  font-family: var(--font-brand);
 }
 
 @utility font-t3-extrabold {
