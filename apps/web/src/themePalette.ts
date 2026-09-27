@@ -1532,11 +1532,18 @@ export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppe
     return;
   }
 
-  delete root.dataset.themeId;
-  for (const variable of Object.values(APP_THEME_VARIABLES)) {
-    root.style.removeProperty(variable);
+  // Shturval fork: the stock look is the Bakelite palette
+  // (packages/shared/src/shturvalPalette.ts), painted through the same theme
+  // variables as any palette so index.css keeps T3 Code's own defaults.
+  root.dataset.themeId = SHTURVAL_STOCK_THEME_ID;
+  const stockColors = getStandardThemeColors(appearance ?? "light");
+  for (const [role, value] of Object.entries(stockColors) as Array<[ThemeColorRole, string]>) {
+    root.style.setProperty(APP_THEME_VARIABLES[role], value);
   }
 }
+
+/** Shturval fork: data-theme-id worn by the stock Bakelite palette. */
+export const SHTURVAL_STOCK_THEME_ID = "shturval";
 
 export function resolveThemeAppearance(
   theme: ThemePreference,
