@@ -177,6 +177,10 @@ const DISPLAY_KEYS = new Set([
   "unit",
 ]);
 
+// Modules that only produce copy (checked by hand): every literal in them that
+// passes the position rules is text, including ones pushed into arrays.
+const DISPLAY_FILES = new Set(["packages/shared/src/orchestrationTiming.ts"]);
+
 // .ts modules whose returned strings are presentation copy.
 const PRESENTATION_MODULE =
   /(presentation|labels?|copy|format|display|messages?|strings?)[^/\\]*\.ts$/i;
@@ -207,6 +211,11 @@ function isInterfaceTextPath(p, filename = p.hub?.file?.opts?.filename ?? "") {
   const parent = p.parentPath;
   if (!parent) return false;
   if (!isOutsideErrors(p)) return false;
+  if (DISPLAY_FILES.has(path.relative(WORKSPACE, filename))) {
+    return !["BinaryExpression", "SwitchCase", "TSLiteralType", "ImportDeclaration"].includes(
+      parent.node.type,
+    );
+  }
   if (!isAllowedPosition(p, parent)) return false;
   return isDisplayContext(p, filename);
 }
