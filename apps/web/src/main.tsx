@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { createHashHistory, createBrowserHistory } from "@tanstack/react-router";
 
 import "./index.css";
+// Shturval fork: Helm type and touches (shturval/shturval.css).
+import "./shturval/shturval.css";
 
 import { isElectron } from "./env";
 import { hasCloudPublicConfig } from "./cloud/publicConfig";
