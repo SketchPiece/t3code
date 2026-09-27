@@ -18,7 +18,18 @@ const OVERRIDES = new Map(
   }).map(([upstream, fork]) => [path.join(SRC, upstream), path.join(__dirname, "overrides", fork)]),
 );
 
+// Metro caches transforms by source, so a dictionary edit would not reach
+// files that did not change; the cache version follows the translation inputs.
+function translationCacheKey() {
+  const hash = require("node:crypto").createHash("sha1");
+  for (const file of ["ru.json", "rules.cjs", "babel-plugin.cjs"]) {
+    hash.update(require("node:fs").readFileSync(path.join(__dirname, "i18n", file)));
+  }
+  return hash.digest("hex").slice(0, 12);
+}
+
 module.exports = function withShturvalOverrides(config) {
+  config.cacheVersion = `${config.cacheVersion ?? ""}shturval-${translationCacheKey()}`;
   const previous = config.resolver?.resolveRequest;
   config.resolver = {
     ...config.resolver,
