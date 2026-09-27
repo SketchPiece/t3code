@@ -1,0 +1,101 @@
+import type { EnvironmentId } from "@t3tools/contracts";
+
+// Shturval fork: replaces src/features/home/home-list-filter-menu.ts (see
+// ../metro.cjs). On iPhone the project chips already scope the list, so the
+// bottom-left button becomes the environment switcher: every environment, then
+// a way into environment settings. Callers that pass no onOpenEnvironments
+// (the iPad sidebar, which has no chips) keep upstream's project submenu.
+
+export interface HomeListFilterMenuEnvironment {
+  readonly environmentId: EnvironmentId;
+  readonly label: string;
+}
+
+export interface HomeListFilterMenuProject {
+  readonly key: string;
+  readonly label: string;
+}
+
+type HomeListFilterMenuAction = {
+  readonly type: "action";
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly state?: "on" | "off";
+  readonly onPress: () => void;
+};
+
+type HomeListFilterMenuSubmenu = {
+  readonly type: "submenu";
+  readonly title: string;
+  readonly items: HomeListFilterMenuAction[];
+};
+
+export interface HomeListFilterMenu {
+  readonly title: string;
+  readonly items: Array<HomeListFilterMenuAction | HomeListFilterMenuSubmenu>;
+}
+
+export function buildHomeListFilterMenu(props: {
+  readonly environments: ReadonlyArray<HomeListFilterMenuEnvironment>;
+  readonly projects: ReadonlyArray<HomeListFilterMenuProject>;
+  readonly selectedEnvironmentId: EnvironmentId | null;
+  readonly selectedProjectKey: string | null;
+  readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
+  readonly onProjectChange: (projectKey: string | null) => void;
+  readonly onOpenEnvironments?: () => void;
+}): HomeListFilterMenu {
+  const environmentItems: HomeListFilterMenuAction[] = [
+    {
+      type: "action",
+      title: "Все окружения",
+      subtitle: "Треды со всех машин",
+      state: props.selectedEnvironmentId === null ? "on" : "off",
+      onPress: () => props.onEnvironmentChange(null),
+    },
+    ...props.environments.map((environment) => ({
+      type: "action" as const,
+      title: environment.label,
+      state:
+        props.selectedEnvironmentId === environment.environmentId
+          ? ("on" as const)
+          : ("off" as const),
+      onPress: () => props.onEnvironmentChange(environment.environmentId),
+    })),
+  ];
+
+  if (props.onOpenEnvironments) {
+    return {
+      title: "Окружения",
+      items: [
+        ...environmentItems,
+        { type: "action", title: "Настроить окружения…", onPress: props.onOpenEnvironments },
+      ],
+    };
+  }
+
+  const items: Array<HomeListFilterMenuAction | HomeListFilterMenuSubmenu> = [
+    { type: "submenu", title: "Окружение", items: environmentItems },
+  ];
+  if (props.projects.length > 0) {
+    items.push({
+      type: "submenu",
+      title: "Проект",
+      items: [
+        {
+          type: "action",
+          title: "Все проекты",
+          subtitle: "Треды из всех проектов",
+          state: props.selectedProjectKey === null ? "on" : "off",
+          onPress: () => props.onProjectChange(null),
+        },
+        ...props.projects.map((project) => ({
+          type: "action" as const,
+          title: project.label,
+          state: props.selectedProjectKey === project.key ? ("on" as const) : ("off" as const),
+          onPress: () => props.onProjectChange(project.key),
+        })),
+      ],
+    });
+  }
+  return { title: "Настройки списка", items };
+}
