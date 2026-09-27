@@ -2,6 +2,7 @@ import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
+import { applyShturvalBrand } from "./shturval/brand.ts";
 
 type AppVariant = "development" | "preview" | "production";
 
@@ -109,7 +110,7 @@ function resolveAppVariant(value: string | undefined): AppVariant {
   }
 }
 
-const variant = VARIANT_CONFIG[APP_VARIANT];
+const variant = applyShturvalBrand(APP_VARIANT, VARIANT_CONFIG[APP_VARIANT]);
 const iosBundleIdentifier = isIosPersonalTeamBuild
   ? personalTeamBundleIdentifier!
   : variant.iosBundleIdentifier;

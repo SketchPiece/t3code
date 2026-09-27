@@ -59,6 +59,9 @@ config.resolver = {
   },
 };
 
+// Shturval fork: module overrides (apps/mobile/shturval/metro.cjs).
+require("./shturval/metro.cjs")(config);
+
 async function writeFileIfChanged(filePath, contents) {
   try {
     if ((await fs.promises.readFile(filePath, "utf8")) === contents) return;
