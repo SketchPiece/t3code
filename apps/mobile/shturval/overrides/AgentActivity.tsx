@@ -1,5 +1,4 @@
 import { HStack, Image, Spacer, Text, VStack, ZStack } from "@expo/ui/swift-ui";
-import type { ComponentProps } from "react";
 import {
   activityBackgroundTint,
   background,
@@ -135,12 +134,6 @@ export function AgentActivity(
       ? `t3code://${deepLinkRow.deepLink.slice(1)}`
       : null;
 
-  type SFName = NonNullable<ComponentProps<typeof Image>["systemName"]>;
-  const glyph = (name: SFName, size: number, color: Foreground) => (
-    <HStack modifiers={[frame({ width: size, height: size }), foregroundStyle(color)]}>
-      <Image systemName={name} modifiers={[resizable()]} />
-    </HStack>
-  );
   const lamp = (phase: AgentActivityPhase, size = 7) => (
     <HStack
       modifiers={[
