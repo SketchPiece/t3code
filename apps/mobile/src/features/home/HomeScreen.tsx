@@ -49,7 +49,6 @@ import {
   ThreadListV2ShowMoreRow,
   ThreadListV2SnoozedShelfHeader,
 } from "../threads/thread-list-v2-items";
-import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider-instance";
 import {
   buildThreadListV2Items,
   getThreadListV2OrderedSection,
@@ -66,6 +65,7 @@ import {
   sortHomeProjectScopes,
   type HomeProjectSortOrder,
 } from "./homeThreadList";
+import { HomeProjectChips } from "./HomeProjectChips";
 import { createSwipeRowActivation } from "./swipe-row-activation";
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "./thread-swipe-actions";
 import { useMaterialFabScroll } from "./MaterialFabScrollContext";
@@ -397,6 +397,29 @@ export function HomeScreen(props: HomeScreenProps) {
           ),
     [v2ScopedProjectGroup],
   );
+  // Chip counts cover live work only: settled history would drown the signal.
+  const v2ActiveCounts = useMemo(() => {
+    const scopeKeyByProjectKey = new Map(
+      v2ScopeProjects.flatMap((scope) =>
+        scope.projectRefs.map(
+          (projectRef) =>
+            [scopedProjectKey(projectRef.environmentId, projectRef.projectId), scope.key] as const,
+        ),
+      ),
+    );
+    const byScopeKey = new Map<string, number>();
+    let total = 0;
+    for (const thread of props.threads) {
+      if (thread.archivedAt !== null || thread.settledOverride === "settled") continue;
+      const scopeKey = scopeKeyByProjectKey.get(
+        scopedProjectKey(thread.environmentId, thread.projectId),
+      );
+      if (scopeKey === undefined) continue;
+      byScopeKey.set(scopeKey, (byScopeKey.get(scopeKey) ?? 0) + 1);
+      total += 1;
+    }
+    return { byScopeKey, total };
+  }, [props.threads, v2ScopeProjects]);
   // Thread List v2 (beta): one flat list in creation order, no grouping.
   // Settled threads collapse into a recency tail below the card block.
   // Settled threads stay in the live shell stream (settled ≠ archived), so
@@ -563,9 +586,6 @@ export function HomeScreen(props: HomeScreenProps) {
       ),
     [serverConfigs],
   );
-  // Reference-stable provider glyphs: a fresh object per render would break
-  // the memoized rows' props comparison on every parent render.
-  const resolveProviderInstance = useThreadRowProviderInstanceResolver(serverConfigs);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
   // Up/down menu availability for every card, computed once per section per
   // rebuild (see computeThreadMoveAvailability): per-thread planner calls made
@@ -775,7 +795,6 @@ export function HomeScreen(props: HomeScreenProps) {
           projectTitle={v2ProjectTitleByProjectKey.get(
             scopedProjectKey(thread.environmentId, thread.projectId),
           )}
-          providerInstance={resolveProviderInstance(thread)}
           environmentLabel={
             Object.keys(props.savedConnectionsById).length > 1
               ? (props.savedConnectionsById[thread.environmentId]?.environmentLabel ?? null)
@@ -846,7 +865,6 @@ export function HomeScreen(props: HomeScreenProps) {
       props.onSelectThread,
       props.onNewThreadOnBranch,
       props.savedConnectionsById,
-      resolveProviderInstance,
       settlementEnvironmentIds,
       snoozeEnvironmentIds,
       threadSearchMatchByKey,
@@ -945,11 +963,19 @@ export function HomeScreen(props: HomeScreenProps) {
     );
   }
 
-  const listHeader = Platform.OS === "ios" ? null : <HomeTopContentSpacer />;
-
-  // Project scoping lives in the header filter menu (no inline chip row on
-  // mobile — the menu is the one filter surface).
-  const v2ListHeader = listHeader;
+  const v2ListHeader = (
+    <>
+      {Platform.OS === "ios" ? null : <HomeTopContentSpacer />}
+      <HomeProjectChips
+        scopes={v2ScopeProjects}
+        activeCountByScopeKey={v2ActiveCounts.byScopeKey}
+        totalActiveCount={v2ActiveCounts.total}
+        selectedScope={v2ScopedProjectGroup}
+        onProjectChange={props.onProjectChange}
+        onNewThreadInProject={(scope) => props.onNewThreadInProject(scope.representative)}
+      />
+    </>
+  );
 
   // Use the v2 project scope for its empty state. Snoozed threads need no
   // special empty state: their shelf header is a list row even while collapsed.
