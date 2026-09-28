@@ -32,6 +32,7 @@ import * as DesktopRemoteUpdates from "../updates/DesktopRemoteUpdates.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
+import { importT3CodeData } from "../helm/importT3CodeData.ts";
 
 const DEFAULT_DESKTOP_BACKEND_PORT = 3773;
 const MAX_TCP_PORT = 65_535;
@@ -294,6 +295,12 @@ const startup = Effect.gen(function* () {
   }
   const userDataPath = yield* appIdentity.resolveUserDataPath;
   yield* electronApp.setPath("userData", userDataPath);
+  // Helm fork: the first launch copies threads over from T3 Code (helm/importT3CodeData.ts).
+  const t3CodeImport = yield* importT3CodeData({
+    stateDir: environment.stateDir,
+    t3CodeStateDir: environment.path.join(environment.homeDirectory, ".t3", "userdata"),
+  });
+  yield* logStartupInfo("t3 code import", t3CodeImport);
   yield* logStartupInfo("runtime logging configured", { logDir: environment.logDir });
   yield* desktopSettings.load;
 
