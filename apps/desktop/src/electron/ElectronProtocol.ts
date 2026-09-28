@@ -11,10 +11,12 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
 import * as Electron from "electron";
+import { HELM_DESKTOP_IDENTITY } from "../helm/identity.ts";
 
 export const DESKTOP_HOST = "app";
-const DESKTOP_PRODUCTION_SCHEME = "t3code";
-const DESKTOP_DEVELOPMENT_SCHEME = "t3code-dev";
+// Helm fork: own URL schemes (helm/identity.ts).
+const DESKTOP_PRODUCTION_SCHEME = HELM_DESKTOP_IDENTITY.scheme;
+const DESKTOP_DEVELOPMENT_SCHEME = HELM_DESKTOP_IDENTITY.developmentScheme;
 
 export function getDesktopScheme(isDevelopment: boolean): string {
   return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;

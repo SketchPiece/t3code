@@ -52,9 +52,11 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { Command, Flag } from "effect/unstable/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { HELM_DESKTOP_IDENTITY } from "../apps/desktop/src/helm/identity.ts";
 
 const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
-const DESKTOP_APP_ID = "com.t3tools.t3code";
+// Helm fork: own app id, name and schemes (apps/desktop/src/helm/identity.ts).
+const DESKTOP_APP_ID = HELM_DESKTOP_IDENTITY.appId;
 const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
 
 const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
@@ -2615,8 +2617,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
 
 export function resolveDesktopProductName(version: string): string {
   return resolveDesktopUpdateChannel(version) === "nightly"
-    ? "T3 Code (Nightly)"
-    : (desktopPackageJson.productName ?? "T3 Code");
+    ? `${HELM_DESKTOP_IDENTITY.productName} (Nightly)`
+    : (desktopPackageJson.productName ?? HELM_DESKTOP_IDENTITY.productName);
 }
 
 export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
@@ -2641,7 +2643,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
-    artifactName: "T3-Code-${version}-${arch}.${ext}",
+    artifactName: `${HELM_DESKTOP_IDENTITY.artifactBaseName}-\${version}-\${arch}.\${ext}`,
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
       ...DESKTOP_FILE_EXCLUSIONS,
@@ -2696,8 +2698,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       },
       protocols: [
         {
-          name: "T3 Code",
-          schemes: ["t3code", "t3code-dev"],
+          name: HELM_DESKTOP_IDENTITY.productName,
+          schemes: [HELM_DESKTOP_IDENTITY.scheme, HELM_DESKTOP_IDENTITY.developmentScheme],
         },
       ],
       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
@@ -2750,8 +2752,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       // t3code:// OAuth callbacks to the app.
       protocols: [
         {
-          name: "T3 Code",
-          schemes: ["t3code", "t3code-dev"],
+          name: HELM_DESKTOP_IDENTITY.productName,
+          schemes: [HELM_DESKTOP_IDENTITY.scheme, HELM_DESKTOP_IDENTITY.developmentScheme],
         },
       ],
       desktop: {

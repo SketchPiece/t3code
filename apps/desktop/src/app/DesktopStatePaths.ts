@@ -1,4 +1,5 @@
 import * as Option from "effect/Option";
+import { HELM_DESKTOP_IDENTITY } from "../helm/identity.ts";
 
 export type JoinPath = (first: string, ...segments: string[]) => string;
 
@@ -16,7 +17,8 @@ export function resolveDesktopBaseDir(input: {
   readonly t3Home: Option.Option<string>;
 }): string {
   return Option.getOrElse(normalizeConfiguredBaseDir(input.t3Home), () =>
-    input.joinPath(input.homeDirectory, ".t3"),
+    // Helm fork: the server lives in ~/.helm, next to T3 Code's ~/.t3.
+    input.joinPath(input.homeDirectory, HELM_DESKTOP_IDENTITY.homeDirName),
   );
 }
 
