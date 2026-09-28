@@ -1,4 +1,4 @@
-// Shturval fork: replaces src/lib/useFontFamily.ts (see ../metro.cjs) with the
+// Helm fork: replaces src/lib/useFontFamily.ts (see ../metro.cjs) with the
 // IBM Plex families registered in ../brand.ts.
 const FONT_FAMILIES = {
   regular: "IBMPlexSans-Regular",

@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 
-// Shturval fork: replaces src/features/home/home-list-filter-menu.ts (see
+// Helm fork: replaces src/features/home/home-list-filter-menu.ts (see
 // ../metro.cjs). On iPhone the project chips already scope the list, so the
 // bottom-left button becomes the environment switcher: every environment, then
 // a way into environment settings. Callers that pass no onOpenEnvironments

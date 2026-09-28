@@ -1,4 +1,4 @@
-/* Shturval fork: Helm's type and small touches on top of T3 Code's styles.
+/* Helm fork: Helm's type and small touches on top of T3 Code's styles.
    Imported after index.css (main.tsx). Unlayered rules here outrank Tailwind's
    theme layer; a font chosen in Settings -> Appearance still wins (inline). */
 

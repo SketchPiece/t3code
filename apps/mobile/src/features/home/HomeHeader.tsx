@@ -56,7 +56,7 @@ export function HomeHeader(props: HomeHeaderProps) {
                     composeSystemImageName: "square.and.pencil",
                     filterMenu,
                     filterButtonId: "home-filter",
-                    // Shturval fork: the button switches environments (shturval/overrides).
+                    // Helm fork: the button switches environments (helm/overrides).
                     filterSystemImageName: "desktopcomputer",
                     onComposePress: props.onStartNewTask,
                     onSearchTextChange: props.onSearchQueryChange,

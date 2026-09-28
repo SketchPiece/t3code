@@ -62,9 +62,9 @@ describe("Russian interface text", () => {
       "{0} file{1} changed": "{0} {0|файл изменён|файла изменено|файлов изменено}",
     });
     expect(out).toContain(
-      '__shturvalRuPlural(count, "файл изменён", "файла изменено", "файлов изменено")',
+      '__helmRuPlural(count, "файл изменён", "файла изменено", "файлов изменено")',
     );
-    expect(out).toMatch(/import \{ ruPlural as __shturvalRuPlural \} from ".*plural\.ts"/);
+    expect(out).toMatch(/import \{ ruPlural as __helmRuPlural \} from ".*plural\.ts"/);
     expect(out).not.toContain("changed");
   });
 

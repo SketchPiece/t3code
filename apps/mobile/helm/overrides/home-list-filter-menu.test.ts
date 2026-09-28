@@ -13,7 +13,7 @@ const base = {
   onProjectChange: vi.fn(),
 };
 
-describe("buildHomeListFilterMenu (Shturval)", () => {
+describe("buildHomeListFilterMenu (Helm)", () => {
   it("switches environments and opens their settings when the chips own projects", () => {
     const onEnvironmentChange = vi.fn();
     const onOpenEnvironments = vi.fn();

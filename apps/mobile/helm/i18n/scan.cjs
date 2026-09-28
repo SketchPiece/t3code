@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 "use strict";
 
-// Shturval fork: lists interface strings that ru.json does not translate yet.
-// Run after merging upstream: node apps/mobile/shturval/i18n/scan.cjs [--all]
+// Helm fork: lists interface strings that ru.json does not translate yet.
+// Run after merging upstream: node apps/mobile/helm/i18n/scan.cjs [--all]
 // Prints JSON of { "English key": "first/file.tsx" } for untranslated strings
 // (--all includes translated ones too).
 
@@ -21,7 +21,7 @@ const MOBILE = path.resolve(__dirname, "../..");
 const WORKSPACE = path.resolve(MOBILE, "../..");
 const ROOTS = [
   path.join(MOBILE, "src"),
-  path.join(MOBILE, "shturval", "overrides"),
+  path.join(MOBILE, "helm", "overrides"),
   path.join(WORKSPACE, "packages", "client-runtime", "src"),
 ];
 const dictionary = JSON.parse(fs.readFileSync(path.join(__dirname, "ru.json"), "utf8"));

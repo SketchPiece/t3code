@@ -1,8 +1,8 @@
 "use strict";
 
-// Shturval fork: swaps selected upstream modules for the fork's versions at
+// Helm fork: swaps selected upstream modules for the fork's versions at
 // bundle time, so upstream files stay untouched. Keys are upstream paths
-// relative to apps/mobile/src; values live in apps/mobile/shturval/overrides.
+// relative to apps/mobile/src; values live in apps/mobile/helm/overrides.
 // A replacement must keep the upstream module's exports.
 
 const path = require("node:path");
@@ -30,8 +30,8 @@ function translationCacheKey() {
   return hash.digest("hex").slice(0, 12);
 }
 
-module.exports = function withShturvalOverrides(config) {
-  config.cacheVersion = `${config.cacheVersion ?? ""}shturval-${translationCacheKey()}`;
+module.exports = function withHelmOverrides(config) {
+  config.cacheVersion = `${config.cacheVersion ?? ""}helm-${translationCacheKey()}`;
   const previous = config.resolver?.resolveRequest;
   config.resolver = {
     ...config.resolver,

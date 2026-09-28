@@ -2,7 +2,7 @@ import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
-import { applyShturvalBrand, shturvalFontPlugin, withShturvalConfig } from "./shturval/brand.ts";
+import { applyHelmBrand, helmFontPlugin, withHelmConfig } from "./helm/brand.ts";
 
 type AppVariant = "development" | "preview" | "production";
 
@@ -110,7 +110,7 @@ function resolveAppVariant(value: string | undefined): AppVariant {
   }
 }
 
-const variant = applyShturvalBrand(VARIANT_CONFIG[APP_VARIANT]);
+const variant = applyHelmBrand(VARIANT_CONFIG[APP_VARIANT]);
 const iosBundleIdentifier = isIosPersonalTeamBuild
   ? personalTeamBundleIdentifier!
   : variant.iosBundleIdentifier;
@@ -292,8 +292,8 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-asset",
-    // Shturval fork: fonts (shturval/brand.ts).
-    shturvalFontPlugin,
+    // Helm fork: fonts (helm/brand.ts).
+    helmFontPlugin,
     "expo-secure-store",
     "expo-sqlite",
     ...(isIosPersonalTeamBuild
@@ -433,4 +433,4 @@ const config: ExpoConfig = {
   owner: "pingdotgg",
 };
 
-export default withShturvalConfig(config, APP_VARIANT);
+export default withHelmConfig(config, APP_VARIANT);

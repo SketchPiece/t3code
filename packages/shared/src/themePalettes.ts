@@ -1,4 +1,4 @@
-import { SHTURVAL_DARK_THEME_COLORS, SHTURVAL_LIGHT_THEME_COLORS } from "./shturvalPalette.ts";
+import { HELM_DARK_THEME_COLORS, HELM_LIGHT_THEME_COLORS } from "./helmPalette.ts";
 
 export const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
 
@@ -250,10 +250,10 @@ export const UPSTREAM_T3_CODE_DARK_THEME_COLORS: ThemeColors = {
   terminalScrollbarHover: "#363636",
 };
 
-// Shturval fork: the stock palette is Bakelite (shturvalPalette.ts); T3 Code's
+// Helm fork: the stock palette is Bakelite (helmPalette.ts); T3 Code's
 // own values stay above as UPSTREAM_* so upstream edits merge without conflicts.
-export const T3_CODE_LIGHT_THEME_COLORS: ThemeColors = SHTURVAL_LIGHT_THEME_COLORS;
-export const T3_CODE_DARK_THEME_COLORS: ThemeColors = SHTURVAL_DARK_THEME_COLORS;
+export const T3_CODE_LIGHT_THEME_COLORS: ThemeColors = HELM_LIGHT_THEME_COLORS;
+export const T3_CODE_DARK_THEME_COLORS: ThemeColors = HELM_DARK_THEME_COLORS;
 
 export const T3_CHAT_THEME: ThemeDefinition = {
   id: "t3-chat",

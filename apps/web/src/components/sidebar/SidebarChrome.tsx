@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { useEnvironments } from "../../state/environments";
-import { HelmMark } from "../../shturval/HelmMark";
+import { HelmMark } from "../../helm/HelmMark";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -85,7 +85,7 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
       )}
       to="/"
     >
-      {/* Shturval fork: the helm's square screen and the Helm name. */}
+      {/* Helm fork: the helm's square screen and the Helm name. */}
       <span className="inline-flex min-w-0 items-center gap-1.5">
         <HelmMark aria-hidden className="size-[17px] shrink-0" />
         <span data-helm-wordmark className="truncate text-sm font-semibold">

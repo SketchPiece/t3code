@@ -5,9 +5,9 @@ import { Platform, View } from "react-native";
 import { AppText as Text } from "../../src/components/AppText";
 import { useAndroidControlSizing } from "../../src/components/useAndroidControlSizing";
 import { IPAD_HOME_TITLE_OFFSET } from "../../src/lib/layoutMetrics";
-import { SHTURVAL_APP_NAME } from "../name";
+import { HELM_APP_NAME } from "../name";
 
-// Shturval fork: replaces src/components/CompactBrandTitle.tsx (see ../metro.cjs).
+// Helm fork: replaces src/components/CompactBrandTitle.tsx (see ../metro.cjs).
 // The navigation bar shows the app's name; builds other than production keep a
 // stage pill so a dev build is never mistaken for the real one.
 
@@ -29,7 +29,7 @@ export function CompactBrandTitle(
   return (
     <View
       aria-level={1}
-      accessibilityLabel={`${SHTURVAL_APP_NAME}, треды`}
+      accessibilityLabel={`${HELM_APP_NAME}, треды`}
       accessible
       role="heading"
       className="flex-row items-center gap-1.5"
@@ -40,7 +40,7 @@ export function CompactBrandTitle(
         className="font-brand text-foreground"
         style={{ fontSize: 19 * scale, letterSpacing: 0.2 * scale }}
       >
-        {SHTURVAL_APP_NAME}
+        {HELM_APP_NAME}
       </Text>
       {stageLabel ? (
         <View className="rounded-full bg-subtle px-1.5 py-0.5">

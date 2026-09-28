@@ -6,21 +6,21 @@ const { AndroidConfig, withStringsXml } = NodeModule.createRequire(import.meta.u
   "expo/config-plugins",
 ) as typeof import("expo/config-plugins");
 
-// Shturval fork: the app's name and artwork. app.config.ts passes each build
-// variant through applyShturvalBrand and the finished config through
-// withShturvalConfig, so upstream's VARIANT_CONFIG stays as is and bundle
+// Helm fork: the app's name and artwork. app.config.ts passes each build
+// variant through applyHelmBrand and the finished config through
+// withHelmConfig, so upstream's VARIANT_CONFIG stays as is and bundle
 // ids, schemes and relying parties keep T3 Code's values.
 
-const ASSETS = "./shturval/assets";
+const ASSETS = "./helm/assets";
 
-import { SHTURVAL_APP_NAME } from "./name.ts";
+import { HELM_APP_NAME } from "./name.ts";
 
-export { SHTURVAL_APP_NAME };
+export { HELM_APP_NAME };
 
 const DISPLAY_NAMES = {
-  development: `${SHTURVAL_APP_NAME} Dev`,
-  preview: `${SHTURVAL_APP_NAME} Preview`,
-  production: SHTURVAL_APP_NAME,
+  development: `${HELM_APP_NAME} Dev`,
+  preview: `${HELM_APP_NAME} Preview`,
+  production: HELM_APP_NAME,
 } as const;
 
 type Variant = keyof typeof DISPLAY_NAMES;
@@ -44,7 +44,7 @@ function withBakeliteSplash(plugin: NonNullable<ExpoConfig["plugins"]>[number]) 
  * `name`, which must stay ASCII (and T3 Code's, for the build scripts), so the
  * Cyrillic name goes into the display name only.
  */
-export function withShturvalConfig(config: ExpoConfig, variantName: Variant): ExpoConfig {
+export function withHelmConfig(config: ExpoConfig, variantName: Variant): ExpoConfig {
   const displayName = DISPLAY_NAMES[variantName];
   const withIosName: ExpoConfig = {
     ...config,
@@ -63,9 +63,9 @@ export function withShturvalConfig(config: ExpoConfig, variantName: Variant): Ex
   });
 }
 
-export function applyShturvalBrand<
-  T extends { readonly assets: Readonly<Record<string, unknown>> },
->(variant: T): T {
+export function applyHelmBrand<T extends { readonly assets: Readonly<Record<string, unknown>> }>(
+  variant: T,
+): T {
   return {
     ...variant,
     assets: {
@@ -84,11 +84,11 @@ export function applyShturvalBrand<
   } as T;
 }
 
-// Shturval fork: IBM Plex Sans for the interface, Plex Mono for code, Unbounded
-// for the name. Files are SIL OFL 1.1 (shturval/fonts/LICENSE.md). Family names
+// Helm fork: IBM Plex Sans for the interface, Plex Mono for code, Unbounded
+// for the name. Files are SIL OFL 1.1 (helm/fonts/LICENSE.md). Family names
 // are the fonts' PostScript names; global.css refers to the same names.
-const FONTS = "./shturval/fonts";
-const SHTURVAL_FONT_FAMILIES = [
+const FONTS = "./helm/fonts";
+const HELM_FONT_FAMILIES = [
   ["IBMPlexSans-Regular", 400],
   ["IBMPlexSans-Medium", 500],
   ["IBMPlexSans-SemiBold", 600],
@@ -96,12 +96,12 @@ const SHTURVAL_FONT_FAMILIES = [
   ["Unbounded-SemiBold", 600],
 ] as const;
 
-export const shturvalFontPlugin: [string, unknown] = [
+export const helmFontPlugin: [string, unknown] = [
   "expo-font",
   {
-    ios: { fonts: SHTURVAL_FONT_FAMILIES.map(([family]) => `${FONTS}/${family}.ttf`) },
+    ios: { fonts: HELM_FONT_FAMILIES.map(([family]) => `${FONTS}/${family}.ttf`) },
     android: {
-      fonts: SHTURVAL_FONT_FAMILIES.map(([family, weight]) => ({
+      fonts: HELM_FONT_FAMILIES.map(([family, weight]) => ({
         fontFamily: family,
         fontDefinitions: [{ path: `${FONTS}/${family}.ttf`, weight }],
       })),

@@ -1,6 +1,6 @@
 "use strict";
 
-// Shturval fork: shows the mobile app in Russian without editing upstream
+// Helm fork: shows the mobile app in Russian without editing upstream
 // files. At bundle time, interface strings found in ru.json are swapped for
 // their translation; everything else stays English. rules.cjs decides which
 // literals are interface text.
@@ -27,7 +27,7 @@ function loadDictionary() {
   return require(DICTIONARY_PATH);
 }
 
-module.exports = function shturvalRussian({ types: t }, options = {}) {
+module.exports = function helmRussian({ types: t }, options = {}) {
   // Tests pass their own dictionary; builds read ru.json.
   const dictionary = options.dictionary ?? loadDictionary();
   // "$exclude": { "English key": ["path/from/repo/root.ts"] } keeps a key English
@@ -58,7 +58,7 @@ module.exports = function shturvalRussian({ types: t }, options = {}) {
       } else {
         state.needsPlural = true;
         parts.push(
-          t.callExpression(t.identifier("__shturvalRuPlural"), [
+          t.callExpression(t.identifier("__helmRuPlural"), [
             t.cloneNode(expression, true),
             t.stringLiteral(match[2]),
             t.stringLiteral(match[3]),
@@ -73,7 +73,7 @@ module.exports = function shturvalRussian({ types: t }, options = {}) {
   }
 
   return {
-    name: "shturval-russian",
+    name: "helm-russian",
     visitor: {
       Program: {
         enter(_path, state) {
@@ -89,7 +89,7 @@ module.exports = function shturvalRussian({ types: t }, options = {}) {
           programPath.unshiftContainer(
             "body",
             t.importDeclaration(
-              [t.importSpecifier(t.identifier("__shturvalRuPlural"), t.identifier("ruPlural"))],
+              [t.importSpecifier(t.identifier("__helmRuPlural"), t.identifier("ruPlural"))],
               t.stringLiteral(PLURAL_MODULE),
             ),
           );

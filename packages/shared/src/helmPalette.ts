@@ -1,11 +1,11 @@
 import type { ThemeColors } from "./themePalettes.ts";
 
-// Shturval fork: the "Bakelite" palette from Volna's design system (bakelite and
+// Helm fork: the "Bakelite" palette from Volna's design system (bakelite and
 // lamp). It replaces T3 Code's stock palette, so every client wears it with no
 // theme installed. Dark is flat bakelite with an amber lamp and one signal red;
 // light is the ivory casing.
 
-export const SHTURVAL_DARK_THEME_COLORS: ThemeColors = {
+export const HELM_DARK_THEME_COLORS: ThemeColors = {
   canvas: "#161310",
   chrome: "#161310",
   toolbar: "#161310",
@@ -65,7 +65,7 @@ export const SHTURVAL_DARK_THEME_COLORS: ThemeColors = {
   terminalScrollbarHover: "#3a332d",
 };
 
-export const SHTURVAL_LIGHT_THEME_COLORS: ThemeColors = {
+export const HELM_LIGHT_THEME_COLORS: ThemeColors = {
   canvas: "#e7e0d2",
   chrome: "#e7e0d2",
   toolbar: "#e7e0d2",

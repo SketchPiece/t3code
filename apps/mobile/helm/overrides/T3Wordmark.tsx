@@ -4,7 +4,7 @@ import { withUniwind } from "uniwind";
 
 import { HELM_SIGNAL_PATH } from "./HelmMark";
 
-// Shturval fork: replaces src/components/T3Wordmark.tsx (see ../metro.cjs).
+// Helm fork: replaces src/components/T3Wordmark.tsx (see ../metro.cjs).
 // The signal line stands in for the "T3" letters wherever upstream draws its
 // mark; it takes the same props and keeps the same aspect ratio.
 

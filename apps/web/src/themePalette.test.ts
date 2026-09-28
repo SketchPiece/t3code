@@ -90,7 +90,7 @@ describe("theme files", () => {
     }
   });
 
-  // Shturval fork: the stock palette is Bakelite (packages/shared/src/shturvalPalette.ts).
+  // Helm fork: the stock palette is Bakelite (packages/shared/src/helmPalette.ts).
   it("keeps stock dark controls in the bakelite surface hierarchy", () => {
     expectThemeColors(getStandardThemeColors("dark"), {
       canvas: "#161310",

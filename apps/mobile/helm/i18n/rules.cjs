@@ -1,6 +1,6 @@
 "use strict";
 
-// Shturval fork: which string literals are interface text. Shared by the Babel
+// Helm fork: which string literals are interface text. Shared by the Babel
 // plugin that swaps in Russian (babel-plugin.cjs) and the scanner that lists
 // what is still untranslated (scan.cjs). Only dictionary hits are replaced, so
 // these rules mostly guard strings that double as identifiers: route names,
@@ -12,7 +12,7 @@ const MOBILE = path.resolve(__dirname, "../..");
 const WORKSPACE = path.resolve(MOBILE, "../..");
 const SCOPES = [
   path.join(MOBILE, "src"),
-  path.join(MOBILE, "shturval", "overrides"),
+  path.join(MOBILE, "helm", "overrides"),
   path.join(WORKSPACE, "packages", "client-runtime", "src"),
   path.join(WORKSPACE, "packages", "shared", "src"),
 ];

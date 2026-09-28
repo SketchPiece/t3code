@@ -95,7 +95,7 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-// Shturval fork: the product name. The user-data dir and app id stay T3 Code's.
+// Helm fork: the product name. The user-data dir and app id stay T3 Code's.
 const APP_BASE_NAME = "Helm";
 
 function resolveDesktopAppStageLabel(input: {

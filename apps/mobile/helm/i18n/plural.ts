@@ -1,4 +1,4 @@
-// Shturval fork: Russian plural forms for the translation plugin. A dictionary
+// Helm fork: Russian plural forms for the translation plugin. A dictionary
 // value like "{0} {0|файл|файла|файлов}" compiles to ruPlural(count, …).
 export function ruPlural(count: unknown, one: string, few: string, many: string): string {
   const n = Math.abs(Math.trunc(Number(count)));

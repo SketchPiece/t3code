@@ -1532,18 +1532,18 @@ export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppe
     return;
   }
 
-  // Shturval fork: the stock look is the Bakelite palette
-  // (packages/shared/src/shturvalPalette.ts), painted through the same theme
+  // Helm fork: the stock look is the Bakelite palette
+  // (packages/shared/src/helmPalette.ts), painted through the same theme
   // variables as any palette so index.css keeps T3 Code's own defaults.
-  root.dataset.themeId = SHTURVAL_STOCK_THEME_ID;
+  root.dataset.themeId = HELM_STOCK_THEME_ID;
   const stockColors = getStandardThemeColors(appearance ?? "light");
   for (const [role, value] of Object.entries(stockColors) as Array<[ThemeColorRole, string]>) {
     root.style.setProperty(APP_THEME_VARIABLES[role], value);
   }
 }
 
-/** Shturval fork: data-theme-id worn by the stock Bakelite palette. */
-export const SHTURVAL_STOCK_THEME_ID = "shturval";
+/** Helm fork: data-theme-id worn by the stock Bakelite palette. */
+export const HELM_STOCK_THEME_ID = "helm";
 
 export function resolveThemeAppearance(
   theme: ThemePreference,

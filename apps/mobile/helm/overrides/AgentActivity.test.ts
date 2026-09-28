@@ -58,7 +58,7 @@ function texts(node: unknown): string[] {
 
 const environment = { colorScheme: "dark", isLuminanceReduced: false } as never;
 
-describe("AgentActivity (Shturval)", () => {
+describe("AgentActivity (Helm)", () => {
   it("leads with the thread that waits on you, in Russian", () => {
     const layout = AgentActivity(
       {

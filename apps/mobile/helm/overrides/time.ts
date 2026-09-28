@@ -1,4 +1,4 @@
-// Shturval fork: replaces src/lib/time.ts (see ../metro.cjs) with Russian units.
+// Helm fork: replaces src/lib/time.ts (see ../metro.cjs) with Russian units.
 export function relativeTime(input: string): string {
   const timestamp = Date.parse(input);
   if (Number.isNaN(timestamp)) {

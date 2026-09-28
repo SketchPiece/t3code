@@ -59,8 +59,8 @@ config.resolver = {
   },
 };
 
-// Shturval fork: module overrides (apps/mobile/shturval/metro.cjs).
-require("./shturval/metro.cjs")(config);
+// Helm fork: module overrides (apps/mobile/helm/metro.cjs).
+require("./helm/metro.cjs")(config);
 
 async function writeFileIfChanged(filePath, contents) {
   try {

@@ -1,8 +1,8 @@
 import type { SVGProps } from "react";
 
-import { HELM_SIGNAL_PATH } from "../shturval/HelmMark";
+import { HELM_SIGNAL_PATH } from "../helm/HelmMark";
 
-// Shturval fork: the helm's signal line stands in for the "T3" letters; same
+// Helm fork: the helm's signal line stands in for the "T3" letters; same
 // props and aspect, drawn in the current text color.
 export function T3Wordmark(props: SVGProps<SVGSVGElement>) {
   return (

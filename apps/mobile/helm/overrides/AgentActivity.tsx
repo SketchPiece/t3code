@@ -20,7 +20,7 @@ import {
   type LiveActivityLayout,
 } from "expo-widgets";
 
-// Shturval fork: replaces src/widgets/AgentActivity.tsx (see ../metro.cjs) with
+// Helm fork: replaces src/widgets/AgentActivity.tsx (see ../metro.cjs) with
 // layout A: whoever waits on you leads, large; everyone else follows as a lamp,
 // a title and a timer the system ticks by itself. Props are upstream's.
 
