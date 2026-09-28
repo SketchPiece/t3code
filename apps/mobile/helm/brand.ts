@@ -8,10 +8,13 @@ const { AndroidConfig, withStringsXml } = NodeModule.createRequire(import.meta.u
 
 // Helm fork: the app's name and artwork. app.config.ts passes each build
 // variant through applyHelmBrand and the finished config through
-// withHelmConfig, so upstream's VARIANT_CONFIG stays as is and bundle
-// ids, schemes and relying parties keep T3 Code's values.
+// withHelmConfig, so upstream's VARIANT_CONFIG stays as is. Schemes and
+// relying parties keep T3 Code's values; iOS signs as Helm under the
+// developer's own team, since T3's team and bundle ids are not ours to sign.
 
 const ASSETS = "./helm/assets";
+const HELM_APPLE_TEAM_ID = "4KSA86792T";
+const HELM_IOS_BUNDLE_PREFIX = "com.sketchpiece.helm";
 
 import { HELM_APP_NAME } from "./name.ts";
 
@@ -51,6 +54,7 @@ export function withHelmConfig(config: ExpoConfig, variantName: Variant): ExpoCo
     plugins: config.plugins?.map(withBakeliteSplash),
     ios: {
       ...config.ios,
+      appleTeamId: config.ios?.appleTeamId ? HELM_APPLE_TEAM_ID : undefined,
       infoPlist: { ...config.ios?.infoPlist, CFBundleDisplayName: displayName },
     },
   };
@@ -63,11 +67,20 @@ export function withHelmConfig(config: ExpoConfig, variantName: Variant): ExpoCo
   });
 }
 
-export function applyHelmBrand<T extends { readonly assets: Readonly<Record<string, unknown>> }>(
-  variant: T,
-): T {
+export function applyHelmBrand<
+  T extends {
+    readonly iosBundleIdentifier: string;
+    readonly assets: Readonly<Record<string, unknown>>;
+  },
+>(variant: T): T {
   return {
     ...variant,
+    // com.t3tools.t3code(.preview) -> com.sketchpiece.helm(.preview). The
+    // simulator-only dev client keeps its id: repo scripts launch it by name.
+    iosBundleIdentifier: variant.iosBundleIdentifier.replace(
+      /^com\.t3tools\.t3code(?!\.dev$)/,
+      HELM_IOS_BUNDLE_PREFIX,
+    ),
     assets: {
       ...variant.assets,
       appIcon: `${ASSETS}/ios-1024.png`,
