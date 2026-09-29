@@ -1,0 +1,20 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "infra/helm-relay/Dockerfile",
+    "watchPatterns": [
+      "infra/helm-relay/**",
+      "infra/relay/src/**",
+      "infra/relay/migrations/**",
+      "packages/contracts/**",
+      "packages/shared/**",
+      "packages/client-runtime/**",
+      "pnpm-lock.yaml"
+    ]
+  },
+  "deploy": {
+    "healthcheckPath": "/health",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

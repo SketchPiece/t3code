@@ -1,0 +1,16 @@
+**/node_modules
+**/.DS_Store
+.git
+.repos
+.t3
+.plans
+.env
+.env.*
+release
+release-mock
+apps/*/dist
+apps/desktop/dist-electron
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/.generated
+native/**/target
