@@ -103,11 +103,13 @@ import { useComposerCommandMenu } from "./use-composer-command-menu";
 import {
   ComposerDictationCancelAction,
   ComposerDictationDraftContent,
-  ComposerDictationPrimaryAction,
   ComposerDictationStartAction,
   ComposerDictationStatus,
   ComposerDictationToolbar,
+  ComposerHoldToTalkHint,
+  ComposerVoiceTrailingSlot,
 } from "../voice-input/ComposerDictationControl";
+import { useHoldToTalk } from "../voice-input/useHoldToTalk";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -507,13 +509,29 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     ownerKey: composerOwnerKey,
     draftMessage: props.draftMessage,
     selection: composerMenu.selection,
+    environmentId: props.environmentId,
+    threadId: props.selectedThread.id,
     onChangeDraftMessage: props.onChangeDraftMessage,
     onChangeSelection: composerMenu.onSelectionChange,
+    onSubmitDraft: () => void handleSend(),
   });
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
   );
+  // An empty draft puts the mic where send goes: hold to talk, or tap to dictate.
+  const showsHoldMic =
+    voiceInput.isAvailable &&
+    !hasContent &&
+    !showStopAction &&
+    voicePresentation.trailingAction === "mic";
+  const holdToTalk = useHoldToTalk({
+    enabled: showsHoldMic && !voiceInput.isBusy,
+    phase: voiceInput.state.phase,
+    start: voiceInput.start,
+    stop: (intent) => void voiceInput.stop(intent),
+    cancel: voiceInput.cancel,
+  });
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   // An open draft stays visible; only a collapsed composer becomes a voice strip.
   const isExpanded = isFocused || settingsSheetPresentation.keepsComposerExpanded;
@@ -737,6 +755,35 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     [navigation, settingsSheetPresentation.onStackTransitionsFinished],
   );
 
+  const trailingSlot = (
+    <ComposerVoiceTrailingSlot
+      state={voiceInput.state}
+      presentation={voicePresentation}
+      holdMode={holdToTalk.mode}
+      panHandlers={holdToTalk.panHandlers}
+      showsHoldMic={showsHoldMic}
+      onConfirm={() => void voiceInput.stop("insert")}
+      onRetry={voiceInput.retry}
+      onCancel={voiceInput.cancel}
+    >
+      {showStopAction ? (
+        <ComposerActionButton
+          accessibilityLabel="Stop agent"
+          icon="stop.fill"
+          variant="danger"
+          onPress={props.onStopThread}
+        />
+      ) : (
+        <SendActionButton
+          accessibilityLabel={sendBlockedReason ?? sendLabel}
+          presentation={sendPresentation}
+          disabled={!canSend}
+          onSend={handleSend}
+        />
+      )}
+    </ComposerVoiceTrailingSlot>
+  );
+
   return (
     <Animated.View
       className="px-[12px]"
@@ -803,6 +850,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
           </Pressable>
         ) : null}
 
+        <ComposerHoldToTalkHint mode={holdToTalk.mode} cancelArmed={holdToTalk.cancelArmed} />
         <ComposerSurface
           style={
             isExpanded
@@ -1041,25 +1089,11 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               <View className="flex-row items-center">
                 <ComposerDictationStartAction
                   state={voiceInput.state}
-                  isAvailable={voiceInput.isAvailable}
+                  isAvailable={voiceInput.isAvailable && !showsHoldMic}
                   onStart={voiceInput.start}
                   onCancel={voiceInput.cancel}
                 />
-                {showStopAction ? (
-                  <ComposerActionButton
-                    accessibilityLabel="Stop agent"
-                    icon="stop.fill"
-                    variant="danger"
-                    onPress={props.onStopThread}
-                  />
-                ) : (
-                  <SendActionButton
-                    accessibilityLabel={sendBlockedReason ?? sendLabel}
-                    presentation={sendPresentation}
-                    disabled={!canSend}
-                    onSend={handleSend}
-                  />
-                )}
+                {trailingSlot}
               </View>
             ) : null}
             {isExpanded ? <View className="h-1" /> : null}
@@ -1084,6 +1118,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             <ComposerDictationToolbar
               showsDictation={isVoiceInputPresented}
               visible={isToolbarVisible}
+              trailing={trailingSlot}
             >
               <ComposerToolbarRow
                 paddingBottom={0}
@@ -1093,6 +1128,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               >
                 <ComposerDictationCancelAction
                   presentation={voicePresentation}
+                  armed={holdToTalk.cancelArmed}
                   onCancel={voiceInput.cancel}
                 />
                 {isVoiceInputPresented ? (
@@ -1131,29 +1167,16 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   </View>
                 )}
                 <View className="shrink-0 flex-row items-center">
-                  <ComposerDictationPrimaryAction
-                    state={voiceInput.state}
-                    presentation={voicePresentation}
-                    isAvailable={voiceInput.isAvailable}
-                    onStart={voiceInput.start}
-                    onConfirm={voiceInput.stop}
-                    onCancel={voiceInput.cancel}
-                  />
-                  {showStopAction ? (
-                    <ComposerActionButton
-                      accessibilityLabel="Stop agent"
-                      icon="stop.fill"
-                      variant="danger"
-                      onPress={props.onStopThread}
-                    />
-                  ) : voicePresentation.showsSend ? (
-                    <SendActionButton
-                      accessibilityLabel={sendBlockedReason ?? sendLabel}
-                      presentation={sendPresentation}
-                      disabled={!canSend}
-                      onSend={handleSend}
+                  {voicePresentation.trailingAction === "mic" ? (
+                    <ComposerDictationStartAction
+                      state={voiceInput.state}
+                      isAvailable={voiceInput.isAvailable && !showsHoldMic}
+                      onStart={voiceInput.start}
+                      onCancel={voiceInput.cancel}
                     />
                   ) : null}
+                  {/* The trailing slot sits over this space, outside the flipping row. */}
+                  <View className="size-[44px]" />
                 </View>
               </ComposerToolbarRow>
             </ComposerDictationToolbar>

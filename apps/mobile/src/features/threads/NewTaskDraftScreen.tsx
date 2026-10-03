@@ -71,10 +71,13 @@ import { ComposerCommandPopover } from "./ComposerCommandPopover";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
 import {
   ComposerDictationCancelAction,
-  ComposerDictationPrimaryAction,
+  ComposerDictationStartAction,
   ComposerDictationStatus,
   ComposerDictationToolbar,
+  ComposerHoldToTalkHint,
+  ComposerVoiceTrailingSlot,
 } from "../voice-input/ComposerDictationControl";
+import { useHoldToTalk } from "../voice-input/useHoldToTalk";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -476,13 +479,29 @@ export function NewTaskDraftScreen(props: {
     draftMessage: flow.prompt,
     selection: composerMenu.selection,
     disabled: isIncomingShareTransferPending || isImportingShare || flow.submitting,
+    environmentId: selectedProject?.environmentId ?? null,
     onChangeDraftMessage: flow.setPrompt,
     onChangeSelection: composerMenu.onSelectionChange,
+    onSubmitDraft: () => void handleStart(),
   });
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
   );
+  const voiceDisabled = isIncomingShareTransferPending || isImportingShare || flow.submitting;
+  // An empty prompt puts the mic where start goes: hold to talk, or tap to dictate.
+  const showsHoldMic =
+    voiceInput.isAvailable &&
+    !voiceDisabled &&
+    flow.prompt.trim().length === 0 &&
+    voicePresentation.trailingAction === "mic";
+  const holdToTalk = useHoldToTalk({
+    enabled: showsHoldMic && !voiceInput.isBusy,
+    phase: voiceInput.state.phase,
+    start: voiceInput.start,
+    stop: (intent) => void voiceInput.stop(intent),
+    cancel: voiceInput.cancel,
+  });
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const preventRemove =
     (isIncomingShareTransferPending && !isProjectPickerReturnActive) ||
@@ -1580,6 +1599,31 @@ export function NewTaskDraftScreen(props: {
     </View>
   );
 
+  const startButton = (
+    <ComposerActionButton
+      accessibilityLabel={
+        attachmentBlockReason ??
+        (cloneBlocksStart
+          ? projectClone === null || projectClone.phase === "running"
+            ? "Cloning repository"
+            : "Repository not cloned"
+          : pendingPastedTextAttachmentCount > 0
+            ? "Attaching pasted text"
+            : flow.submitting
+              ? "Starting task"
+              : attachmentsUploading
+                ? "Queue task, sends when uploads finish"
+                : environmentConnected
+                  ? "Start task"
+                  : "Queue task")
+      }
+      disabled={!canStart}
+      icon={queuesInsteadOfStarting ? "tray.and.arrow.up" : "arrow.up"}
+      onPress={() => void handleStart()}
+      variant="primary"
+    />
+  );
+
   const composerDock = (
     <View
       className={
@@ -1639,6 +1683,9 @@ export function NewTaskDraftScreen(props: {
         </Pressable>
       ) : null}
 
+      <View className="relative">
+        <ComposerHoldToTalkHint mode={holdToTalk.mode} cancelArmed={holdToTalk.cancelArmed} />
+      </View>
       <ComposerSurface
         style={{
           borderRadius: 26,
@@ -1685,7 +1732,23 @@ export function NewTaskDraftScreen(props: {
         <View className="h-1" />
 
         <Animated.View layout={COMPOSER_LAYOUT_TRANSITION} collapsable={false}>
-          <ComposerDictationToolbar showsDictation={isVoiceInputPresented}>
+          <ComposerDictationToolbar
+            showsDictation={isVoiceInputPresented}
+            trailing={
+              <ComposerVoiceTrailingSlot
+                state={voiceInput.state}
+                presentation={voicePresentation}
+                holdMode={holdToTalk.mode}
+                panHandlers={holdToTalk.panHandlers}
+                showsHoldMic={showsHoldMic}
+                onConfirm={() => void voiceInput.stop("insert")}
+                onRetry={voiceInput.retry}
+                onCancel={voiceInput.cancel}
+              >
+                {startButton}
+              </ComposerVoiceTrailingSlot>
+            }
+          >
             <ComposerToolbarRow
               paddingBottom={0}
               paddingHorizontal={0}
@@ -1694,6 +1757,7 @@ export function NewTaskDraftScreen(props: {
             >
               <ComposerDictationCancelAction
                 presentation={voicePresentation}
+                armed={holdToTalk.cancelArmed}
                 onCancel={voiceInput.cancel}
               />
               {isVoiceInputPresented ? (
@@ -1755,39 +1819,17 @@ export function NewTaskDraftScreen(props: {
                   </View>
                 </>
               )}
-              <ComposerDictationPrimaryAction
-                state={voiceInput.state}
-                presentation={voicePresentation}
-                isAvailable={voiceInput.isAvailable}
-                disabled={isIncomingShareTransferPending || isImportingShare || flow.submitting}
-                onStart={voiceInput.start}
-                onConfirm={voiceInput.stop}
-                onCancel={voiceInput.cancel}
-              />
-              {voicePresentation.showsSend ? (
-                <ComposerActionButton
-                  accessibilityLabel={
-                    attachmentBlockReason ??
-                    (cloneBlocksStart
-                      ? projectClone === null || projectClone.phase === "running"
-                        ? "Cloning repository"
-                        : "Repository not cloned"
-                      : pendingPastedTextAttachmentCount > 0
-                        ? "Attaching pasted text"
-                        : flow.submitting
-                          ? "Starting task"
-                          : attachmentsUploading
-                            ? "Queue task, sends when uploads finish"
-                            : environmentConnected
-                              ? "Start task"
-                              : "Queue task")
-                  }
-                  disabled={!canStart}
-                  icon={queuesInsteadOfStarting ? "tray.and.arrow.up" : "arrow.up"}
-                  onPress={() => void handleStart()}
-                  variant="primary"
+              {voicePresentation.trailingAction === "mic" ? (
+                <ComposerDictationStartAction
+                  state={voiceInput.state}
+                  isAvailable={voiceInput.isAvailable && !showsHoldMic}
+                  disabled={voiceDisabled}
+                  onStart={voiceInput.start}
+                  onCancel={voiceInput.cancel}
                 />
               ) : null}
+              {/* The trailing slot sits over this space, outside the flipping row. */}
+              <View className="size-[44px]" />
             </ComposerToolbarRow>
           </ComposerDictationToolbar>
         </Animated.View>

@@ -13,8 +13,12 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+
+import { serverVoiceTranscriber } from "../../../helm/voice/serverTranscriber";
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
+import { useEnvironmentServerConfig } from "../../state/entities";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
   VoiceInputController,
@@ -22,6 +26,7 @@ import {
   voiceInputBlocksSubmission,
   voiceInputFreezesEditor,
   type VoiceDraftSnapshot,
+  type VoiceFinishIntent,
   type VoiceInputState,
 } from "@t3tools/client-runtime/voice-input";
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
@@ -67,9 +72,16 @@ export function useVoiceInputController(input: {
   readonly draftMessage: string;
   readonly selection: ComposerEditorSelection;
   readonly disabled?: boolean;
+  /** Server that transcribes (Helm: Russian and English); on-device iOS recognition otherwise. */
+  readonly environmentId: EnvironmentId | null;
+  readonly threadId?: ThreadId;
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onChangeSelection: (selection: ComposerEditorSelection) => void;
+  /** Sends the draft; hold-to-talk calls it once its transcript is in the draft. */
+  readonly onSubmitDraft?: () => void;
 }) {
+  const serverConfig = useEnvironmentServerConfig(input.environmentId);
+  const serverTranscribes = serverConfig?.environment.capabilities.voiceTranscription === true;
   const [state, setState] = useState<VoiceInputState>(INITIAL_STATE);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const keepAwakeId = useId();
@@ -87,8 +99,15 @@ export function useVoiceInputController(input: {
     previousDraftRef.current = { ownerKey: input.ownerKey, text: input.draftMessage };
     revisionRef.current += 1;
   }
-  const latestInputRef = useRef(input);
-  latestInputRef.current = input;
+  const latestInputRef = useRef({ ...input, serverTranscribes });
+  latestInputRef.current = { ...input, serverTranscribes };
+  // Hold-to-talk sends after the committed transcript reaches the draft props.
+  const pendingSubmitRef = useRef(false);
+  useEffect(() => {
+    if (!pendingSubmitRef.current || input.draftMessage.trim().length === 0) return;
+    pendingSubmitRef.current = false;
+    latestInputRef.current.onSubmitDraft?.();
+  }, [input.draftMessage]);
 
   const handleRecorderStatus = useCallback((status: RecordingStatus) => {
     controllerRef.current?.handleRecorderStatus({
@@ -103,7 +122,15 @@ export function useVoiceInputController(input: {
   if (!controllerRef.current) {
     controllerRef.current = new VoiceInputController({
       recorder,
-      getTranscriber: getLocalVoiceTranscriber,
+      getTranscriber: () => {
+        const current = latestInputRef.current;
+        return current.serverTranscribes && current.environmentId !== null
+          ? serverVoiceTranscriber({
+              environmentId: current.environmentId,
+              ...(current.threadId ? { threadId: current.threadId } : {}),
+            })
+          : getLocalVoiceTranscriber();
+      },
       requestPermission: async () => {
         const permission = await requestRecordingPermissionsAsync();
         return { granted: permission.granted, canAskAgain: permission.canAskAgain };
@@ -125,6 +152,9 @@ export function useVoiceInputController(input: {
         const current = latestInputRef.current;
         current.onChangeSelection(selection);
         current.onChangeDraftMessage(text);
+      },
+      submitDraft: () => {
+        pendingSubmitRef.current = true;
       },
       onStateChange: setState,
     });
@@ -215,13 +245,23 @@ export function useVoiceInputController(input: {
   const start = useCallback(() => {
     if (!latestInputRef.current.disabled) void controller.start();
   }, [controller]);
-  const stop = useCallback(() => controller.stop(), [controller]);
-  const cancel = useCallback(() => controller.cancel(), [controller]);
+  const stop = useCallback(
+    (intent: VoiceFinishIntent = "insert") => controller.stop(intent),
+    [controller],
+  );
+  const retry = useCallback(() => {
+    if (!latestInputRef.current.disabled) void controller.retry();
+  }, [controller]);
+  const cancel = useCallback(() => {
+    pendingSubmitRef.current = false;
+    controller.cancel();
+  }, [controller]);
 
   return {
     // Store screenshots show the dictation button even on simulators, whose
     // on-device transcription is unavailable.
-    isAvailable: getLocalVoiceTranscriber() !== null || getNativeShowcaseScene() !== null,
+    isAvailable:
+      serverTranscribes || getLocalVoiceTranscriber() !== null || getNativeShowcaseScene() !== null,
     state,
     audioLevels,
     elapsedSeconds,
@@ -230,6 +270,7 @@ export function useVoiceInputController(input: {
     blocksSubmission: voiceInputBlocksSubmission(state),
     start,
     stop,
+    retry,
     cancel,
   };
 }

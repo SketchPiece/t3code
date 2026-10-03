@@ -404,6 +404,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
     ownerKey,
     draftMessage: prompt,
     selection,
+    environmentId: editor?.environmentId ?? null,
     onChangeSelection: setSelection,
     onChangeDraftMessage: setPrompt,
     disabled: saving,
