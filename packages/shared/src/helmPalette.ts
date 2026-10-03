@@ -2,8 +2,9 @@ import type { ThemeColors } from "./themePalettes.ts";
 
 // Helm fork: the "Bakelite" palette from Volna's design system (bakelite and
 // lamp). It replaces T3 Code's stock palette, so every client wears it with no
-// theme installed. Dark is flat bakelite with an amber lamp and one signal red;
-// light is the ivory casing.
+// theme installed. Dark is flat bakelite, light is the ivory casing. The amber
+// lamp is the action color (send, switches, sliders, links); signal red is kept
+// for errors and stop so it never competes with an action.
 
 export const HELM_DARK_THEME_COLORS: ThemeColors = {
   canvas: "#161310",
@@ -22,8 +23,8 @@ export const HELM_DARK_THEME_COLORS: ThemeColors = {
   border: "#2a2420",
   input: "#302924",
   focus: "#e8a33d",
-  accent: "#b8321f",
-  accentForeground: "#fbf6ec",
+  accent: "#e8a33d",
+  accentForeground: "#161310",
   secondary: "#1f1b18",
   secondaryForeground: "#efe7d6",
   muted: "#1f1b18",
@@ -44,9 +45,9 @@ export const HELM_DARK_THEME_COLORS: ThemeColors = {
   accentSurfaceForeground: "#efe7d6",
   messageSurface: "#221e1a",
   messageForeground: "#efe7d6",
-  messageAction: "#b8321f",
-  messageActionForeground: "#fbf6ec",
-  messageActionHover: "#c9432e",
+  messageAction: "#e8a33d",
+  messageActionForeground: "#161310",
+  messageActionHover: "#f2b550",
   codeBackground: "#100e0c",
   codeForeground: "#efe7d6",
   sidebar: "#0c0a08",
@@ -81,9 +82,9 @@ export const HELM_LIGHT_THEME_COLORS: ThemeColors = {
   textMuted: "#5e554b",
   border: "#cfc6b6",
   input: "#bfb6a6",
-  focus: "#b8321f",
-  accent: "#b8321f",
-  accentForeground: "#fbf6ec",
+  focus: "#9c7a45",
+  accent: "#e8a33d",
+  accentForeground: "#26211d",
   secondary: "#ddd5c6",
   secondaryForeground: "#26211d",
   muted: "#ddd5c6",
@@ -97,16 +98,16 @@ export const HELM_LIGHT_THEME_COLORS: ThemeColors = {
   warning: "#9c7a45",
   warningForeground: "#6f5427",
   warningSurface: "#efe3c8",
-  update: "#b8321f",
-  updateForeground: "#8e2415",
-  updateSurface: "#f0d6cc",
+  update: "#9c7a45",
+  updateForeground: "#6f5427",
+  updateSurface: "#efe3c8",
   accentSurface: "#fbf6ec",
   accentSurfaceForeground: "#26211d",
   messageSurface: "#ddd5c6",
   messageForeground: "#26211d",
-  messageAction: "#b8321f",
-  messageActionForeground: "#fbf6ec",
-  messageActionHover: "#8e2415",
+  messageAction: "#e8a33d",
+  messageActionForeground: "#26211d",
+  messageActionHover: "#d9932c",
   codeBackground: "#1f1b18",
   codeForeground: "#efe7d6",
   sidebar: "#ddd5c6",
@@ -119,7 +120,7 @@ export const HELM_LIGHT_THEME_COLORS: ThemeColors = {
   sidebarBorder: "#cfc6b6",
   terminalBackground: "#1f1b18",
   terminalForeground: "#efe7d6",
-  terminalCursor: "#b8321f",
+  terminalCursor: "#9c7a45",
   terminalSelection: "#4a3b28",
   terminalScrollbar: "#cfc6b6",
   terminalScrollbarHover: "#bfb6a6",
