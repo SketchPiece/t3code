@@ -206,7 +206,7 @@ export function FloatingWorkingControl(props: {
           className="h-11 flex-row items-center gap-1.5 px-3 active:opacity-70"
         >
           {hasStatus || hasDevicePreview ? <View className="mr-1 h-4 w-px bg-border" /> : null}
-          <SymbolView name="person.2" size={13} tintColorClassName="accent-foreground-muted" />
+          <SymbolView name="person.2" size={15} tintColorClassName="accent-foreground-muted" />
           <Text className="font-t3-medium text-xs tabular-nums" numberOfLines={1}>
             {agents.label}
           </Text>
@@ -225,7 +225,7 @@ export function FloatingWorkingControl(props: {
           {hasStatus || hasDevicePreview || hasAgents ? (
             <View className="mr-1 h-4 w-px bg-border" />
           ) : null}
-          <SymbolView name="list.number" size={13} tintColorClassName="accent-foreground-muted" />
+          <SymbolView name="list.number" size={15} tintColorClassName="accent-foreground-muted" />
           <Text className="shrink font-t3-medium text-xs tabular-nums" numberOfLines={1}>
             {props.queuedCount} queued
           </Text>
@@ -328,7 +328,7 @@ function CompactingLabel(props: { readonly onLayout: (event: LayoutChangeEvent) 
     <StatusLabelRow accessibilityLabel="Compacting" className="gap-1.5" onLayout={props.onLayout}>
       <SymbolView
         name="arrow.down.right.and.arrow.up.left"
-        size={13}
+        size={15}
         tintColorClassName="foreground"
         type="monochrome"
       />
@@ -395,7 +395,7 @@ function FloatingStatusLabel(props: {
       >
         <SymbolView
           name={{ ios: "bolt", android: "bolt" }}
-          size={13}
+          size={15}
           tintColorClassName="foreground"
           type="monochrome"
         />
@@ -415,7 +415,7 @@ function FloatingStatusLabel(props: {
       >
         <SymbolView
           name="arrow.triangle.branch"
-          size={13}
+          size={15}
           tintColorClassName="foreground"
           type="monochrome"
         />

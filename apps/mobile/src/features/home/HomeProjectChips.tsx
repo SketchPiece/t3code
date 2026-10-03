@@ -87,7 +87,7 @@ export const HomeProjectChips = memo(function HomeProjectChips(props: {
               <Text className="text-sm font-t3-medium text-foreground-secondary">More</Text>
               <SymbolView
                 name="chevron.down"
-                size={10}
+                size={13}
                 tintColorClassName="accent-foreground-muted"
                 type="monochrome"
               />

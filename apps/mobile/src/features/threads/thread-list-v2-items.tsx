@@ -370,7 +370,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
             <View className="flex-row items-center gap-1">
               <SymbolView
                 name="square.and.pencil"
-                size={10}
+                size={13}
                 tintColorClassName="accent-adaptive-amber-700-300"
                 type="monochrome"
               />
@@ -406,7 +406,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
           {props.environmentLabel && props.environmentMachine ? (
             <EnvironmentMachineSymbol
               kind={props.environmentMachine}
-              size={11}
+              size={13}
               tintColorClassName={
                 sidebarPane ? "accent-drawer-foreground-muted" : "accent-foreground-tertiary"
               }
@@ -958,7 +958,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           {pinnedRow ? (
             <SymbolView
               name="pin"
-              size={11}
+              size={13}
               tintColorClassName={rowAppearance.mutedIconTintClassName}
               type="monochrome"
             />
@@ -1037,7 +1037,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             {!failedError && props.environmentLabel && props.environmentMachine ? (
               <EnvironmentMachineSymbol
                 kind={props.environmentMachine}
-                size={11}
+                size={13}
                 tintColorClassName={
                   selected
                     ? selectedThreadRowColors.mutedIconTintClassName
@@ -1053,7 +1053,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             >
               <SymbolView
                 name={pr.kind === "stack" ? "square.3.layers.3d" : "arrow.triangle.pull"}
-                size={12}
+                size={13}
                 tintColorClassName={
                   pr.state === null || pr.isDraft
                     ? rowAppearance.mutedIconTintClassName
