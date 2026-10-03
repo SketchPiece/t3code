@@ -54,7 +54,8 @@ export function parseTailnetStatus(json: string): TailnetStatus {
       online: peer.Online === true,
       isComputer: COMPUTER_OS.has(peer.OS ?? ""),
     }))
-    .toSorted((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+    // .sort() on the fresh array, not .toSorted(): Hermes lacks the ES2023 method.
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
   return {
     state: raw.BackendState ?? "NoState",
     authUrl: raw.AuthURL || null,
