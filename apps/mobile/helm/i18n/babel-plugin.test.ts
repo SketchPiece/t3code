@@ -24,7 +24,7 @@ function translate(code: string, dictionary: Record<string, string>, filename = 
 }
 
 describe("Russian interface text", () => {
-  it("translates JSX text, text props and alert strings", () => {
+  it("picks Russian or English at runtime for JSX text, text props and alert strings", () => {
     const out = translate(
       `const a = <Button title="Settings">  Add environment  </Button>;
        Alert.alert("Delete thread?", "Cancel");`,
@@ -35,10 +35,21 @@ describe("Russian interface text", () => {
         Cancel: "Отмена",
       },
     );
-    expect(out).toContain('title="Настройки"');
-    expect(out).toContain("  Добавить окружение  ");
-    expect(out).toContain('"Удалить тред?"');
-    expect(out).toContain('"Отмена"');
+    expect(out).toContain('title={__helmRu ? "Настройки" : "Settings"}');
+    expect(out).toContain('{__helmRu ? "  Добавить окружение  " : "  Add environment  "}');
+    expect(out).toContain('__helmRu ? "Удалить тред?" : "Delete thread?"');
+    expect(out).toContain('__helmRu ? "Отмена" : "Cancel"');
+    expect(out).toMatch(/import \{ helmRussian as __helmRu \} from ".*locale\.ts"/);
+  });
+
+  it("asks Intl inline inside widget layouts, which cannot import", () => {
+    const out = translate(
+      'const label = "Working";',
+      { Working: "Работает" },
+      NodePath.resolve(import.meta.dirname, "../../src/widgets/Example.tsx"),
+    );
+    expect(out).toContain("Intl.DateTimeFormat().resolvedOptions().locale");
+    expect(out).not.toContain("__helmRu");
   });
 
   it("leaves strings that name routes, keys, types or compared values", () => {
@@ -65,7 +76,7 @@ describe("Russian interface text", () => {
       '__helmRuPlural(count, "файл изменён", "файла изменено", "файлов изменено")',
     );
     expect(out).toMatch(/import \{ ruPlural as __helmRuPlural \} from ".*plural\.ts"/);
-    expect(out).not.toContain("changed");
+    expect(out).toContain("changed");
   });
 
   it("only touches the app's own sources", () => {

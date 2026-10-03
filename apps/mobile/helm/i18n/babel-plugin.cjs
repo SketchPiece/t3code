@@ -1,9 +1,10 @@
 "use strict";
 
-// Helm fork: shows the mobile app in Russian without editing upstream
-// files. At bundle time, interface strings found in ru.json are swapped for
-// their translation; everything else stays English. rules.cjs decides which
-// literals are interface text.
+// Helm fork: shows the mobile app in Russian when the phone's language is
+// Russian, without editing upstream files. At bundle time, every interface
+// string found in ru.json becomes `helmRussian ? "Русский" : "English"`;
+// helmRussian is read once from the system language (locale.ts). rules.cjs
+// decides which literals are interface text.
 //
 // Dictionary values may reference template expressions by index — {0} — and
 // pick a Russian plural form from one of them — {0|файл|файла|файлов}.
@@ -14,6 +15,8 @@ const { isTranslatableFile, isInterfaceTextPath, templateKey } = require("./rule
 const WORKSPACE = path.resolve(__dirname, "../../../..");
 const DICTIONARY_PATH = path.join(__dirname, "ru.json");
 const PLURAL_MODULE = path.join(__dirname, "plural.ts");
+const LOCALE_MODULE = path.join(__dirname, "locale.ts");
+const LOCALE_BINDING = "__helmRu";
 const TOKEN = /\{(\d+)(?:\|([^|}]*)\|([^|}]*)\|([^|}]*))?\}/g;
 const HAS_TOKEN = /\{\d+[|}]/;
 
@@ -21,6 +24,22 @@ const HAS_TOKEN = /\{\d+[|}]/;
 // whitespace (" and ", "Tap ") is put back around the translation.
 const normalize = (text) => text.trim().replace(/\s+/g, " ");
 const edges = (text) => ({ lead: text.match(/^\s*/)[0], trail: text.match(/\s*$/)[0] });
+
+// What JSX renders for a text child: lines lose the whitespace around line
+// breaks, blank lines drop out, and the rest join with single spaces.
+function renderedJsxText(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const last = lines.length - 1;
+  return lines
+    .map((line, index) => {
+      let kept = line.replace(/\t/g, " ");
+      if (index !== 0) kept = kept.replace(/^ +/, "");
+      if (index !== last) kept = kept.replace(/ +$/, "");
+      return kept;
+    })
+    .filter((line) => line !== "")
+    .join(" ");
+}
 
 function loadDictionary() {
   delete require.cache[DICTIONARY_PATH];
@@ -38,6 +57,40 @@ module.exports = function helmRussian({ types: t }, options = {}) {
     if (excludes[key]?.includes(state.relativeFilename)) return undefined;
     return dictionary[key];
   };
+
+  // Widget layouts are serialized into the widget extension on their own and
+  // cannot reach an imported binding, so they ask Intl inline instead.
+  function russianTest(state) {
+    if (state.allowImports) {
+      state.needsLocale = true;
+      return t.identifier(LOCALE_BINDING);
+    }
+    return t.logicalExpression(
+      "&&",
+      t.binaryExpression(
+        "===",
+        t.unaryExpression("typeof", t.identifier("Intl")),
+        t.stringLiteral("object"),
+      ),
+      t.callExpression(t.memberExpression(t.regExpLiteral("^ru\\b", "i"), t.identifier("test")), [
+        t.memberExpression(
+          t.callExpression(
+            t.memberExpression(
+              t.newExpression(
+                t.memberExpression(t.identifier("Intl"), t.identifier("DateTimeFormat")),
+                [],
+              ),
+              t.identifier("resolvedOptions"),
+            ),
+            [],
+          ),
+          t.identifier("locale"),
+        ),
+      ]),
+    );
+  }
+  const choose = (state, russian, english) =>
+    t.conditionalExpression(russianTest(state), russian, english);
 
   function buildTemplate(value, expressions, state) {
     const quasis = [];
@@ -80,19 +133,33 @@ module.exports = function helmRussian({ types: t }, options = {}) {
           state.enabled = isTranslatableFile(state.filename);
           state.relativeFilename = state.filename ? path.relative(WORKSPACE, state.filename) : "";
           state.needsPlural = false;
+          state.needsLocale = false;
           // Widget layouts are serialized into the widget extension on their
           // own, so they cannot import the plural helper.
-          state.allowImports = !/[\\/]src[\\/]widgets[\\/]/.test(state.filename ?? "");
+          state.allowImports =
+            !/[\\/](src[\\/]widgets[\\/]|helm[\\/]overrides[\\/]AgentActivity)/.test(
+              state.filename ?? "",
+            );
         },
         exit(programPath, state) {
-          if (!state.needsPlural) return;
-          programPath.unshiftContainer(
-            "body",
-            t.importDeclaration(
-              [t.importSpecifier(t.identifier("__helmRuPlural"), t.identifier("ruPlural"))],
-              t.stringLiteral(PLURAL_MODULE),
-            ),
-          );
+          if (state.needsPlural) {
+            programPath.unshiftContainer(
+              "body",
+              t.importDeclaration(
+                [t.importSpecifier(t.identifier("__helmRuPlural"), t.identifier("ruPlural"))],
+                t.stringLiteral(PLURAL_MODULE),
+              ),
+            );
+          }
+          if (state.needsLocale) {
+            programPath.unshiftContainer(
+              "body",
+              t.importDeclaration(
+                [t.importSpecifier(t.identifier(LOCALE_BINDING), t.identifier("helmRussian"))],
+                t.stringLiteral(LOCALE_MODULE),
+              ),
+            );
+          }
         },
       },
       JSXText(textPath, state) {
@@ -101,7 +168,15 @@ module.exports = function helmRussian({ types: t }, options = {}) {
         const value = lookup(normalize(raw), state);
         if (typeof value !== "string" || HAS_TOKEN.test(value)) return;
         const { lead, trail } = edges(raw);
-        textPath.replaceWith(t.jsxText(lead + value + trail));
+        textPath.replaceWith(
+          t.jsxExpressionContainer(
+            choose(
+              state,
+              t.stringLiteral(renderedJsxText(lead + value + trail)),
+              t.stringLiteral(renderedJsxText(raw)),
+            ),
+          ),
+        );
         textPath.skip();
       },
       StringLiteral(literalPath, state) {
@@ -110,7 +185,11 @@ module.exports = function helmRussian({ types: t }, options = {}) {
         const value = lookup(normalize(raw), state);
         if (typeof value !== "string") return;
         if (!isInterfaceTextPath(literalPath, state.filename)) return;
-        literalPath.replaceWith(t.stringLiteral(edges(raw).lead + value + edges(raw).trail));
+        const russian = t.stringLiteral(edges(raw).lead + value + edges(raw).trail);
+        const choice = choose(state, russian, t.stringLiteral(raw));
+        literalPath.replaceWith(
+          literalPath.parentPath.isJSXAttribute() ? t.jsxExpressionContainer(choice) : choice,
+        );
         literalPath.skip();
       },
       TemplateLiteral(templatePath, state) {
@@ -126,7 +205,7 @@ module.exports = function helmRussian({ types: t }, options = {}) {
           state,
         );
         if (!replacement) return;
-        templatePath.replaceWith(replacement);
+        templatePath.replaceWith(choose(state, replacement, t.cloneNode(templatePath.node, true)));
         templatePath.skip();
       },
     },

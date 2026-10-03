@@ -5,7 +5,7 @@ import { Platform, View } from "react-native";
 import { AppText as Text } from "../../src/components/AppText";
 import { useAndroidControlSizing } from "../../src/components/useAndroidControlSizing";
 import { IPAD_HOME_TITLE_OFFSET } from "../../src/lib/layoutMetrics";
-import { HELM_APP_NAME } from "../name";
+import { helmAppName } from "../appName";
 
 // Helm fork: replaces src/components/CompactBrandTitle.tsx (see ../metro.cjs).
 // The navigation bar shows the app's name; builds other than production keep a
@@ -29,7 +29,7 @@ export function CompactBrandTitle(
   return (
     <View
       aria-level={1}
-      accessibilityLabel={`${HELM_APP_NAME}, треды`}
+      accessibilityLabel={`${helmAppName}, threads`}
       accessible
       role="heading"
       className="flex-row items-center gap-1.5"
@@ -40,7 +40,7 @@ export function CompactBrandTitle(
         className="font-brand text-foreground"
         style={{ fontSize: 19 * scale, letterSpacing: 0.2 * scale }}
       >
-        {HELM_APP_NAME}
+        {helmAppName}
       </Text>
       {stageLabel ? (
         <View className="rounded-full bg-subtle px-1.5 py-0.5">
@@ -67,7 +67,7 @@ export function getCompactBrandHeaderOptions(
   return {
     headerTitle: renderCompactBrandTitle,
     headerTitleStyle: fallbackTitleStyle,
-    title: "Треды",
+    title: "Threads",
     unstable_headerLeftItems: undefined,
   };
 }

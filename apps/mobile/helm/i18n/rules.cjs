@@ -13,6 +13,7 @@ const WORKSPACE = path.resolve(MOBILE, "../..");
 const SCOPES = [
   path.join(MOBILE, "src"),
   path.join(MOBILE, "helm", "overrides"),
+  path.join(MOBILE, "helm", "tailscale"),
   path.join(WORKSPACE, "packages", "client-runtime", "src"),
   path.join(WORKSPACE, "packages", "shared", "src"),
 ];
@@ -179,7 +180,11 @@ const DISPLAY_KEYS = new Set([
 
 // Modules that only produce copy (checked by hand): every literal in them that
 // passes the position rules is text, including ones pushed into arrays.
-const DISPLAY_FILES = new Set(["packages/shared/src/orchestrationTiming.ts"]);
+const DISPLAY_FILES = new Set([
+  "packages/shared/src/orchestrationTiming.ts",
+  "apps/mobile/src/lib/time.ts",
+  "apps/mobile/helm/tailscale/status.ts",
+]);
 
 // .ts modules whose returned strings are presentation copy.
 const PRESENTATION_MODULE =

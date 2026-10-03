@@ -1,4 +1,5 @@
 import Svg, { Path, Rect } from "react-native-svg";
+import { helmAppName } from "../appName";
 
 // The desktop header's mark: a square screen with the amber signal.
 export const HELM_SIGNAL_PATH =
@@ -6,7 +7,12 @@ export const HELM_SIGNAL_PATH =
 
 export function HelmMark(props: { readonly size: number }) {
   return (
-    <Svg width={props.size} height={props.size} viewBox="0 0 120 120" accessibilityLabel="Штурвал">
+    <Svg
+      width={props.size}
+      height={props.size}
+      viewBox="0 0 120 120"
+      accessibilityLabel={helmAppName}
+    >
       <Rect
         x={4}
         y={4}

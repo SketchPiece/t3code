@@ -22,6 +22,7 @@ const WORKSPACE = path.resolve(MOBILE, "../..");
 const ROOTS = [
   path.join(MOBILE, "src"),
   path.join(MOBILE, "helm", "overrides"),
+  path.join(MOBILE, "helm", "tailscale"),
   path.join(WORKSPACE, "packages", "client-runtime", "src"),
 ];
 const dictionary = JSON.parse(fs.readFileSync(path.join(__dirname, "ru.json"), "utf8"));

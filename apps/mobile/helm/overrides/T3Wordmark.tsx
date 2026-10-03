@@ -2,6 +2,7 @@ import type { ColorValue } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { withUniwind } from "uniwind";
 
+import { helmAppName } from "../appName";
 import { HELM_SIGNAL_PATH } from "./HelmMark";
 
 // Helm fork: replaces src/components/T3Wordmark.tsx (see ../metro.cjs).
@@ -18,7 +19,7 @@ export function T3Wordmark(props: {
   const aspectRatio = 94.3941 / 56.96;
   return (
     <Svg
-      accessibilityLabel="Штурвал"
+      accessibilityLabel={helmAppName}
       height={props.height}
       width={props.height * aspectRatio}
       viewBox="21 36 78 48"

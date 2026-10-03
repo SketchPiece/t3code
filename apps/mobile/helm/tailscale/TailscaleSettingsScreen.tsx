@@ -71,12 +71,12 @@ export function TailscaleSettingsScreen() {
 
   const logout = useCallback(() => {
     Alert.alert(
-      "Выйти из Tailscale?",
-      "Компьютеры по адресам тейлнета станут недоступны, пока не войдёшь снова. Телефон останется в списке устройств Tailscale, пока не удалишь его там.",
+      "Log out of Tailscale?",
+      "Computers on your tailnet stay unreachable until you log in again. The phone stays in your Tailscale machine list until you remove it there.",
       [
-        { text: "Отмена", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "Выйти",
+          text: "Log out",
           style: "destructive",
           onPress: () => {
             void (async () => {
@@ -97,11 +97,11 @@ export function TailscaleSettingsScreen() {
       const url = `http://${address}:${HELM_DESKTOP_PORT}`;
       await Clipboard.setStringAsync(url);
       Alert.alert(
-        "Адрес скопирован",
-        `${url}\n\nВставь его в поле адреса и введи код из «Settings → Connections» на компьютере.`,
+        "Address copied",
+        `${url}\n\nPaste it as the host and enter the code from Settings → Connections on the computer.`,
         [
           {
-            text: "Добавить",
+            text: "Add",
             onPress: () =>
               navigation.navigate("SettingsSheet", {
                 screen: "SettingsContent",
@@ -134,25 +134,25 @@ export function TailscaleSettingsScreen() {
       >
         {!HelmTailscale ? (
           <Text className="px-2 text-sm text-foreground-muted">
-            Встроенный Tailscale есть только в сборке для iPhone.
+            Built-in Tailscale is only in the iPhone app.
           </Text>
         ) : running && status ? (
           <>
-            <SettingsSection title="Тейлнет">
+            <SettingsSection title="Tailnet">
               <View className="gap-1 rounded-2xl bg-grouped-card px-4 py-3">
                 <Text className="text-base font-t3-medium text-foreground">
-                  {status.tailnetName ?? "Подключено"}
+                  {status.tailnetName ?? "Connected"}
                 </Text>
                 <Text className="text-sm text-foreground-muted">
-                  Телефон: {status.selfName ?? HELM_TAILNET_HOSTNAME}
+                  Phone: {status.selfName ?? HELM_TAILNET_HOSTNAME}
                   {status.selfIp ? ` · ${status.selfIp}` : ""}
                 </Text>
               </View>
             </SettingsSection>
-            <SettingsSection title="Компьютеры">
+            <SettingsSection title="Computers">
               {computers.length === 0 ? (
                 <Text className="px-2 text-sm text-foreground-muted">
-                  В тейлнете нет других компьютеров.
+                  No other computers on your tailnet.
                 </Text>
               ) : (
                 computers.map((peer) =>
@@ -160,7 +160,11 @@ export function TailscaleSettingsScreen() {
                     <SettingsActionRow
                       key={peer.id}
                       icon={peer.online ? "desktopcomputer" : "wifi.slash"}
-                      label={`${peer.name} · ${peer.ip}${peer.online ? "" : " · не в сети"}`}
+                      label={
+                        peer.online
+                          ? `${peer.name} · ${peer.ip}`
+                          : `${peer.name} · ${peer.ip} · offline`
+                      }
                       onPress={() => void pairWith(peer.ip ?? "")}
                     />
                   ) : null,
@@ -168,12 +172,12 @@ export function TailscaleSettingsScreen() {
               )}
             </SettingsSection>
             <Text className="px-2 text-sm text-foreground-muted">
-              На компьютере включи «Settings → Connections → Network access» в Helm. Потом выбери
-              его здесь или отсканируй QR-код с адресом Tailscale.
+              On the computer, turn on Settings → Connections → Network access in Helm. Then pick it
+              here or scan its QR code with the Tailscale address.
             </Text>
             <SettingsActionRow
               icon="xmark.circle.fill"
-              label="Выйти из Tailscale"
+              label="Log out of Tailscale"
               tone="danger"
               onPress={logout}
             />
@@ -181,12 +185,12 @@ export function TailscaleSettingsScreen() {
         ) : (
           <>
             <Text className="px-2 text-sm text-foreground-muted">
-              Подключи Штурвал к своему тейлнету, чтобы заходить на компьютеры напрямую, без
-              приложения Tailscale. Связь работает, пока Штурвал открыт.
+              Join your tailnet to reach your computers directly, without the Tailscale app. The
+              connection works while the app is open.
             </Text>
             <SettingsActionRow
               icon={{ ios: "network", android: "public" }}
-              label={status?.authUrl ? "Открыть вход ещё раз" : "Войти в Tailscale"}
+              label={status?.authUrl ? "Open login again" : "Log in to Tailscale"}
               loading={busy || (status !== null && !status.authUrl && !running)}
               disabled={busy}
               onPress={() => {
@@ -195,7 +199,7 @@ export function TailscaleSettingsScreen() {
               }}
             />
             {status ? (
-              <Text className="px-2 text-sm text-foreground-muted">Состояние: {status.state}</Text>
+              <Text className="px-2 text-sm text-foreground-muted">State: {status.state}</Text>
             ) : null}
           </>
         )}

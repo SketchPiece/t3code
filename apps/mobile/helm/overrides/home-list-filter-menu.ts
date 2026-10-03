@@ -47,8 +47,8 @@ export function buildHomeListFilterMenu(props: {
   const environmentItems: HomeListFilterMenuAction[] = [
     {
       type: "action",
-      title: "Все окружения",
-      subtitle: "Треды со всех машин",
+      title: "All environments",
+      subtitle: "Threads from every machine",
       state: props.selectedEnvironmentId === null ? "on" : "off",
       onPress: () => props.onEnvironmentChange(null),
     },
@@ -65,26 +65,26 @@ export function buildHomeListFilterMenu(props: {
 
   if (props.onOpenEnvironments) {
     return {
-      title: "Окружения",
+      title: "Environments",
       items: [
         ...environmentItems,
-        { type: "action", title: "Настроить окружения…", onPress: props.onOpenEnvironments },
+        { type: "action", title: "Configure environments…", onPress: props.onOpenEnvironments },
       ],
     };
   }
 
   const items: Array<HomeListFilterMenuAction | HomeListFilterMenuSubmenu> = [
-    { type: "submenu", title: "Окружение", items: environmentItems },
+    { type: "submenu", title: "Environment", items: environmentItems },
   ];
   if (props.projects.length > 0) {
     items.push({
       type: "submenu",
-      title: "Проект",
+      title: "Project",
       items: [
         {
           type: "action",
-          title: "Все проекты",
-          subtitle: "Треды из всех проектов",
+          title: "All projects",
+          subtitle: "Show threads from every project",
           state: props.selectedProjectKey === null ? "on" : "off",
           onPress: () => props.onProjectChange(null),
         },
@@ -97,5 +97,5 @@ export function buildHomeListFilterMenu(props: {
       ],
     });
   }
-  return { title: "Настройки списка", items };
+  return { title: "Thread list options", items };
 }

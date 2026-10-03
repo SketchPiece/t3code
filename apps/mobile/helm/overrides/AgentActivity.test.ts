@@ -75,8 +75,8 @@ describe("AgentActivity (Helm)", () => {
     );
     const banner = texts(layout.banner);
     expect(banner.indexOf("Аудит места")).toBeLessThan(banner.indexOf("Ребрендинг в Штурвал"));
-    expect(banner).toContain("ЖДЁТ РАЗРЕШЕНИЯ · RANDOM");
-    expect(texts(layout.compactTrailing)).toContain("Ждёт разрешения");
+    expect(banner).toContain("NEEDS APPROVAL · RANDOM");
+    expect(texts(layout.compactTrailing)).toContain("Needs approval");
   });
 
   it("reports the outcome once nothing is active", () => {
@@ -90,7 +90,7 @@ describe("AgentActivity (Helm)", () => {
       },
       environment,
     );
-    expect(texts(layout.compactTrailing)).toContain("Ошибка");
-    expect(texts(layout.banner)).toContain("есть ошибка");
+    expect(texts(layout.compactTrailing)).toContain("Failed");
+    expect(texts(layout.banner)).toContain("failed");
   });
 });

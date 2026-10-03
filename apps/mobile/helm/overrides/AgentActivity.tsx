@@ -94,19 +94,19 @@ export function AgentActivity(
   const phaseLabel = (phase: AgentActivityPhase): string => {
     switch (phase) {
       case "waiting_for_approval":
-        return "Ждёт разрешения";
+        return "Needs approval";
       case "waiting_for_input":
-        return "Ждёт ответа";
+        return "Needs input";
       case "failed":
-        return "Ошибка";
+        return "Failed";
       case "completed":
-        return "Готово";
+        return "Done";
       case "starting":
-        return "Запускается";
+        return "Starting";
       case "stale":
-        return "Нет обновлений";
+        return "Out of date";
       default:
-        return "Работает";
+        return "Working";
     }
   };
 
@@ -126,7 +126,7 @@ export function AgentActivity(
     ? props.activities.map((row) =>
         row.phase === "completed" || row.phase === "failed"
           ? row
-          : { ...row, phase: "stale", status: "Нет обновлений" },
+          : { ...row, phase: "stale", status: "Out of date" },
       )
     : props.activities;
   const ordered = [...activities].sort((a, b) => priority(a) - priority(b));
@@ -257,7 +257,7 @@ export function AgentActivity(
             foregroundStyle(tint(failed ? "failed" : "completed")),
           ]}
         >
-          {failed ? "есть ошибка" : "✓ готово"}
+          {failed ? "failed" : "✓ done"}
         </Text>
       ) : null}
       {!allDone && waiting > 0 ? (
@@ -286,7 +286,7 @@ export function AgentActivity(
     <HStack spacing={8} alignment="center">
       {mark(18)}
       <Text modifiers={[font({ weight: "semibold", size: 13 }), foregroundStyle(primary)]}>
-        Штурвал
+        Helm
       </Text>
       <Spacer minLength={6} />
       {counts}
@@ -297,8 +297,8 @@ export function AgentActivity(
     ? phaseLabel(hero.phase)
     : allDone
       ? failed
-        ? "Ошибка"
-        : "Готово"
+        ? "Failed"
+        : "Done"
       : `${working}`;
 
   return {

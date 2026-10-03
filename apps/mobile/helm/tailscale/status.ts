@@ -42,7 +42,7 @@ const ipv4 = (peer: RawPeer | undefined) =>
   peer?.TailscaleIPs?.find((ip) => !ip.includes(":")) ?? peer?.TailscaleIPs?.[0] ?? null;
 
 /** MagicDNS short name, falling back to the OS hostname. */
-const displayName = (peer: RawPeer) => peer.DNSName?.split(".")[0] || peer.HostName || "Без имени";
+const displayName = (peer: RawPeer) => peer.DNSName?.split(".")[0] || peer.HostName || "Unnamed";
 
 export function parseTailnetStatus(json: string): TailnetStatus {
   const raw = JSON.parse(json) as RawStatus;

@@ -16,15 +16,19 @@ const ASSETS = "./helm/assets";
 const HELM_APPLE_TEAM_ID = "4KSA86792T";
 const HELM_IOS_BUNDLE_PREFIX = "com.sketchpiece.helm";
 
-import { HELM_APP_NAME } from "./name.ts";
+import { HELM_APP_NAME, HELM_APP_NAME_RU } from "./name.ts";
 
 export { HELM_APP_NAME };
 
-const DISPLAY_NAMES = {
-  development: `${HELM_APP_NAME} Dev`,
-  preview: `${HELM_APP_NAME} Preview`,
-  production: HELM_APP_NAME,
-} as const;
+const displayNames = (name: string) =>
+  ({
+    development: `${name} Dev`,
+    preview: `${name} Preview`,
+    production: name,
+  }) as const;
+
+const DISPLAY_NAMES = displayNames(HELM_APP_NAME);
+const DISPLAY_NAMES_RU = displayNames(HELM_APP_NAME_RU);
 
 type Variant = keyof typeof DISPLAY_NAMES;
 
@@ -43,14 +47,20 @@ function withBakeliteSplash(plugin: NonNullable<ExpoConfig["plugins"]>[number]) 
 }
 
 /**
- * Sets the name under the icon and the splash colors. Expo derives the native project name from
- * `name`, which must stay ASCII (and T3 Code's, for the build scripts), so the
- * Cyrillic name goes into the display name only.
+ * Sets the name under the icon and the splash colors. The name is "Helm", and
+ * "Штурвал" on a phone set to Russian (a ru localization, which also lets iOS
+ * offer a per-app language). Expo derives the native project name from
+ * `name`, which must stay ASCII (and T3 Code's, for the build scripts).
  */
 export function withHelmConfig(config: ExpoConfig, variantName: Variant): ExpoConfig {
   const displayName = DISPLAY_NAMES[variantName];
+  const russianName = DISPLAY_NAMES_RU[variantName];
   const withIosName: ExpoConfig = {
     ...config,
+    locales: {
+      ...config.locales,
+      ru: { ios: { CFBundleDisplayName: russianName }, android: { app_name: russianName } },
+    },
     plugins: config.plugins?.map(withBakeliteSplash),
     ios: {
       ...config.ios,

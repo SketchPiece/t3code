@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import { View } from "react-native";
 
 import { AppText as Text } from "../../src/components/AppText";
-import { HELM_APP_NAME } from "../name";
+import { helmAppName } from "../appName";
 import { HelmMark } from "./HelmMark";
 
 // Helm fork: replaces src/components/BrandMark.tsx (see ../metro.cjs).
@@ -20,7 +20,7 @@ export function BrandMark(props: { readonly compact?: boolean; readonly stageLab
       <HelmMark size={compact ? 34 : 44} />
       <View className="gap-1">
         <View className="flex-row items-center gap-2">
-          <Text className="font-brand text-xl text-foreground">{HELM_APP_NAME}</Text>
+          <Text className="font-brand text-xl text-foreground">{helmAppName}</Text>
           {stageLabel ? (
             <View className="rounded-full bg-subtle px-2 py-1">
               <Text className="text-3xs font-t3-bold tracking-[1.1px] uppercase text-foreground-muted">
@@ -31,7 +31,7 @@ export function BrandMark(props: { readonly compact?: boolean; readonly stageLab
         </View>
         {!compact ? (
           <Text className="text-xs font-medium text-foreground-muted">
-            Пульт для агентов на твоих машинах
+            Mission control for agents on your machines
           </Text>
         ) : null}
       </View>

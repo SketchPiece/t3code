@@ -20,9 +20,9 @@ describe("buildHomeListFilterMenu (Helm)", () => {
     const menu = buildHomeListFilterMenu({ ...base, onEnvironmentChange, onOpenEnvironments });
 
     expect(menu.items.map((item) => item.title)).toEqual([
-      "Все окружения",
+      "All environments",
       "MacBook Pro",
-      "Настроить окружения…",
+      "Configure environments…",
     ]);
     for (const item of menu.items.slice(1)) {
       if (item.type === "action") item.onPress();
@@ -33,6 +33,6 @@ describe("buildHomeListFilterMenu (Helm)", () => {
 
   it("keeps the project submenu where there are no chips", () => {
     const menu = buildHomeListFilterMenu(base);
-    expect(menu.items.map((item) => item.title)).toEqual(["Окружение", "Проект"]);
+    expect(menu.items.map((item) => item.title)).toEqual(["Environment", "Project"]);
   });
 });
