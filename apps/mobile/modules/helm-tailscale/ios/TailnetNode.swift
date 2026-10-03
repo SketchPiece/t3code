@@ -96,9 +96,18 @@ final class TailnetNode {
     return Int(forwarder.localPort)
   }
 
+  /// tsnet's dial waits for login, so a logged-out node would hang every
+  /// request; refuse instead and let the client report the connection error.
+  private func isRunning() -> Bool {
+    guard let json = try? statusJSON(), let data = json.data(using: .utf8),
+      let status = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return false }
+    return status["BackendState"] as? String == "Running"
+  }
+
   private func dial(target: String) -> Int32 {
     let node = queue.sync { handle }
-    if node < 0 { return -1 }
+    if node < 0 || !isRunning() { return -1 }
     var connection: Int32 = -1
     let result = "tcp".withCString { network in
       target.withCString { address in tailscale_dial(node, network, address, &connection) }

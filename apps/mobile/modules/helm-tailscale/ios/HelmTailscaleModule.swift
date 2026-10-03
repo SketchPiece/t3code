@@ -1,7 +1,7 @@
 import ExpoModulesCore
 
-// Helm fork: JS surface of TailnetNode. See src/features/tailscale in the
-// mobile app (apps/mobile/helm/tailscale) for how URLs are routed through it.
+// Helm fork: JS surface of TailnetNode. apps/mobile/helm/tailscale routes the
+// app's tailnet URLs through it.
 @ExpoModule("HelmTailscale")
 public final class HelmTailscaleModule: Module {
   public func definition() -> ModuleDefinition {
