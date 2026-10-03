@@ -263,6 +263,9 @@ import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import { ComposerImageThumbnail } from "./ComposerImageThumbnail";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
+import { ComposerDictationBar, ComposerDictationButton } from "./ComposerDictation";
+import { useComposerVoiceInput } from "./useComposerVoiceInput";
+import { isBrowserVoiceRecordingSupported } from "~/lib/browserVoiceRecorder";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
@@ -1501,6 +1504,8 @@ export interface ChatComposerProps {
   attachmentUploadsCapabilityKnown: boolean;
   supportsAttachmentUploads: boolean;
   supportsQuestionAttachments: boolean;
+  /** Helm fork: the environment can transcribe dictation (voice.transcribe). */
+  supportsVoiceTranscription: boolean;
   maxFileAttachmentBytes: number | null;
   routeKind: "server" | "draft";
   routeThreadRef: ScopedThreadRef;
@@ -1687,6 +1692,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     attachmentUploadsCapabilityKnown,
     supportsAttachmentUploads,
     supportsQuestionAttachments,
+    supportsVoiceTranscription,
     maxFileAttachmentBytes,
     routeKind,
     routeThreadRef,
@@ -1698,7 +1704,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadEnvironmentId: _activeThreadEnvironmentId,
     activeThread,
     promptHistoryMessages,
-    isServerThread: _isServerThread,
+    isServerThread,
     isLocalDraftThread: _isLocalDraftThread,
     forceExpandedOnMobile,
     projectSelectionRequired,
@@ -3831,6 +3837,31 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ],
   );
 
+  const voiceInputOwnerKey =
+    typeof composerDraftTarget === "string"
+      ? composerDraftTarget
+      : `${composerDraftTarget.environmentId}:${composerDraftTarget.threadId}`;
+  const voiceInput = useComposerVoiceInput({
+    ownerKey: voiceInputOwnerKey,
+    environmentId,
+    threadId: isServerThread ? activeThreadId : null,
+    readPrompt: () => promptRef.current,
+    readSelection: () =>
+      composerEditorRef.current?.readSelectionRange() ?? {
+        start: promptRef.current.length,
+        end: promptRef.current.length,
+      },
+    commitPrompt: (text, selection) => {
+      applyPromptReplacement(0, promptRef.current.length, text, {
+        expandedCursorAfterReplace: selection.start,
+      });
+    },
+  });
+  const showVoiceInputAction =
+    supportsVoiceTranscription &&
+    isBrowserVoiceRecordingSupported() &&
+    !isChoiceOnlyPendingQuestion;
+
   const readComposerSnapshot = useCallback((): {
     value: string;
     cursor: number;
@@ -5059,6 +5090,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // it, so they do not hold the composer open; only surface-internal chrome
   // does.
   const composerHasExpandedChrome =
+    voiceInput.isActive ||
     showComposerTopDrawer ||
     isTasksDrawerOpen ||
     composerMenuOpen ||
@@ -7350,7 +7382,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       isComposerApprovalState ||
                       projectSelectionRequired ||
                       isChoiceOnlyPendingQuestion ||
-                      activePendingIsResponding
+                      activePendingIsResponding ||
+                      // The transcript lands in the draft as it was when dictation started.
+                      voiceInput.blocksSubmission
                     }
                   />
                 </ComposerContextActionsContext>
@@ -7407,13 +7441,22 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     (showInlineRestingControls ? "bottom-[calc(2rem+1px)]" : "bottom-px"),
                 )}
               >
+                {voiceInput.isActive ? (
+                  <ComposerDictationBar
+                    state={voiceInput.state}
+                    recorder={voiceInput.recorder}
+                    onCancel={voiceInput.cancel}
+                    onStop={voiceInput.stop}
+                    onRetry={voiceInput.retry}
+                  />
+                ) : null}
                 <div
                   ref={expandedControlsLayout.attachControls}
                   data-chat-composer-controls="left"
                   data-chat-composer-footer-controls="true"
                   className={cn(
                     "relative -m-1 -ms-3.5 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-1 ps-3.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                    isComposerResting && "hidden",
+                    (isComposerResting || voiceInput.isActive) && "hidden",
                   )}
                 >
                   {composerControlsCollapsed ? null : composerControls}
@@ -7426,7 +7469,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   data-chat-composer-primary-actions-compact={
                     isComposerPrimaryActionsCompact ? "true" : "false"
                   }
-                  className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
+                  className={cn(
+                    "flex shrink-0 flex-nowrap items-center justify-end gap-2",
+                    voiceInput.isActive && "hidden",
+                  )}
                 >
                   {showComposerAttachAction ? (
                     <>
@@ -7464,6 +7510,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         <TooltipPopup>Attach files</TooltipPopup>
                       </Tooltip>
                     </>
+                  ) : null}
+                  {showVoiceInputAction ? (
+                    <ComposerDictationButton
+                      disabled={isConnecting || environmentUnavailable !== null}
+                      onStart={voiceInput.start}
+                    />
                   ) : null}
                   <ComposerFooterPrimaryActions
                     compact={isComposerResting || isComposerPrimaryActionsCompact}
