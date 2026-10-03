@@ -83,6 +83,8 @@ export function AgentActivity(
         return light ? "#B8321F" : "#EA7862";
       case "completed":
         return light ? "#3E7A2E" : "#8FC56A";
+      case "stale":
+        return secondary;
       default:
         return light ? "#257A73" : "#6FC9C1";
     }
@@ -118,15 +120,24 @@ export function AgentActivity(
         : row.phase === "running" || row.phase === "starting"
           ? 2
           : 3;
-  const ordered = [...props.activities].sort((a, b) => priority(a) - priority(b));
+  // Past the stale date the system stops vouching for the content: in-flight
+  // rows go dark instead of claiming an agent still works.
+  const activities: ReadonlyArray<AgentActivityRowProps> = environment.isStale
+    ? props.activities.map((row) =>
+        row.phase === "completed" || row.phase === "failed"
+          ? row
+          : { ...row, phase: "stale", status: "Нет обновлений" },
+      )
+    : props.activities;
+  const ordered = [...activities].sort((a, b) => priority(a) - priority(b));
   const hero = ordered.find((row) => waits(row) || row.phase === "failed");
   const rest = ordered.filter((row) => row !== hero);
-  const waiting = props.activities.filter(waits).length;
-  const working = props.activities.filter(
+  const waiting = activities.filter(waits).length;
+  const working = activities.filter(
     (row) => row.phase === "running" || row.phase === "starting",
   ).length;
   const allDone = props.activeCount === 0;
-  const failed = props.activities.some((row) => row.phase === "failed");
+  const failed = activities.some((row) => row.phase === "failed");
 
   const deepLinkRow = hero ?? ordered[0];
   const deepLink =

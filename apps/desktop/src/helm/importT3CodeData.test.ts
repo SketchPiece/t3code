@@ -52,6 +52,20 @@ describe("importT3CodeData", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
+  it.effect("prefers T3 Code's V2 database over its stale V1 file", () =>
+    Effect.gen(function* () {
+      const { fileSystem, path, stateDir, t3CodeStateDir } = yield* setup;
+      const v2 = new NodeSqlite.DatabaseSync(path.join(t3CodeStateDir, "statev2.sqlite"));
+      v2.exec("CREATE TABLE marker (version TEXT); INSERT INTO marker VALUES ('v2');");
+      v2.close();
+
+      const result = yield* importT3CodeData({ stateDir, t3CodeStateDir });
+      assert.strictEqual(result.status, "imported");
+      assert.isTrue(yield* fileSystem.exists(path.join(stateDir, "statev2.sqlite")));
+      assert.isFalse(yield* fileSystem.exists(path.join(stateDir, "state.sqlite")));
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("leaves Helm alone when there is nothing to import", () =>
     Effect.gen(function* () {
       const { path, stateDir } = yield* setup;

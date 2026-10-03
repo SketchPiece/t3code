@@ -38,8 +38,9 @@ import { ThreadSwipeable } from "../home/thread-swipe-actions";
 import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regeneration-menu";
 import {
   THREAD_LIST_V2_SETTLED_PAGE_COUNT,
-  resolveThreadListV2SnoozeMenuSelection,
   resolveThreadListV2SnoozeGateExpiryMs,
+  resolveThreadListV2SnoozeMenuSelection,
+  threadHasUnseenCompletion,
   resolveThreadListV2Status,
   resolveThreadListV2SwipeActions,
   type ThreadListV2Status,
@@ -64,6 +65,7 @@ const STATUS_LABEL_BY_STATUS: Partial<
   input: { label: "Input", className: "text-adaptive-indigo-600-300" },
   working: { label: "Working", className: "text-adaptive-sky-600-400" },
   failed: { label: "Failed", className: "text-danger-foreground" },
+  limited: { label: "Limited", className: "text-warning-foreground" },
 };
 
 // Menus keep lifecycle and title regeneration together. Archive keeps its
@@ -101,6 +103,7 @@ const STATUS_BADGE_CLASS_NAME_BY_STATUS: Partial<Record<ThreadListV2Status, stri
   input: "bg-adaptive-indigo-600-300",
   working: "bg-adaptive-sky-600-400",
   failed: "bg-danger-foreground",
+  limited: "bg-warning-foreground",
 };
 
 /**
@@ -545,9 +548,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   readonly activationKey?: string;
   readonly searchMatch?: EnvironmentThreadSearchMatch;
   readonly searchQuery?: string;
-  readonly simultaneousSwipeGesture?: ComponentProps<
-    typeof ThreadSwipeable
-  >["simultaneousWithExternalGesture"];
+  readonly simultaneousSwipeGesture?: ComponentProps<typeof ThreadSwipeable>["simultaneousWith"];
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const {
@@ -580,7 +581,13 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const rowAppearance = getThreadListV2RowAppearance(theme, sidebarPane, selected);
 
   const status = resolveThreadListV2Status(thread);
-  const statusLabel = STATUS_LABEL_BY_STATUS[status];
+  // "Done" marks a completion the user has not opened yet — same emerald
+  // label as the web sidebar, sourced from the server-side visited watermark
+  // so checking a thread on any device clears it everywhere.
+  const isUnread = status === "ready" && threadHasUnseenCompletion(thread);
+  const statusLabel =
+    STATUS_LABEL_BY_STATUS[status] ??
+    (isUnread ? { label: "Done", className: "text-adaptive-emerald-700-300" } : undefined);
   // The timestamp is precomputed on the list item (same stamps the settled
   // tail sorts by) so a minute tick only re-renders rows that draw it.
   const timeLabel = props.timeLabel;
@@ -842,8 +849,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       handleUnpin,
       handleUnsettle,
       handleUnsnooze,
-      snoozePresets,
       setCustomSnoozeOpen,
+      snoozePresets,
     ],
   );
   const primaryAction = useMemo(() => {
@@ -916,7 +923,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const tertiaryForegroundClassName = selected
     ? selectedThreadRowColors.mutedForegroundClassName
     : rowAppearance.tertiaryForegroundClassName;
-  const failedError = status === "failed" ? thread.session?.lastError : undefined;
+  const failedError =
+    status === "failed" || status === "limited" ? thread.runtime?.lastError : undefined;
 
   // Project first, like the desktop sidebar: the tile says where the work
   // lives, its corner badge says whether it needs you. The provider is a
@@ -990,7 +998,11 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
                   <Text
                     className={cn(
                       "text-xs",
-                      selected ? mutedForegroundClassName : "text-danger-foreground",
+                      selected
+                        ? mutedForegroundClassName
+                        : status === "limited"
+                          ? "text-warning-foreground"
+                          : "text-danger-foreground",
                     )}
                   >
                     {failedError}
@@ -1192,7 +1204,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         primaryAction={primaryAction}
         secondaryAction={secondaryAction}
         resetKey={`${thread.environmentId}:${thread.id}:${variant}:${snoozedRow}:${thread.settledAt}:${thread.unsettledAt}:${thread.snoozedUntil}`}
-        simultaneousWithExternalGesture={props.simultaneousSwipeGesture}
+        simultaneousWith={props.simultaneousSwipeGesture}
         threadTitle={thread.title}
       >
         {(close) => (

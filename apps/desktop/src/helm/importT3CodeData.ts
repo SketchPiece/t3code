@@ -19,6 +19,8 @@ import * as Path from "effect/Path";
 const COPIED_FILES = ["settings.json", "keybindings.json", "client-settings.json"] as const;
 const COPIED_DIRECTORIES = ["attachments", "themes", "project-icons"] as const;
 const MARKER_FILE = "helm-imported-from-t3code.txt";
+const V1_DATABASE = "state.sqlite";
+const V2_DATABASE = "statev2.sqlite";
 
 export type T3CodeImportResult =
   | {
@@ -47,10 +49,17 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
   if (yield* exists(target(MARKER_FILE))) {
     return { status: "skipped", reason: "already-imported" } satisfies T3CodeImportResult;
   }
-  if (yield* exists(target("state.sqlite"))) {
+  if ((yield* exists(target(V2_DATABASE))) || (yield* exists(target(V1_DATABASE)))) {
     return { status: "skipped", reason: "already-has-state" } satisfies T3CodeImportResult;
   }
-  if (!(yield* exists(source("state.sqlite")))) {
+  // A V2 T3 Code keeps its stale V1 file beside the live one; a V1 copy is
+  // upgraded by the server's own V2 import on first start.
+  const database = (yield* exists(source(V2_DATABASE)))
+    ? V2_DATABASE
+    : (yield* exists(source(V1_DATABASE)))
+      ? V1_DATABASE
+      : null;
+  if (database === null) {
     return { status: "skipped", reason: "no-t3code-state" } satisfies T3CodeImportResult;
   }
 
@@ -58,14 +67,14 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
   const copy = Effect.gen(function* () {
     yield* fileSystem.makeDirectory(input.stateDir, { recursive: true });
     yield* Effect.try(() => {
-      const database = new NodeSqlite.DatabaseSync(source("state.sqlite"), { readOnly: true });
+      const sqlite = new NodeSqlite.DatabaseSync(source(database), { readOnly: true });
       try {
-        database.exec(`VACUUM INTO '${target("state.sqlite").replaceAll("'", "''")}'`);
+        sqlite.exec(`VACUUM INTO '${target(database).replaceAll("'", "''")}'`);
       } finally {
-        database.close();
+        sqlite.close();
       }
     });
-    copied.push("state.sqlite");
+    copied.push(database);
     for (const file of COPIED_FILES) {
       if (!(yield* exists(source(file)))) continue;
       yield* fileSystem.copyFile(source(file), target(file));
@@ -81,7 +90,7 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
   const exit = yield* Effect.exit(copy);
   if (Exit.isFailure(exit)) {
     // A half-copied database would pass for real state on the next launch.
-    yield* fileSystem.remove(target("state.sqlite"), { force: true }).pipe(Effect.ignore);
+    yield* fileSystem.remove(target(database), { force: true }).pipe(Effect.ignore);
     return {
       status: "failed",
       error: Cause.pretty(exit.cause),
