@@ -135,20 +135,34 @@ Stashes containing uploaded files must be restored in their original environment
 Those files are retained for 24 hours. After an upload expires, restore the prompt
 and use **Attach again** or remove the missing file before sending.
 
-## Voice input on iPhone
+## Voice input
 
-On supported iPhones with iOS 26 or later, use the composer's microphone to record,
-then confirm to transcribe. Text is inserted where your selection was when
-recording started, ready for you to review and edit before sending.
+When the server has a transcription backend (Helm: the Volna core named by the
+`helm-push` secret), dictation understands Russian and English in the same take.
 
-The first use may download Apple's speech model and needs a network connection.
-Later transcription works offline for that language. Recordings can be up to five
-minutes long. Canceling, leaving the screen, or an audio interruption discards the
-recording and preserves your existing draft. While recording, the screen stays
-awake; it can sleep normally once recording stops.
+On the phone, an empty composer shows the microphone where send goes:
 
-Transcription runs on your device. T3 Code deletes the temporary audio after
-transcription or cancellation; only the message text is sent when you submit.
+- **Hold** it, speak, and release to send the message. Slide left onto the cross
+  before releasing to cancel.
+- **Tap** it to record without holding, then tap the checkmark to insert the text
+  where your cursor was, ready to edit.
+
+When the draft already has text, the smaller microphone next to send inserts
+dictation at the cursor. On web and desktop, click the microphone next to send and
+confirm with the checkmark; press `Escape` to cancel.
+
+If transcription fails, the recording is kept: use the retry button instead of
+speaking again, or the cross to discard it. Recordings can be up to five minutes long.
+The audio is uploaded to your server only for transcription and deleted right after.
+
+Without a transcription backend, supported iPhones with iOS 26 or later transcribe
+on the device in the phone's language. The first use may download Apple's speech
+model.
+
+Long drafts: the open composer grows to about a third of the screen, and the expand
+button opens the draft full screen. Swipe the composer down, or pull the
+conversation toward earlier messages, to put the keyboard away; the draft stays as
+two lines until you tap it.
 
 ## Queued messages
 
