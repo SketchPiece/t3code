@@ -34,7 +34,9 @@ import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 import { importT3CodeData } from "../helm/importT3CodeData.ts";
 
-const DEFAULT_DESKTOP_BACKEND_PORT = 3773;
+// Helm fork: its own port, so T3 Code running beside it never takes the address
+// phones saved for Helm. 3773 stays T3 Code's.
+const DEFAULT_DESKTOP_BACKEND_PORT = 3783;
 const MAX_TCP_PORT = 65_535;
 const DESKTOP_BACKEND_PORT_PROBE_HOSTS = ["127.0.0.1", "0.0.0.0", "::"] as const;
 
