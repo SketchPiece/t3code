@@ -1,7 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
-import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -10,17 +9,40 @@ import { AppText as Text } from "../../src/components/AppText";
 import { SettingsActionRow } from "../../src/features/settings/components/SettingsActionRow";
 import { SettingsSection } from "../../src/features/settings/components/SettingsSection";
 import { NativeStackScreenOptions } from "../../src/native/StackHeader";
+import {
+  type AutoPairState,
+  pairTailnetComputers,
+  readAutoPair,
+  retryTailnetComputer,
+  subscribeAutoPair,
+} from "./autoPair";
 import { HelmTailscale } from "./native";
 import { HELM_TAILNET_HOSTNAME, setTailnetRouting } from "./routing";
 import { parseTailnetStatus, type TailnetStatus } from "./status";
 
-/** Helm desktop's default backend port (apps/desktop/src/app/DesktopApp.ts). */
-const HELM_DESKTOP_PORT = 3773;
 const STATUS_INTERVAL_MS = 1500;
 
 // Helm fork: Settings → Tailscale. Logs the in-app node into the user's
-// tailnet and lists the computers on it, so pairing a Helm machine needs no
-// Tailscale VPN app on the phone.
+// tailnet and adds the Helm computers on it as environments (autoPair.ts),
+// so pairing a Helm machine needs neither the Tailscale VPN app nor a code.
+
+function autoPairLabel(state: AutoPairState): string {
+  switch (state) {
+    case "checking":
+      return "looking for Helm";
+    case "not-helm":
+      return "no Helm";
+    case "waiting":
+      return "allow it in Helm on this computer";
+    case "added":
+    case "already-added":
+      return "added";
+    case "denied":
+      return "not allowed, tap to ask again";
+    case "failed":
+      return "failed, tap to retry";
+  }
+}
 export function TailscaleSettingsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -92,30 +114,15 @@ export function TailscaleSettingsScreen() {
     );
   }, []);
 
-  const pairWith = useCallback(
-    async (address: string) => {
-      const url = `http://${address}:${HELM_DESKTOP_PORT}`;
-      await Clipboard.setStringAsync(url);
-      Alert.alert(
-        "Address copied",
-        `${url}\n\nPaste it as the host and enter the code from Settings → Connections on the computer.`,
-        [
-          {
-            text: "Add",
-            onPress: () =>
-              navigation.navigate("SettingsSheet", {
-                screen: "SettingsContent",
-                params: { screen: "SettingsEnvironmentNew" },
-              }),
-          },
-        ],
-      );
-    },
-    [navigation],
-  );
-
   const running = status?.state === "Running";
   const computers = status?.peers.filter((peer) => peer.isComputer) ?? [];
+  const autoPair = useSyncExternalStore(subscribeAutoPair, readAutoPair, readAutoPair);
+
+  // Each online computer is looked at once per app session; rows show how far
+  // it got, and a denied or failed one can be asked again with a tap.
+  useEffect(() => {
+    if (running) pairTailnetComputers(computers);
+  }, [running, computers]);
 
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
@@ -161,19 +168,22 @@ export function TailscaleSettingsScreen() {
                       key={peer.id}
                       icon={peer.online ? "desktopcomputer" : "wifi.slash"}
                       label={
-                        peer.online
-                          ? `${peer.name} · ${peer.ip}`
-                          : `${peer.name} · ${peer.ip} · offline`
+                        !peer.online
+                          ? `${peer.name} · offline`
+                          : `${peer.name} · ${autoPairLabel(autoPair.get(peer.ip) ?? "checking")}`
                       }
-                      onPress={() => void pairWith(peer.ip ?? "")}
+                      onPress={() => {
+                        const state = autoPair.get(peer.ip ?? "");
+                        if (state === "denied" || state === "failed") retryTailnetComputer(peer);
+                      }}
                     />
                   ) : null,
                 )
               )}
             </SettingsSection>
             <Text className="px-2 text-sm text-foreground-muted">
-              On the computer, turn on Settings → Connections → Network access in Helm. Then pick it
-              here or scan its QR code with the Tailscale address.
+              Helm computers here are added on their own: turn on Settings → Connections → Network
+              access in Helm on the computer, then allow this phone when Helm asks.
             </Text>
             <SettingsActionRow
               icon="xmark.circle.fill"
