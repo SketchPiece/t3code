@@ -50,6 +50,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import { forkParked } from "../serverActivation.ts";
+import { readHelmPushConfig } from "../helm/pushConfig.ts";
 
 export class AgentAwarenessRelay extends Context.Service<
   AgentAwarenessRelay,
@@ -388,7 +389,14 @@ export const make = Effect.gen(function* () {
         ),
       );
 
+  // Helm fork: read once; changing helm-push takes a restart (helm/pushConfig.ts).
+  const helmPush = yield* readHelmPushConfig(secrets);
+
   const readRelayConfig = Effect.gen(function* () {
+    // Helm fork: the Volna core takes the relay's place when configured.
+    if (helmPush) {
+      return { url: helmPush.url, issuer: helmPush.url, environmentCredential: helmPush.token };
+    }
     const [url, issuer, environmentCredential] = yield* Effect.all([
       readSecretString(RELAY_URL_SECRET),
       readSecretString(RELAY_ISSUER_SECRET),
@@ -399,9 +407,12 @@ export const make = Effect.gen(function* () {
       : null;
   });
 
-  const readPublishAgentActivityEnabled = readSecretString(PUBLISH_AGENT_ACTIVITY_SECRET).pipe(
-    Effect.map(isAgentActivityPublishingEnabledValue),
-  );
+  const readPublishAgentActivityEnabled = Effect.gen(function* () {
+    if (helmPush) return true; // Helm fork: see readRelayConfig.
+    return isAgentActivityPublishingEnabledValue(
+      yield* readSecretString(PUBLISH_AGENT_ACTIVITY_SECRET),
+    );
+  });
 
   const makeRelayClient = (relayConfig: {
     readonly url: string;
@@ -705,9 +716,9 @@ export const make = Effect.gen(function* () {
   const publishActiveThreadsUnsafe = Effect.gen(function* () {
     // One secret read settles the common never-linked case; the full link
     // config is read only once publishing is on.
-    const relayUrl = yield* readSecretString(RELAY_URL_SECRET).pipe(
-      Effect.orElseSucceed(() => null),
-    );
+    const relayUrl =
+      helmPush?.url ?? // Helm fork: see readRelayConfig.
+      (yield* readSecretString(RELAY_URL_SECRET).pipe(Effect.orElseSucceed(() => null)));
     if (!relayUrl) {
       yield* Effect.logDebug("agent activity snapshot skipped; relay link credentials unavailable");
       return "unlinked" as const;
