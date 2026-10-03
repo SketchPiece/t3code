@@ -15,7 +15,7 @@ import {
 describe("appearancePreferences", () => {
   it("resolves defaults for empty stored preferences", () => {
     expect(resolveAppearancePreferences({})).toEqual({
-      baseFontSize: DEFAULT_BASE_FONT_SIZE,
+      baseFontSize: DEFAULT_BASE_FONT_SIZE + 1,
       terminalFontSize: null,
       codeFontSize: null,
       codeWordBreak: false,

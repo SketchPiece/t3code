@@ -69,7 +69,8 @@ export interface NativeMarkdownTypography {
 
 export function normalizeBaseFontSize(value: number | null | undefined): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return DEFAULT_BASE_FONT_SIZE;
+    // Helm fork: IBM Plex reads a step smaller than DM Sans, so text starts one step up.
+    return DEFAULT_BASE_FONT_SIZE + 1;
   }
 
   return Math.min(MAX_BASE_FONT_SIZE, Math.max(MIN_BASE_FONT_SIZE, Math.round(value)));
