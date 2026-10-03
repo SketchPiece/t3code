@@ -84,6 +84,11 @@ import {
   AttachmentUploadSigningKeyError,
 } from "./assets.ts";
 import {
+  VoiceTranscribeError,
+  VoiceTranscribeInput,
+  VoiceTranscribeResult,
+} from "./voiceTranscription.ts";
+import {
   PersistChatAttachmentsError,
   PersistChatAttachmentsInput,
   PersistChatAttachmentsResult,
@@ -360,6 +365,7 @@ export const WS_METHODS = {
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
   attachmentsDelete: "attachments.delete",
+  voiceTranscribe: "voice.transcribe",
 
   // Provider methods
   providerUploadFeedback: "provider.uploadFeedback",
@@ -1222,6 +1228,12 @@ const WsAttachmentsDeleteRpc = Rpc.make(WS_METHODS.attachmentsDelete, {
   error: EnvironmentAuthorizationError,
 });
 
+const WsVoiceTranscribeRpc = Rpc.make(WS_METHODS.voiceTranscribe, {
+  payload: VoiceTranscribeInput,
+  success: VoiceTranscribeResult,
+  error: Schema.Union([VoiceTranscribeError, EnvironmentAuthorizationError]),
+});
+
 const WsProviderUploadFeedbackRpc = Rpc.make(WS_METHODS.providerUploadFeedback, {
   payload: ProviderUploadFeedbackInput,
   success: ProviderUploadFeedbackResult,
@@ -1793,6 +1805,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
+  WsVoiceTranscribeRpc,
   WsProviderUploadFeedbackRpc,
   WsSubscribeVcsStatusRpc,
   WsSubscribeWorktreeSetupRpc,

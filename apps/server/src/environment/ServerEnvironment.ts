@@ -22,6 +22,7 @@ import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
 import { detectServerEnvironmentMachineKind } from "./ServerEnvironmentMachine.ts";
+import { readHelmPushConfig } from "../helm/pushConfig.ts";
 
 export class ServerEnvironmentIdPersistenceError extends Schema.TaggedError<ServerEnvironmentIdPersistenceError>()(
   "ServerEnvironmentIdPersistenceError",
@@ -260,10 +261,18 @@ export const make = Effect.gen(function* () {
     // The publish opt-in and relay link change at runtime (`t3 connect
     // publish`, the client settings toggle), so the capability is read per
     // descriptor request rather than baked in at startup.
-    getDescriptor: readAgentActivityPublishingActive(secrets).pipe(
-      Effect.map((agentActivityPublishing) => ({
+    getDescriptor: Effect.all([
+      readAgentActivityPublishingActive(secrets),
+      // Helm fork: dictation goes through the Volna core named by the helm-push secret.
+      readHelmPushConfig(secrets),
+    ]).pipe(
+      Effect.map(([agentActivityPublishing, helmCore]) => ({
         ...descriptor,
-        capabilities: { ...descriptor.capabilities, agentActivityPublishing },
+        capabilities: {
+          ...descriptor.capabilities,
+          agentActivityPublishing,
+          voiceTranscription: helmCore !== null,
+        },
       })),
     ),
   });

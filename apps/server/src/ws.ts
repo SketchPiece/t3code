@@ -182,6 +182,7 @@ import { issueAssetUrl } from "./assets/AssetAccess.ts";
 import { attachmentRelativePath, createDeterministicAttachmentId } from "./attachmentStore.ts";
 import { parseBase64DataUrl } from "./imageMime.ts";
 import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/AttachmentUpload.ts";
+import { transcribeVoice } from "./helm/voiceTranscription.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
@@ -3091,6 +3092,32 @@ const makeWsRpcLayer = (
           observeRpcEffect(
             WS_METHODS.attachmentsDelete,
             deletePendingAttachment(input.attachmentId),
+            { "rpc.aggregate": "workspace" },
+          ),
+        [WS_METHODS.voiceTranscribe]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.voiceTranscribe,
+            Effect.gen(function* () {
+              // Helm fork: the thread's project and branch help recognize spoken names.
+              const keywords =
+                input.threadId === undefined
+                  ? []
+                  : yield* threadManagement.getThreadRecords(input.threadId, []).pipe(
+                      Effect.flatMap(({ thread }) =>
+                        projectService
+                          .getShell(thread.projectId)
+                          .pipe(
+                            Effect.map((project) =>
+                              [Option.getOrNull(project)?.title, thread.branch].filter(
+                                (keyword): keyword is string => typeof keyword === "string",
+                              ),
+                            ),
+                          ),
+                      ),
+                      Effect.orElseSucceed((): string[] => []),
+                    );
+              return yield* transcribeVoice(input, keywords);
+            }),
             { "rpc.aggregate": "workspace" },
           ),
         [WS_METHODS.agentSessionsScan]: () =>
