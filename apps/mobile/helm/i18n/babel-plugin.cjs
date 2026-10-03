@@ -16,6 +16,15 @@ const WORKSPACE = path.resolve(__dirname, "../../../..");
 const DICTIONARY_PATH = path.join(__dirname, "ru.json");
 const PLURAL_MODULE = path.join(__dirname, "plural.ts");
 const LOCALE_MODULE = path.join(__dirname, "locale.ts");
+
+// Metro's transform cache is shared by every checkout on the machine, so the
+// emitted import is relative to the file: an absolute path would send another
+// worktree's build to this checkout's modules.
+function moduleSpecifier(filename, modulePath) {
+  if (!filename) return modulePath;
+  const relative = path.relative(path.dirname(filename), modulePath).split(path.sep).join("/");
+  return relative.startsWith(".") ? relative : `./${relative}`;
+}
 const LOCALE_BINDING = "__helmRu";
 const TOKEN = /\{(\d+)(?:\|([^|}]*)\|([^|}]*)\|([^|}]*))?\}/g;
 const HAS_TOKEN = /\{\d+[|}]/;
@@ -147,7 +156,7 @@ module.exports = function helmRussian({ types: t }, options = {}) {
               "body",
               t.importDeclaration(
                 [t.importSpecifier(t.identifier("__helmRuPlural"), t.identifier("ruPlural"))],
-                t.stringLiteral(PLURAL_MODULE),
+                t.stringLiteral(moduleSpecifier(state.filename, PLURAL_MODULE)),
               ),
             );
           }
@@ -156,7 +165,7 @@ module.exports = function helmRussian({ types: t }, options = {}) {
               "body",
               t.importDeclaration(
                 [t.importSpecifier(t.identifier(LOCALE_BINDING), t.identifier("helmRussian"))],
-                t.stringLiteral(LOCALE_MODULE),
+                t.stringLiteral(moduleSpecifier(state.filename, LOCALE_MODULE)),
               ),
             );
           }
