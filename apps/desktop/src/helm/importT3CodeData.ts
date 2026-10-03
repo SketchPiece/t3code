@@ -7,32 +7,54 @@ import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
-// Helm fork: on Helm's first launch, seed its server state from the official
-// T3 Code install so threads, projects and settings carry over. Runs once,
-// before the backend starts, and never writes to T3 Code's files.
+// Helm fork: replaces Helm's server state with a copy of the official T3 Code
+// install, on request only. The Helm menu's "Import from T3 Code…" leaves a
+// request file and relaunches; this runs before the backend starts, so no
+// server has Helm's database open. Helm's previous state moves into
+// backups/ first, and T3 Code's files are only read.
 //
 // Copied: the database (a VACUUM INTO snapshot, consistent even while T3 Code
 // is running), attachments, and portable preferences. Not copied: the
 // environment id, secrets, sign-in and encrypted connections — two servers
-// sharing those would fight over one relay registration and one identity.
+// sharing those would fight over one identity.
 
 const COPIED_FILES = ["settings.json", "keybindings.json", "client-settings.json"] as const;
 const COPIED_DIRECTORIES = ["attachments", "themes", "project-icons"] as const;
 const MARKER_FILE = "helm-imported-from-t3code.txt";
+/** Left by the Helm menu; the next launch imports and removes it. */
+const REQUEST_FILE = "helm-import-from-t3code.request";
 const V1_DATABASE = "state.sqlite";
 const V2_DATABASE = "statev2.sqlite";
+const DATABASE_FILES = [V1_DATABASE, V2_DATABASE].flatMap((name) => [
+  name,
+  `${name}-wal`,
+  `${name}-shm`,
+]);
+/** Everything an import overwrites, moved aside first. */
+const REPLACED = [...DATABASE_FILES, ...COPIED_FILES, ...COPIED_DIRECTORIES, MARKER_FILE];
 
 export type T3CodeImportResult =
   | {
       readonly status: "imported";
       readonly source: string;
       readonly copied: ReadonlyArray<string>;
+      readonly backup: string;
     }
   | {
       readonly status: "skipped";
-      readonly reason: "already-has-state" | "already-imported" | "no-t3code-state";
+      readonly reason: "not-requested" | "no-t3code-state";
     }
   | { readonly status: "failed"; readonly error: string };
+
+/** Asks the next launch to replace Helm's state with T3 Code's. */
+export const requestT3CodeImport = Effect.fn("helm.requestT3CodeImport")(function* (
+  stateDir: string,
+) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  yield* fileSystem.makeDirectory(stateDir, { recursive: true });
+  yield* fileSystem.writeFileString(path.join(stateDir, REQUEST_FILE), "requested\n");
+});
 
 export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (input: {
   /** Helm's server state dir (…/.helm/userdata). */
@@ -46,12 +68,12 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
   const source = (name: string) => path.join(input.t3CodeStateDir, name);
   const exists = (file: string) => fileSystem.exists(file).pipe(Effect.orElseSucceed(() => false));
 
-  if (yield* exists(target(MARKER_FILE))) {
-    return { status: "skipped", reason: "already-imported" } satisfies T3CodeImportResult;
+  if (!(yield* exists(target(REQUEST_FILE)))) {
+    return { status: "skipped", reason: "not-requested" } satisfies T3CodeImportResult;
   }
-  if ((yield* exists(target(V2_DATABASE))) || (yield* exists(target(V1_DATABASE)))) {
-    return { status: "skipped", reason: "already-has-state" } satisfies T3CodeImportResult;
-  }
+  // One attempt per request, whatever happens next.
+  yield* fileSystem.remove(target(REQUEST_FILE), { force: true }).pipe(Effect.ignore);
+
   // A V2 T3 Code keeps its stale V1 file beside the live one; a V1 copy is
   // upgraded by the server's own V2 import on first start.
   const database = (yield* exists(source(V2_DATABASE)))
@@ -63,9 +85,32 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
     return { status: "skipped", reason: "no-t3code-state" } satisfies T3CodeImportResult;
   }
 
+  const startedAt = DateTime.formatIso(yield* DateTime.now);
+  const backup = path.join(
+    input.stateDir,
+    "backups",
+    `before-t3code-import-${startedAt.replaceAll(":", "-")}`,
+  );
+  const movedAside: string[] = [];
+  const moveAside = Effect.gen(function* () {
+    yield* fileSystem.makeDirectory(backup, { recursive: true });
+    for (const name of REPLACED) {
+      if (!(yield* exists(target(name)))) continue;
+      yield* fileSystem.rename(target(name), path.join(backup, name));
+      movedAside.push(name);
+    }
+  });
+  const restore = Effect.gen(function* () {
+    for (const name of [...COPIED_FILES, ...COPIED_DIRECTORIES, database]) {
+      yield* fileSystem.remove(target(name), { recursive: true, force: true }).pipe(Effect.ignore);
+    }
+    for (const name of movedAside) {
+      yield* fileSystem.rename(path.join(backup, name), target(name)).pipe(Effect.ignore);
+    }
+  });
+
   const copied: string[] = [];
   const copy = Effect.gen(function* () {
-    yield* fileSystem.makeDirectory(input.stateDir, { recursive: true });
     yield* Effect.try(() => {
       const sqlite = new NodeSqlite.DatabaseSync(source(database), { readOnly: true });
       try {
@@ -87,26 +132,26 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
     }
   });
 
-  const exit = yield* Effect.exit(copy);
+  const exit = yield* Effect.exit(Effect.andThen(moveAside, copy));
   if (Exit.isFailure(exit)) {
-    // A half-copied database would pass for real state on the next launch.
-    yield* fileSystem.remove(target(database), { force: true }).pipe(Effect.ignore);
+    // Put Helm's own state back rather than start on a half copy.
+    yield* restore;
     return {
       status: "failed",
       error: Cause.pretty(exit.cause),
     } satisfies T3CodeImportResult;
   }
 
-  const importedAt = DateTime.formatIso(yield* DateTime.now);
   yield* fileSystem
     .writeFileString(
       target(MARKER_FILE),
-      `imported ${importedAt}\nfrom ${input.t3CodeStateDir}\ncopied ${copied.join(", ")}\n`,
+      `imported ${startedAt}\nfrom ${input.t3CodeStateDir}\ncopied ${copied.join(", ")}\nprevious state in ${backup}\n`,
     )
     .pipe(Effect.ignore);
   return {
     status: "imported",
     source: input.t3CodeStateDir,
     copied,
+    backup,
   } satisfies T3CodeImportResult;
 });

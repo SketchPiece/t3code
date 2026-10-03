@@ -295,7 +295,7 @@ const startup = Effect.gen(function* () {
   }
   const userDataPath = yield* appIdentity.resolveUserDataPath;
   yield* electronApp.setPath("userData", userDataPath);
-  // Helm fork: the first launch copies threads over from T3 Code (helm/importT3CodeData.ts).
+  // Helm fork: replaces Helm's data with T3 Code's when the menu asked for it (helm/importMenu.ts).
   const t3CodeImport = yield* importT3CodeData({
     stateDir: environment.stateDir,
     t3CodeStateDir: environment.path.join(environment.homeDirectory, ".t3", "userdata"),

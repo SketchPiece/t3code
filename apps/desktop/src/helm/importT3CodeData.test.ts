@@ -5,7 +5,20 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as NodeSqlite from "node:sqlite";
 
-import { importT3CodeData } from "./importT3CodeData.ts";
+import { importT3CodeData, requestT3CodeImport } from "./importT3CodeData.ts";
+
+const writeDatabase = (file: string, title: string) => {
+  const database = new NodeSqlite.DatabaseSync(file);
+  database.exec(`CREATE TABLE threads (title TEXT); INSERT INTO threads VALUES ('${title}');`);
+  database.close();
+};
+
+const readTitles = (file: string) => {
+  const database = new NodeSqlite.DatabaseSync(file, { readOnly: true });
+  const rows = database.prepare("SELECT title FROM threads").all();
+  database.close();
+  return rows.map((row) => row.title);
+};
 
 const setup = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -15,9 +28,10 @@ const setup = Effect.gen(function* () {
   const stateDir = path.join(root, ".helm", "userdata");
   yield* fileSystem.makeDirectory(path.join(t3CodeStateDir, "attachments"), { recursive: true });
   yield* fileSystem.makeDirectory(path.join(t3CodeStateDir, "secrets"), { recursive: true });
-  const database = new NodeSqlite.DatabaseSync(path.join(t3CodeStateDir, "state.sqlite"));
-  database.exec("CREATE TABLE threads (title TEXT); INSERT INTO threads VALUES ('Аудит диска');");
-  database.close();
+  yield* fileSystem.makeDirectory(stateDir, { recursive: true });
+  writeDatabase(path.join(t3CodeStateDir, "statev2.sqlite"), "Аудит диска");
+  writeDatabase(path.join(stateDir, "statev2.sqlite"), "Helm own thread");
+  yield* fileSystem.writeFileString(path.join(stateDir, "settings.json"), '{"helm":true}');
   yield* fileSystem.writeFileString(path.join(t3CodeStateDir, "settings.json"), "{}");
   yield* fileSystem.writeFileString(path.join(t3CodeStateDir, "environment-id"), "t3-env");
   yield* fileSystem.writeFileString(path.join(t3CodeStateDir, "secrets", "key.bin"), "secret");
@@ -26,54 +40,52 @@ const setup = Effect.gen(function* () {
 });
 
 describe("importT3CodeData", () => {
-  it.effect("copies threads and preferences once, but not T3 Code's identity", () =>
+  it.effect("does nothing until the import is requested", () =>
+    Effect.gen(function* () {
+      const { path, stateDir, t3CodeStateDir } = yield* setup;
+      const result = yield* importT3CodeData({ stateDir, t3CodeStateDir });
+      assert.deepStrictEqual(result, { status: "skipped", reason: "not-requested" });
+      assert.deepStrictEqual(readTitles(path.join(stateDir, "statev2.sqlite")), [
+        "Helm own thread",
+      ]);
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("replaces Helm's state with T3 Code's once, keeping a backup", () =>
     Effect.gen(function* () {
       const { fileSystem, path, stateDir, t3CodeStateDir } = yield* setup;
+      yield* requestT3CodeImport(stateDir);
 
-      const first = yield* importT3CodeData({ stateDir, t3CodeStateDir });
-      assert.strictEqual(first.status, "imported");
+      const result = yield* importT3CodeData({ stateDir, t3CodeStateDir });
+      assert.strictEqual(result.status, "imported");
+      if (result.status !== "imported") return;
 
-      const database = new NodeSqlite.DatabaseSync(path.join(stateDir, "state.sqlite"), {
-        readOnly: true,
-      });
-      const rows = database.prepare("SELECT title FROM threads").all();
-      database.close();
-      assert.deepStrictEqual(
-        rows.map((row) => row.title),
-        ["Аудит диска"],
+      assert.deepStrictEqual(readTitles(path.join(stateDir, "statev2.sqlite")), ["Аудит диска"]);
+      assert.deepStrictEqual(readTitles(path.join(result.backup, "statev2.sqlite")), [
+        "Helm own thread",
+      ]);
+      assert.strictEqual(
+        yield* fileSystem.readFileString(path.join(result.backup, "settings.json")),
+        '{"helm":true}',
       );
-      assert.isTrue(yield* fileSystem.exists(path.join(stateDir, "settings.json")));
       assert.isTrue(yield* fileSystem.exists(path.join(stateDir, "attachments", "a.png")));
       assert.isFalse(yield* fileSystem.exists(path.join(stateDir, "environment-id")));
       assert.isFalse(yield* fileSystem.exists(path.join(stateDir, "secrets")));
 
-      const second = yield* importT3CodeData({ stateDir, t3CodeStateDir });
-      assert.deepStrictEqual(second, { status: "skipped", reason: "already-imported" });
+      const again = yield* importT3CodeData({ stateDir, t3CodeStateDir });
+      assert.deepStrictEqual(again, { status: "skipped", reason: "not-requested" });
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("prefers T3 Code's V2 database over its stale V1 file", () =>
-    Effect.gen(function* () {
-      const { fileSystem, path, stateDir, t3CodeStateDir } = yield* setup;
-      const v2 = new NodeSqlite.DatabaseSync(path.join(t3CodeStateDir, "statev2.sqlite"));
-      v2.exec("CREATE TABLE marker (version TEXT); INSERT INTO marker VALUES ('v2');");
-      v2.close();
-
-      const result = yield* importT3CodeData({ stateDir, t3CodeStateDir });
-      assert.strictEqual(result.status, "imported");
-      assert.isTrue(yield* fileSystem.exists(path.join(stateDir, "statev2.sqlite")));
-      assert.isFalse(yield* fileSystem.exists(path.join(stateDir, "state.sqlite")));
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-  );
-
-  it.effect("leaves Helm alone when there is nothing to import", () =>
+  it.effect("drops a request when T3 Code has nothing to import", () =>
     Effect.gen(function* () {
       const { path, stateDir } = yield* setup;
-      const result = yield* importT3CodeData({
-        stateDir,
-        t3CodeStateDir: path.join(stateDir, "..", "missing"),
-      });
-      assert.deepStrictEqual(result, { status: "skipped", reason: "no-t3code-state" });
+      yield* requestT3CodeImport(stateDir);
+      const missing = path.join(stateDir, "..", "missing");
+      const first = yield* importT3CodeData({ stateDir, t3CodeStateDir: missing });
+      assert.deepStrictEqual(first, { status: "skipped", reason: "no-t3code-state" });
+      const second = yield* importT3CodeData({ stateDir, t3CodeStateDir: missing });
+      assert.deepStrictEqual(second, { status: "skipped", reason: "not-requested" });
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 });

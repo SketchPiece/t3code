@@ -2741,6 +2741,12 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     };
   }
 
+  // Helm fork: local signing with the developer's own certificate.
+  if (platform === "mac" && !signed && process.env.HELM_MAC_SIGN_IDENTITY) {
+    const path = yield* Path.Path;
+    buildConfig.afterPack = path.join(yield* RepoRoot, "scripts/helm-sign-mac-local.ts");
+  }
+
   if (platform === "mac" && target === "dmg") {
     buildConfig.dmg = {
       // Give the themed installer its own Finder volume name. Finder caches

@@ -13,6 +13,7 @@ import * as ElectronMenu from "../electron/ElectronMenu.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopWindow from "./DesktopWindow.ts";
+import { makeImportFromT3CodeAction } from "../helm/importMenu.ts";
 
 export class DesktopApplicationMenuActionError extends Schema.TaggedError<DesktopApplicationMenuActionError>()(
   "DesktopApplicationMenuActionError",
@@ -113,6 +114,7 @@ export const make = Effect.gen(function* () {
   const appName = yield* electronApp.name;
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
+  const importFromT3Code = yield* makeImportFromT3CodeAction;
 
   const runMenuEffect = <E>(
     action: string,
@@ -169,6 +171,11 @@ export const make = Effect.gen(function* () {
             label: "Settings...",
             accelerator: "CmdOrCtrl+,",
             click: settingsClick,
+          },
+          // Helm fork: replace Helm's data with T3 Code's (helm/importMenu.ts).
+          {
+            label: "Import from T3 Code...",
+            click: () => runMenuEffect("helm-import-t3code", importFromT3Code),
           },
           { type: "separator" },
           { role: "services" },
