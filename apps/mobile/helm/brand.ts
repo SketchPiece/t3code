@@ -17,6 +17,7 @@ const HELM_APPLE_TEAM_ID = "4KSA86792T";
 const HELM_IOS_BUNDLE_PREFIX = "com.sketchpiece.helm";
 
 import { HELM_APP_NAME, HELM_APP_NAME_RU } from "./name.ts";
+import { HELM_ALERT_STRINGS } from "./push/alertStrings.ts";
 
 export { HELM_APP_NAME };
 
@@ -59,7 +60,11 @@ export function withHelmConfig(config: ExpoConfig, variantName: Variant): ExpoCo
     ...config,
     locales: {
       ...config.locales,
-      ru: { ios: { CFBundleDisplayName: russianName }, android: { app_name: russianName } },
+      en: { ios: { "Localizable.strings": HELM_ALERT_STRINGS.en } },
+      ru: {
+        ios: { CFBundleDisplayName: russianName, "Localizable.strings": HELM_ALERT_STRINGS.ru },
+        android: { app_name: russianName },
+      },
     },
     plugins: config.plugins?.map(withBakeliteSplash),
     ios: {
