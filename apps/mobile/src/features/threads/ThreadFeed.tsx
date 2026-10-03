@@ -77,6 +77,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   Platform,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -2517,13 +2518,20 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       userScrollSettleTimerRef.current = null;
     }
   }, []);
-  const handleScrollBeginDrag = useCallback(() => {
-    clearUserScrollSettle();
-    userScrollSessionRef.current = true;
-    // Pause before the first scroll event. Otherwise a stream update can run
-    // maintainScrollAtEnd between touch-down and the drag leaving its threshold.
-    transitionEndFollow({ type: "user-scroll-begin" });
-  }, [clearUserScrollSettle, transitionEndFollow]);
+  // Helm fork: pulling the feed down toward earlier messages puts the keyboard away,
+  // so the composer rests as a two-line draft and the agent's text is readable.
+  const dragStartOffsetRef = useRef(0);
+  const handleScrollBeginDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      dragStartOffsetRef.current = event.nativeEvent.contentOffset.y;
+      clearUserScrollSettle();
+      userScrollSessionRef.current = true;
+      // Pause before the first scroll event. Otherwise a stream update can run
+      // maintainScrollAtEnd between touch-down and the drag leaving its threshold.
+      transitionEndFollow({ type: "user-scroll-begin" });
+    },
+    [clearUserScrollSettle, transitionEndFollow],
+  );
   const finishUserScroll = useCallback(
     (releaseIsAtEnd?: boolean) => {
       clearUserScrollSettle();
@@ -2545,11 +2553,20 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // to announce itself; if it does, onMomentumScrollBegin cancels this fallback
   // and the session survives until the settled momentum-end position. This
   // mirrors the native-event handoff used by the home thread list's scroll gate.
-  const handleScrollEndDrag = useCallback(() => {
-    clearUserScrollSettle();
-    const releaseIsAtEnd = props.listRef.current?.getState().isAtEnd ?? false;
-    userScrollSettleTimerRef.current = setTimeout(() => finishUserScroll(releaseIsAtEnd), 160);
-  }, [clearUserScrollSettle, finishUserScroll, props.listRef]);
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (
+        dragStartOffsetRef.current - event.nativeEvent.contentOffset.y > 40 &&
+        Keyboard.isVisible()
+      ) {
+        Keyboard.dismiss();
+      }
+      clearUserScrollSettle();
+      const releaseIsAtEnd = props.listRef.current?.getState().isAtEnd ?? false;
+      userScrollSettleTimerRef.current = setTimeout(() => finishUserScroll(releaseIsAtEnd), 160);
+    },
+    [clearUserScrollSettle, finishUserScroll, props.listRef],
+  );
   const handleMomentumScrollBegin = useCallback(() => {
     if (userScrollSessionRef.current) {
       clearUserScrollSettle();

@@ -33,7 +33,16 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { Alert, Keyboard, Platform, Pressable, View, type ViewStyle } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  PanResponder,
+  Platform,
+  Pressable,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
 import {
   composerAttachmentUploadBlockReason,
@@ -109,7 +118,9 @@ import {
   ComposerHoldToTalkHint,
   ComposerVoiceTrailingSlot,
 } from "../voice-input/ComposerDictationControl";
+import { SymbolView } from "../../components/AppSymbol";
 import { useHoldToTalk } from "../voice-input/useHoldToTalk";
+import { ComposerFullscreenEditor, composerDraftWantsFullscreen } from "./ComposerFullscreenEditor";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -380,6 +391,22 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const fallbackInputRef = useRef<ComposerEditorHandle>(null);
   const inputRef = props.editorRef ?? fallbackInputRef;
   const [isFocused, setIsFocused] = useState(false);
+  const [isFullscreenEditorOpen, setIsFullscreenEditorOpen] = useState(false);
+  const { height: windowHeight } = useWindowDimensions();
+  const expandedEditorMaxHeight = Math.max(160, Math.round(windowHeight * 0.32));
+  // Swiping the open card down puts the keyboard away; the draft rests as two lines.
+  const collapseHandlers = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          gesture.dy > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderRelease: (_event, gesture) => {
+          if (gesture.dy > 32) Keyboard.dismiss();
+        },
+      }).panHandlers,
+    [],
+  );
   const pendingPastedTextAttachmentCountRef = useRef(0);
   const [pendingPastedTextAttachmentCount, setPendingPastedTextAttachmentCount] = useState(0);
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
@@ -755,6 +782,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     [navigation, settingsSheetPresentation.onStackTransitionsFinished],
   );
 
+  const wantsFullscreen = !voiceInput.isBusy && composerDraftWantsFullscreen(props.draftMessage);
   const trailingSlot = (
     <ComposerVoiceTrailingSlot
       state={voiceInput.state}
@@ -870,6 +898,32 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 }
           }
         >
+          {isExpanded ? (
+            <View
+              {...collapseHandlers}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              className="absolute inset-x-0 top-0 z-10 h-[14px] items-center pt-[5px]"
+            >
+              <View className="h-1 w-9 rounded-full bg-foreground-muted opacity-40" />
+            </View>
+          ) : null}
+          {isExpanded && wantsFullscreen ? (
+            <Pressable
+              accessibilityLabel="Open the message full screen"
+              accessibilityRole="button"
+              className="absolute top-1.5 right-1.5 z-10 size-[30px] items-center justify-center rounded-full bg-subtle active:opacity-70"
+              hitSlop={6}
+              onPress={() => setIsFullscreenEditorOpen(true)}
+            >
+              <SymbolView
+                name="arrow.up.left.and.arrow.down.right"
+                size={14}
+                tintColorClassName="accent-icon-muted"
+                type="monochrome"
+              />
+            </Pressable>
+          ) : null}
           <ComposerDictationDraftContent
             className={isExpanded ? undefined : "flex-row items-center"}
             compact={!isExpanded}
@@ -925,7 +979,13 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               </Animated.View>
             ) : null}
             <Animated.View
-              className={isExpanded ? "px-[14px]" : "min-w-0 flex-1 px-[4px]"}
+              className={
+                isExpanded
+                  ? wantsFullscreen
+                    ? "pr-[40px] pl-[14px]"
+                    : "px-[14px]"
+                  : "min-w-0 flex-1 px-[4px]"
+              }
               layout={COMPOSER_LAYOUT_TRANSITION}
             >
               <ComposerEditor
@@ -1049,11 +1109,14 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   isExpanded
                     ? {
                         minHeight: 72,
-                        maxHeight: 160,
+                        // A long dictation stays readable: up to about a third of the screen.
+                        maxHeight: expandedEditorMaxHeight,
                         paddingVertical: 4,
                       }
                     : {
-                        height: 36,
+                        // At rest a long draft keeps two lines in view.
+                        minHeight: 36,
+                        maxHeight: 36 + bodyText.lineHeight,
                       }
                 }
                 textStyle={{
@@ -1099,6 +1162,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             {isExpanded ? <View className="h-1" /> : null}
           </ComposerDictationDraftContent>
           <Animated.View
+            {...(isExpanded ? collapseHandlers : {})}
             accessibilityElementsHidden={!isToolbarVisible}
             collapsable={false}
             importantForAccessibility={isToolbarVisible ? "auto" : "no-hide-descendants"}
@@ -1186,6 +1250,23 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
 
       <VideoPreviewModal source={previewVideo} onRequestClose={closePreview} />
       <FilePreviewModal source={previewFile} onRequestClose={closePreview} />
+      {isFullscreenEditorOpen ? (
+        <ComposerFullscreenEditor
+          visible
+          draftKey={composerDraftKey}
+          environmentId={props.environmentId}
+          value={props.draftMessage}
+          selection={composerMenu.selection}
+          skills={composerMenu.skills}
+          placeholder={props.placeholder}
+          sendLabel={sendBlockedReason ?? sendLabel}
+          canSend={canSend}
+          onChangeText={props.onChangeDraftMessage}
+          onSelectionChange={composerMenu.onSelectionChange}
+          onSend={() => void handleSend()}
+          onClose={() => setIsFullscreenEditorOpen(false)}
+        />
+      ) : null}
     </Animated.View>
   );
 });

@@ -17,7 +17,7 @@ import {
   type NavigationAction,
 } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import {
   KeyboardController,
   KeyboardStickyView,
@@ -78,6 +78,7 @@ import {
   ComposerVoiceTrailingSlot,
 } from "../voice-input/ComposerDictationControl";
 import { useHoldToTalk } from "../voice-input/useHoldToTalk";
+import { ComposerFullscreenEditor, composerDraftWantsFullscreen } from "./ComposerFullscreenEditor";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -307,6 +308,8 @@ export function NewTaskDraftScreen(props: {
   const promptInputRef = useRef<ComposerEditorHandle>(null);
   const loadedBranchesProjectKeyRef = useRef<string | null>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const [isFullscreenEditorOpen, setIsFullscreenEditorOpen] = useState(false);
+  const { height: windowHeight } = useWindowDimensions();
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const wasFocusedBeforePreviewRef = useRef(false);
@@ -1444,7 +1447,8 @@ export function NewTaskDraftScreen(props: {
         contentInsetVertical={0}
         style={{
           minHeight: 72,
-          maxHeight: 160,
+          // A long dictation stays readable: up to about a third of the screen.
+          maxHeight: Math.max(160, Math.round(windowHeight * 0.32)),
           paddingVertical: 4,
         }}
         textStyle={{ ...bodyText, color: foregroundColor, fontFamily: regularFontFamily }}
@@ -1599,6 +1603,7 @@ export function NewTaskDraftScreen(props: {
     </View>
   );
 
+  const wantsFullscreen = !voiceInput.isBusy && composerDraftWantsFullscreen(flow.prompt);
   const startButton = (
     <ComposerActionButton
       accessibilityLabel={
@@ -1728,7 +1733,25 @@ export function NewTaskDraftScreen(props: {
           </View>
         ) : null}
 
-        <View className="px-[14px]">{promptEditor}</View>
+        <View className={wantsFullscreen ? "pr-[40px] pl-[14px]" : "px-[14px]"}>
+          {promptEditor}
+        </View>
+        {wantsFullscreen ? (
+          <Pressable
+            accessibilityLabel="Open the message full screen"
+            accessibilityRole="button"
+            className="absolute top-1.5 right-1.5 z-10 size-[30px] items-center justify-center rounded-full bg-subtle active:opacity-70"
+            hitSlop={6}
+            onPress={() => setIsFullscreenEditorOpen(true)}
+          >
+            <SymbolView
+              name="arrow.up.left.and.arrow.down.right"
+              size={14}
+              tintColorClassName="accent-icon-muted"
+              type="monochrome"
+            />
+          </Pressable>
+        ) : null}
         <View className="h-1" />
 
         <Animated.View layout={COMPOSER_LAYOUT_TRANSITION} collapsable={false}>
@@ -1836,6 +1859,23 @@ export function NewTaskDraftScreen(props: {
       </ComposerSurface>
       <VideoPreviewModal source={previewVideo} onRequestClose={closeMediaPreview} />
       <FilePreviewModal source={previewFile} onRequestClose={closeMediaPreview} />
+      {isFullscreenEditorOpen && flow.draftKey ? (
+        <ComposerFullscreenEditor
+          visible
+          draftKey={flow.draftKey}
+          environmentId={selectedProject?.environmentId}
+          value={flow.prompt}
+          selection={composerMenu.selection}
+          skills={composerMenu.skills}
+          placeholder="Ask anything…"
+          sendLabel={environmentConnected ? "Start task" : "Queue task"}
+          canSend={canStart}
+          onChangeText={flow.setPrompt}
+          onSelectionChange={composerMenu.onSelectionChange}
+          onSend={() => void handleStart()}
+          onClose={() => setIsFullscreenEditorOpen(false)}
+        />
+      ) : null}
     </View>
   );
 
