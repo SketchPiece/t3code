@@ -127,6 +127,7 @@ module.exports = Promise.all([generateMobileThirdPartyLicenses(), prepareDeviceS
   withUniwindConfig(config, {
     cssEntryFile: "./global.css",
     extraThemes,
-    polyfills: { rem: 14 },
+    // Helm fork: the standard 16px rem, so h-11 is a full 44pt target.
+    polyfills: { rem: 16 },
   }),
 );

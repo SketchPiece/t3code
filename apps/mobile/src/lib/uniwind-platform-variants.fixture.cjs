@@ -103,8 +103,8 @@ async function main() {
     androidUtilities: utilityCountIn(platformBlock("android")),
   };
   for (const platform of ["ios", "android"]) {
-    // Same config the app's withUniwindConfig produces (polyfills.rem: 14).
-    const bundlerConfig = { platform, themes: ["light", "dark"], polyfills: { rem: 14 } };
+    // Same config the app's withUniwindConfig produces (polyfills.rem: 16).
+    const bundlerConfig = { platform, themes: ["light", "dark"], polyfills: { rem: 16 } };
     const processor = new ProcessorBuilder(bundlerConfig);
     processor.transform(tailwindCSS);
     const compiled = addMetaToStylesTemplate(processor, platform);

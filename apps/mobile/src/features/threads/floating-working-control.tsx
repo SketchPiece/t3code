@@ -30,7 +30,7 @@ import { DevicePreviewButton } from "../devices/device-preview-button";
 import type { FloatingWorkingStatus } from "./floating-working-status";
 import { ShimmeringWorkContent } from "./thread-work-log";
 
-const CONTROL_HEIGHT = 38.5; // h-11 with the mobile 14px rem
+const CONTROL_HEIGHT = 44; // h-11 with the mobile 16px rem
 // The collapsed composer capsule starts 6 below its overlay's top edge, so
 // the pill sits at (gap - 6) above the overlay to leave the same gap to the
 // capsule as the feed's end inset leaves between it and the last row.

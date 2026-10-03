@@ -236,11 +236,11 @@ function formatMessageTime(input: string): string {
 
 // Fixed heights mirror renderFeedEntry's classNames and are only used while
 // text fits at the current font settings. Larger accessibility text is measured.
-const TURN_FOLD_HEIGHT = 42; // min-h-11 (38.5) + mb-1 (3.5), with the mobile 14px rem
-// Tailwind spacing on the mobile 14px rem: px-3.5 on the user bubble, px-1 on
+const TURN_FOLD_HEIGHT = 48; // min-h-11 (44) + mb-1 (4), with the mobile 16px rem
+// Tailwind spacing on the mobile 16px rem: px-3.5 on the user bubble, px-1 on
 // assistant rows. Images size their frame from these before their own layout.
-const USER_BUBBLE_HORIZONTAL_PADDING = 3.5 * 3.5;
-const ASSISTANT_ROW_HORIZONTAL_PADDING = 3.5;
+const USER_BUBBLE_HORIZONTAL_PADDING = 3.5 * 4;
+const ASSISTANT_ROW_HORIZONTAL_PADDING = 4;
 // Let neighboring rows move out of the new rows' space before showing their text.
 const THREAD_FEED_DISCLOSURE_ENTER_TRANSITION = FadeIn.delay(
   THREAD_DISCLOSURE_TRANSITION_MS,
