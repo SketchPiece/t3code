@@ -80,6 +80,7 @@ import {
 import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
 import { installDesktopPasteAsText } from "../lib/desktopPasteAsText";
 import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
+import { TailnetPairPrompt } from "../helm/TailnetPairPrompt";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
@@ -232,6 +233,7 @@ function RootRouteView() {
           <SshPasswordPromptDialog />
           <SnapShotCoordinator />
           <ThreadNotificationCoordinator />
+          {primaryEnvironmentAuthenticated ? <TailnetPairPrompt /> : null}
           <ConfirmDialogHost />
           <CustomSnoozeDialogHost />
           <SlowRpcRequestToastCoordinator />
