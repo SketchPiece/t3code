@@ -5,10 +5,10 @@ import {
   withSpring,
 } from "react-native-reanimated";
 
-/** Quick, barely bouncy: a press that answers the finger without wobbling. */
+/** Quick and nearly critically damped: answers the finger without a visible bounce. */
 export const PRESS_SPRING = {
-  damping: 18,
-  stiffness: 420,
+  damping: 26,
+  stiffness: 400,
   mass: 0.6,
   reduceMotion: ReduceMotion.System,
 } as const;

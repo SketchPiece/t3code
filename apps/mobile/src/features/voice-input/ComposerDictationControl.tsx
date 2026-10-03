@@ -18,8 +18,6 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
-  ZoomIn,
-  ZoomOut,
   type EntryExitAnimationFunction,
   type SharedValue,
 } from "react-native-reanimated";
@@ -498,12 +496,34 @@ export function ComposerVoiceTrailingSlot(props: {
   );
 }
 
-// Mic, send, finish and retry trade places with a quick pop instead of a cut.
-const SLOT_ENTERING = ZoomIn.springify()
-  .damping(16)
-  .stiffness(320)
-  .reduceMotion(ReduceMotion.System);
-const SLOT_EXITING = ZoomOut.duration(120).reduceMotion(ReduceMotion.System);
+// Mic, send, finish and retry trade places with a short crossfade and a slight scale:
+// no spring, so the button never overshoots or bounces.
+const SLOT_SWAP_TIMING = {
+  duration: 160,
+  easing: Easing.out(Easing.cubic),
+  reduceMotion: ReduceMotion.System,
+} as const;
+const SLOT_ENTERING: EntryExitAnimationFunction = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.85 }] },
+    animations: {
+      opacity: withTiming(1, SLOT_SWAP_TIMING),
+      transform: [{ scale: withTiming(1, SLOT_SWAP_TIMING) }],
+    },
+  };
+};
+const SLOT_EXITING: EntryExitAnimationFunction = () => {
+  "worklet";
+  const timing = { ...SLOT_SWAP_TIMING, duration: 110 };
+  return {
+    initialValues: { opacity: 1, transform: [{ scale: 1 }] },
+    animations: {
+      opacity: withTiming(0, timing),
+      transform: [{ scale: withTiming(0.85, timing) }],
+    },
+  };
+};
 
 function trailingContentKey(props: {
   readonly presentation: VoiceComposerPresentation;
