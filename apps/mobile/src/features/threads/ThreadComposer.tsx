@@ -56,6 +56,7 @@ import Animated, {
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
@@ -228,12 +229,18 @@ export const COMPOSER_TRANSITION_DURATION_MS = 220;
 // Side panes already animate the dock's width. Nested horizontal layout
 // transitions would leave the surface trailing its toolbar's new position.
 // Keep the vertical pill/card morph while horizontal layout follows the dock.
+// Helm fork: a near-critically damped spring instead of a fixed 220ms curve, so the
+// card snaps open and settles without a visible bounce.
+const DOCK_INSET_EXPANDED = 12;
+const DOCK_INSET_RESTING = 28;
+export const COMPOSER_SPRING = {
+  damping: 26,
+  stiffness: 300,
+  mass: 0.9,
+  reduceMotion: ReduceMotion.System,
+} as const;
 const composerHeightTransition: LayoutAnimationFunction = (values) => {
   "worklet";
-  const timing = {
-    duration: COMPOSER_TRANSITION_DURATION_MS,
-    reduceMotion: ReduceMotion.System,
-  };
   return {
     initialValues: {
       originX: values.targetOriginX,
@@ -243,9 +250,9 @@ const composerHeightTransition: LayoutAnimationFunction = (values) => {
     },
     animations: {
       originX: values.targetOriginX,
-      originY: withTiming(values.targetOriginY, timing),
+      originY: withSpring(values.targetOriginY, COMPOSER_SPRING),
       width: values.targetWidth,
-      height: withTiming(values.targetHeight, timing),
+      height: withSpring(values.targetHeight, COMPOSER_SPRING),
     },
   };
 };
@@ -330,10 +337,7 @@ export function ComposerSurface(props: {
   const shouldAnimate = props.animateLayout !== false && Platform.OS !== "android";
   useLayoutEffect(() => {
     animatedBorderRadius.value = shouldAnimate
-      ? withTiming(targetBorderRadius, {
-          duration: COMPOSER_TRANSITION_DURATION_MS,
-          reduceMotion: ReduceMotion.System,
-        })
+      ? withSpring(targetBorderRadius, COMPOSER_SPRING)
       : targetBorderRadius;
   }, [animatedBorderRadius, shouldAnimate, targetBorderRadius]);
   const animatedShapeStyle = useAnimatedStyle(() => ({
@@ -782,6 +786,14 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     [navigation, settingsSheetPresentation.onStackTransitionsFinished],
   );
 
+  // At rest the pill sits narrower than the open card, like ChatGPT's; opening springs it wide.
+  const dockInset = isExpanded ? DOCK_INSET_EXPANDED : DOCK_INSET_RESTING;
+  const dockInsetValue = useSharedValue(dockInset);
+  useLayoutEffect(() => {
+    dockInsetValue.value =
+      Platform.OS === "android" ? dockInset : withSpring(dockInset, COMPOSER_SPRING);
+  }, [dockInset, dockInsetValue]);
+  const dockInsetStyle = useAnimatedStyle(() => ({ paddingHorizontal: dockInsetValue.value }));
   const wantsFullscreen = !voiceInput.isBusy && composerDraftWantsFullscreen(props.draftMessage);
   const trailingSlot = (
     <ComposerVoiceTrailingSlot
@@ -814,13 +826,15 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
 
   return (
     <Animated.View
-      className="px-[12px]"
-      style={{
-        paddingTop: isExpanded ? 8 : 6,
-        paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : 6),
-        backgroundColor:
-          Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
-      }}
+      style={[
+        dockInsetStyle,
+        {
+          paddingTop: isExpanded ? 8 : 6,
+          paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : 6),
+          backgroundColor:
+            Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
+        },
+      ]}
     >
       {/* The backdrop gradient lives on a plain View: Reanimated's Animated.View
           silently drops experimental_backgroundImage on Android, which left this

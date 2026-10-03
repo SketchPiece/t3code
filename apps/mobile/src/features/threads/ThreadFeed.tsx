@@ -365,14 +365,14 @@ function AssistantForkButton(props: {
           })
           .finally(() => setBusy(false));
       }}
-      className="h-7 w-7 items-center justify-center disabled:opacity-40"
+      className="h-9 w-9 items-center justify-center disabled:opacity-40"
     >
       {busy ? (
         <ActivityIndicator size="small" />
       ) : (
         <SymbolView
           name="arrow.triangle.branch"
-          size={13}
+          size={17}
           tintColor={props.iconColor}
           type="monochrome"
         />
@@ -1782,14 +1782,14 @@ function renderFeedEntry(
                 accessibilityRole="button"
                 accessibilityLabel="Edit pending message"
                 hitSlop={8}
-                className="size-7 items-center justify-center"
+                className="size-9 items-center justify-center"
                 onPress={() => {
                   if (entry.pendingMessage && props.onEditPendingMessage) {
                     props.onEditPendingMessage(entry.pendingMessage);
                   }
                 }}
               >
-                <SymbolView name="pencil" size={15} tintColor={iconSubtleColor} />
+                <SymbolView name="pencil" size={17} tintColor={iconSubtleColor} />
               </Pressable>
             ) : null}
             {presentation.text.trim().length > 0 ? (
@@ -1807,8 +1807,8 @@ function renderFeedEntry(
                     : undefined
                 }
                 tintColor={iconSubtleColor}
-                buttonSize={28}
-                iconSize={13}
+                buttonSize={36}
+                iconSize={17}
               />
             ) : null}
           </View>
@@ -1886,8 +1886,8 @@ function renderFeedEntry(
               accessibilityLabel="Copy message"
               text={renderedText}
               tintColor={iconSubtleColor}
-              buttonSize={28}
-              iconSize={13}
+              buttonSize={36}
+              iconSize={17}
             />
             <Text className="font-t3-medium text-xs tabular-nums text-foreground-secondary">
               {timestampLabel}

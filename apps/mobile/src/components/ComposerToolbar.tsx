@@ -16,7 +16,10 @@ import {
 import { cn } from "../lib/cn";
 import { AppText as Text } from "./AppText";
 import { SymbolView } from "./AppSymbol";
+import Animated from "react-native-reanimated";
+
 import { useAndroidControlSizing } from "./useAndroidControlSizing";
+import { usePressSpring } from "./usePressSpring";
 
 const COMPOSER_TOOLBAR_GAP = 8;
 const COMPOSER_TOOLBAR_FADE_WIDTH = 18;
@@ -238,20 +241,24 @@ export function ComposerActionButton(props: {
   readonly onTouchStart?: PressableProps["onTouchStart"];
 }) {
   const { scale, smallIconSize } = useAndroidControlSizing();
-  const circleSize = Math.round(30 * scale);
+  // Helm fork: a 36pt circle like ChatGPT's composer, answering presses with a spring.
+  const circleSize = Math.round(36 * scale);
+  const press = usePressSpring();
   return (
     <Pressable
       accessibilityLabel={props.accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled }}
-      className="size-[44px] shrink-0 items-center justify-center active:opacity-70"
+      className="size-[44px] shrink-0 items-center justify-center"
       disabled={props.disabled}
       onPress={props.onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       onLongPress={props.onLongPress}
       onTouchStart={props.onTouchStart}
     >
-      <View
-        style={{ width: circleSize, height: circleSize }}
+      <Animated.View
+        style={[{ width: circleSize, height: circleSize }, press.style]}
         className={cn(
           "items-center justify-center rounded-full",
           props.variant === "danger"
@@ -270,7 +277,7 @@ export function ComposerActionButton(props: {
           }
           type="monochrome"
         />
-      </View>
+      </Animated.View>
     </Pressable>
   );
 }

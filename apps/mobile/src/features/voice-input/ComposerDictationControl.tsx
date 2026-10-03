@@ -15,13 +15,17 @@ import Animated, {
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
+  ZoomIn,
+  ZoomOut,
   type EntryExitAnimationFunction,
   type SharedValue,
 } from "react-native-reanimated";
 
 import { AppText as Text } from "../../components/AppText";
 import { SymbolView, type AppSymbolName } from "../../components/AppSymbol";
+import { PRESS_SPRING, usePressSpring } from "../../components/usePressSpring";
 import { cn } from "../../lib/cn";
 import type { HoldToTalkMode } from "./holdToTalkRelease";
 import type { VoiceComposerPresentation } from "./voiceInputPresentation";
@@ -239,26 +243,30 @@ function VoiceActionButton(props: {
     loadingVisibility.value = withTiming(props.loading ? 1 : 0, DICTATION_TIMING);
   }, [loadingVisibility, props.loading]);
   const primaryStyle = useAnimatedStyle(() => ({ opacity: 1 - loadingVisibility.value }));
+  const press = usePressSpring();
 
   return (
     <Pressable
       accessibilityLabel={props.accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ busy: props.loading, disabled: props.disabled }}
-      className="size-[44px] shrink-0 items-center justify-center active:opacity-70"
+      className="size-[44px] shrink-0 items-center justify-center"
       disabled={props.disabled}
       onPress={props.onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       style={{ opacity: props.disabled && !props.loading ? 0.4 : 1 }}
     >
-      <View
+      <Animated.View
         className={cn(
           "items-center justify-center",
           variant === "primary"
-            ? "size-[30px] rounded-full bg-subtle"
+            ? "size-[36px] rounded-full bg-subtle"
             : variant === "danger"
-              ? "size-[30px] rounded-full bg-danger"
+              ? "size-[36px] rounded-full bg-danger"
               : "size-[44px]",
         )}
+        style={press.style}
       >
         {variant === "primary" ? (
           <Animated.View
@@ -285,7 +293,7 @@ function VoiceActionButton(props: {
             />
           )}
         </View>
-      </View>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -456,7 +464,7 @@ export function ComposerVoiceTrailingSlot(props: {
         accessible
         className="size-[44px] items-center justify-center"
       >
-        <View className="size-[30px] items-center justify-center rounded-full bg-primary">
+        <View className="size-[36px] items-center justify-center rounded-full bg-primary">
           <SymbolView
             name="mic"
             size={17}
@@ -472,7 +480,54 @@ export function ComposerVoiceTrailingSlot(props: {
   } else {
     content = props.children;
   }
-  return <View {...props.panHandlers}>{content}</View>;
+  return (
+    <HoldScale holding={props.holdMode === "holding"} panHandlers={props.panHandlers}>
+      <Animated.View
+        key={trailingContentKey(props)}
+        className="absolute inset-0 items-center justify-center"
+        entering={SLOT_ENTERING}
+        exiting={SLOT_EXITING}
+      >
+        {content}
+      </Animated.View>
+    </HoldScale>
+  );
+}
+
+// Mic, send, finish and retry trade places with a quick pop instead of a cut.
+const SLOT_ENTERING = ZoomIn.springify()
+  .damping(16)
+  .stiffness(320)
+  .reduceMotion(ReduceMotion.System);
+const SLOT_EXITING = ZoomOut.duration(120).reduceMotion(ReduceMotion.System);
+
+function trailingContentKey(props: {
+  readonly presentation: VoiceComposerPresentation;
+  readonly holdMode: HoldToTalkMode;
+  readonly showsHoldMic: boolean;
+}): string {
+  const action = props.presentation.trailingAction;
+  if (action === "confirm") return props.holdMode === "holding" ? "send-hold" : "finish";
+  if (action === "retry") return "retry";
+  return props.showsHoldMic ? "mic" : "caller";
+}
+
+/** The slot grows a little under a hold, the way a pressed record button does. */
+function HoldScale(props: {
+  readonly holding: boolean;
+  readonly panHandlers: GestureResponderHandlers;
+  readonly children: ReactNode;
+}) {
+  const scale = useSharedValue(1);
+  useLayoutEffect(() => {
+    scale.value = withSpring(props.holding ? 1.15 : 1, PRESS_SPRING);
+  }, [props.holding, scale]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View {...props.panHandlers} className="size-[44px]" style={style}>
+      {props.children}
+    </Animated.View>
+  );
 }
 
 export function ComposerDictationPrimaryAction(props: {

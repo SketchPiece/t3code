@@ -1,7 +1,9 @@
 import type { MenuAction } from "@react-native-menu/menu";
 import { Pressable } from "react-native";
+import Animated from "react-native-reanimated";
 
 import { useAndroidControlSizing } from "./useAndroidControlSizing";
+import { usePressSpring } from "./usePressSpring";
 import { SymbolView } from "./AppSymbol";
 import { ControlPillMenu } from "./ControlPill";
 
@@ -17,22 +19,27 @@ export function ComposerAttachmentButton(props: {
   readonly onPickFiles: () => Promise<void>;
 }) {
   const { scale } = useAndroidControlSizing();
+  const press = usePressSpring();
   const button = (
     <Pressable
       accessibilityLabel="Add attachment"
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled }}
-      className="size-[44px] shrink-0 items-center justify-center rounded-full active:opacity-70 disabled:opacity-50"
+      className="size-[44px] shrink-0 items-center justify-center rounded-full disabled:opacity-50"
       disabled={props.disabled}
       onPress={props.supportsFiles ? undefined : () => void props.onPickMedia()}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
     >
-      <SymbolView
-        name="plus"
-        size={Math.round(22 * scale)}
-        weight="regular"
-        tintColorClassName="accent-icon"
-        type="monochrome"
-      />
+      <Animated.View style={press.style}>
+        <SymbolView
+          name="plus"
+          size={Math.round(22 * scale)}
+          weight="medium"
+          tintColorClassName="accent-icon"
+          type="monochrome"
+        />
+      </Animated.View>
     </Pressable>
   );
 
