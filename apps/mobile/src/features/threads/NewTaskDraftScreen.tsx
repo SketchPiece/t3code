@@ -498,6 +498,12 @@ export function NewTaskDraftScreen(props: {
     !voiceDisabled &&
     flow.prompt.trim().length === 0 &&
     voicePresentation.trailingAction === "mic";
+  // Like the thread composer, an untouched draft rests as a pill; focus opens the card.
+  const isComposerResting =
+    !isComposerFocused &&
+    !settingsSheetPresentation.keepsComposerExpanded &&
+    flow.prompt.length === 0 &&
+    flow.attachments.length === 0;
   const holdToTalk = useHoldToTalk({
     enabled: showsHoldMic && !voiceInput.isBusy,
     phase: voiceInput.state.phase,
@@ -1443,14 +1449,18 @@ export function NewTaskDraftScreen(props: {
         onPasteImages={(uris) => void handleNativePasteImages(uris)}
         onPasteText={(paste) => void handleNativePasteText(paste)}
         placeholder="Ask anything…"
-        singleLineCentered={false}
-        contentInsetVertical={0}
-        style={{
-          minHeight: 72,
-          // A long dictation stays readable: up to about a third of the screen.
-          maxHeight: Math.max(160, Math.round(windowHeight * 0.32)),
-          paddingVertical: 4,
-        }}
+        singleLineCentered={isComposerResting}
+        contentInsetVertical={isComposerResting && Platform.OS !== "android" ? 6 : 0}
+        style={
+          isComposerResting
+            ? { height: 36 }
+            : {
+                minHeight: 72,
+                // A long dictation stays readable: up to about a third of the screen.
+                maxHeight: Math.max(160, Math.round(windowHeight * 0.32)),
+                paddingVertical: 4,
+              }
+        }
         textStyle={{ ...bodyText, color: foregroundColor, fontFamily: regularFontFamily }}
       />
     </>
@@ -1560,7 +1570,7 @@ export function NewTaskDraftScreen(props: {
         alwaysBounceVertical={isKeyboardVisible}
         className="flex-1"
         contentInsetAdjustmentBehavior="never"
-        contentContainerClassName="grow items-center pb-[236px] pt-12 ios:pt-[72px]"
+        contentContainerClassName="grow items-center justify-center pb-[200px] pt-6"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -1629,6 +1639,110 @@ export function NewTaskDraftScreen(props: {
     />
   );
 
+  const trailingSlot = (
+    <ComposerVoiceTrailingSlot
+      state={voiceInput.state}
+      presentation={voicePresentation}
+      holdMode={holdToTalk.mode}
+      panHandlers={holdToTalk.panHandlers}
+      showsHoldMic={showsHoldMic}
+      onConfirm={() => void voiceInput.stop("insert")}
+      onRetry={voiceInput.retry}
+      onCancel={voiceInput.cancel}
+    >
+      {startButton}
+    </ComposerVoiceTrailingSlot>
+  );
+  const attachmentButton = (
+    <ComposerAttachmentButton
+      disabled={isComposerInteractionLocked}
+      supportsFiles={Boolean(
+        selectedEnvironmentServerConfig?.environment.capabilities.fileAttachments,
+      )}
+      onPickMedia={handlePickMedia}
+      onPickFiles={handlePickFiles}
+    />
+  );
+  const composerToolbar = (
+    <Animated.View layout={COMPOSER_LAYOUT_TRANSITION} collapsable={false}>
+      <ComposerDictationToolbar showsDictation={isVoiceInputPresented} trailing={trailingSlot}>
+        <ComposerToolbarRow
+          paddingBottom={0}
+          paddingHorizontal={0}
+          paddingTop={0}
+          style={{ gap: 0 }}
+        >
+          <ComposerDictationCancelAction
+            presentation={voicePresentation}
+            armed={holdToTalk.cancelArmed}
+            onCancel={voiceInput.cancel}
+          />
+          {isVoiceInputPresented ? (
+            <ComposerDictationStatus
+              audioLevels={voiceInput.audioLevels}
+              elapsedSeconds={voiceInput.elapsedSeconds}
+              phase={voiceInput.state.phase}
+              presentation={voicePresentation}
+              onDismissError={voiceInput.cancel}
+            />
+          ) : (
+            <>
+              {attachmentButton}
+              <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
+                <View className="min-w-0 shrink">
+                  <ComposerInlineControl
+                    accessibilityLabel="Model and reasoning settings"
+                    disabled={isComposerInteractionLocked}
+                    emphasized
+                    renderIcon={(size) => (
+                      <ProviderIcon
+                        iconUrl={flow.selectedModelOption?.providerIconUrl}
+                        provider={flow.selectedModelOption?.providerDriver}
+                        size={size}
+                      />
+                    )}
+                    label={flow.selectedModelOption?.label ?? "Choose model"}
+                    maxWidth="100%"
+                    onPress={settingsSheetPresentation.open}
+                  />
+                </View>
+                {flow.planModeEnabled ? (
+                  <ComposerInlineControl
+                    accessibilityHint={`Switches to ${flow.interactionMode === "plan" ? "Build" : "Plan"} mode`}
+                    accessibilityLabel={`Interaction mode: ${flow.interactionMode === "plan" ? "Plan" : "Build"}`}
+                    disabled={isComposerInteractionLocked}
+                    emphasized
+                    icon={
+                      flow.interactionMode === "plan"
+                        ? { ios: "list.bullet.clipboard", android: "auto_awesome" }
+                        : { ios: "hammer", android: "construction" }
+                    }
+                    label={flow.interactionMode === "plan" ? "Plan" : "Build"}
+                    onPress={() =>
+                      flow.setInteractionMode(flow.interactionMode === "plan" ? "default" : "plan")
+                    }
+                    showChevron={false}
+                  />
+                ) : null}
+              </View>
+            </>
+          )}
+          {voicePresentation.trailingAction === "mic" ? (
+            <ComposerDictationStartAction
+              state={voiceInput.state}
+              isAvailable={voiceInput.isAvailable && !showsHoldMic}
+              disabled={voiceDisabled}
+              onStart={voiceInput.start}
+              onCancel={voiceInput.cancel}
+            />
+          ) : null}
+          {/* The trailing slot sits over this space, outside the flipping row. */}
+          <View className="h-[44px] w-[50px]" />
+        </ComposerToolbarRow>
+      </ComposerDictationToolbar>
+    </Animated.View>
+  );
+
   const composerDock = (
     <View
       className={
@@ -1692,13 +1806,17 @@ export function NewTaskDraftScreen(props: {
         <ComposerHoldToTalkHint mode={holdToTalk.mode} cancelArmed={holdToTalk.cancelArmed} />
       </View>
       <ComposerSurface
-        style={{
-          borderRadius: 26,
-          minHeight: 140,
-          overflow: "hidden",
-          paddingBottom: 6,
-          paddingTop: 14,
-        }}
+        style={
+          isComposerResting
+            ? { borderRadius: 27, overflow: "hidden", paddingVertical: 2 }
+            : {
+                borderRadius: 26,
+                minHeight: 140,
+                overflow: "hidden",
+                paddingBottom: 6,
+                paddingTop: 14,
+              }
+        }
       >
         {stripAttachments.length > 0 ? (
           <View className="px-[14px] pb-2.5">
@@ -1733,10 +1851,32 @@ export function NewTaskDraftScreen(props: {
           </View>
         ) : null}
 
-        <View className={wantsFullscreen ? "pr-[40px] pl-[14px]" : "px-[14px]"}>
-          {promptEditor}
+        <View className={isComposerResting ? "flex-row items-center" : undefined}>
+          {isComposerResting ? (
+            <View style={{ opacity: isVoiceInputPresented ? 0 : 1 }}>{attachmentButton}</View>
+          ) : null}
+          <View
+            className={
+              isComposerResting
+                ? "min-w-0 flex-1 px-[4px]"
+                : wantsFullscreen
+                  ? "pr-[40px] pl-[14px]"
+                  : "px-[14px]"
+            }
+            style={isComposerResting && isVoiceInputPresented ? { opacity: 0 } : undefined}
+          >
+            {promptEditor}
+          </View>
+          {isComposerResting ? (
+            <View className="flex-row items-center pr-1.5">{trailingSlot}</View>
+          ) : null}
         </View>
-        {wantsFullscreen ? (
+        {isComposerResting && isVoiceInputPresented ? (
+          // A hold that started on the resting pill keeps its touch on the pill's own
+          // mic underneath; the dictation bar shows on top of it.
+          <View className="absolute inset-0 justify-center">{composerToolbar}</View>
+        ) : null}
+        {!isComposerResting && wantsFullscreen ? (
           <Pressable
             accessibilityLabel="Open the message full screen"
             accessibilityRole="button"
@@ -1752,110 +1892,9 @@ export function NewTaskDraftScreen(props: {
             />
           </Pressable>
         ) : null}
-        <View className="h-1" />
+        {isComposerResting ? null : <View className="h-1" />}
 
-        <Animated.View layout={COMPOSER_LAYOUT_TRANSITION} collapsable={false}>
-          <ComposerDictationToolbar
-            showsDictation={isVoiceInputPresented}
-            trailing={
-              <ComposerVoiceTrailingSlot
-                state={voiceInput.state}
-                presentation={voicePresentation}
-                holdMode={holdToTalk.mode}
-                panHandlers={holdToTalk.panHandlers}
-                showsHoldMic={showsHoldMic}
-                onConfirm={() => void voiceInput.stop("insert")}
-                onRetry={voiceInput.retry}
-                onCancel={voiceInput.cancel}
-              >
-                {startButton}
-              </ComposerVoiceTrailingSlot>
-            }
-          >
-            <ComposerToolbarRow
-              paddingBottom={0}
-              paddingHorizontal={0}
-              paddingTop={0}
-              style={{ gap: 0 }}
-            >
-              <ComposerDictationCancelAction
-                presentation={voicePresentation}
-                armed={holdToTalk.cancelArmed}
-                onCancel={voiceInput.cancel}
-              />
-              {isVoiceInputPresented ? (
-                <ComposerDictationStatus
-                  audioLevels={voiceInput.audioLevels}
-                  elapsedSeconds={voiceInput.elapsedSeconds}
-                  phase={voiceInput.state.phase}
-                  presentation={voicePresentation}
-                  onDismissError={voiceInput.cancel}
-                />
-              ) : (
-                <>
-                  <ComposerAttachmentButton
-                    disabled={isComposerInteractionLocked}
-                    supportsFiles={Boolean(
-                      selectedEnvironmentServerConfig?.environment.capabilities.fileAttachments,
-                    )}
-                    onPickMedia={handlePickMedia}
-                    onPickFiles={handlePickFiles}
-                  />
-                  <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
-                    <View className="min-w-0 shrink">
-                      <ComposerInlineControl
-                        accessibilityLabel="Model and reasoning settings"
-                        disabled={isComposerInteractionLocked}
-                        emphasized
-                        renderIcon={(size) => (
-                          <ProviderIcon
-                            iconUrl={flow.selectedModelOption?.providerIconUrl}
-                            provider={flow.selectedModelOption?.providerDriver}
-                            size={size}
-                          />
-                        )}
-                        label={flow.selectedModelOption?.label ?? "Choose model"}
-                        maxWidth="100%"
-                        onPress={settingsSheetPresentation.open}
-                      />
-                    </View>
-                    {flow.planModeEnabled ? (
-                      <ComposerInlineControl
-                        accessibilityHint={`Switches to ${flow.interactionMode === "plan" ? "Build" : "Plan"} mode`}
-                        accessibilityLabel={`Interaction mode: ${flow.interactionMode === "plan" ? "Plan" : "Build"}`}
-                        disabled={isComposerInteractionLocked}
-                        emphasized
-                        icon={
-                          flow.interactionMode === "plan"
-                            ? { ios: "list.bullet.clipboard", android: "auto_awesome" }
-                            : { ios: "hammer", android: "construction" }
-                        }
-                        label={flow.interactionMode === "plan" ? "Plan" : "Build"}
-                        onPress={() =>
-                          flow.setInteractionMode(
-                            flow.interactionMode === "plan" ? "default" : "plan",
-                          )
-                        }
-                        showChevron={false}
-                      />
-                    ) : null}
-                  </View>
-                </>
-              )}
-              {voicePresentation.trailingAction === "mic" ? (
-                <ComposerDictationStartAction
-                  state={voiceInput.state}
-                  isAvailable={voiceInput.isAvailable && !showsHoldMic}
-                  disabled={voiceDisabled}
-                  onStart={voiceInput.start}
-                  onCancel={voiceInput.cancel}
-                />
-              ) : null}
-              {/* The trailing slot sits over this space, outside the flipping row. */}
-              <View className="size-[44px]" />
-            </ComposerToolbarRow>
-          </ComposerDictationToolbar>
-        </Animated.View>
+        {isComposerResting ? null : composerToolbar}
       </ComposerSurface>
       <VideoPreviewModal source={previewVideo} onRequestClose={closeMediaPreview} />
       <FilePreviewModal source={previewFile} onRequestClose={closeMediaPreview} />

@@ -1163,7 +1163,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               </View>
             ) : null}
             {!isExpanded ? (
-              <View className="flex-row items-center">
+              <View className="flex-row items-center pr-1.5">
                 <ComposerDictationStartAction
                   state={voiceInput.state}
                   isAvailable={voiceInput.isAvailable && !showsHoldMic}
@@ -1254,7 +1254,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                     />
                   ) : null}
                   {/* The trailing slot sits over this space, outside the flipping row. */}
-                  <View className="size-[44px]" />
+                  <View className="h-[44px] w-[50px]" />
                 </View>
               </ComposerToolbarRow>
             </ComposerDictationToolbar>

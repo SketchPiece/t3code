@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import Animated, {
   Easing,
+  LayoutAnimationConfig,
   LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
@@ -142,7 +143,7 @@ export function ComposerDictationToolbar(props: {
   readonly children: ReactNode;
   readonly showsDictation: boolean;
   readonly visible?: boolean;
-  /** Stays mounted while the row flips, so a hold on it keeps its touch; the row reserves 44pt. */
+  /** Stays mounted while the row flips, so a hold on it keeps its touch; the row reserves 50pt. */
   readonly trailing?: ReactNode;
 }) {
   return (
@@ -159,7 +160,7 @@ export function ComposerDictationToolbar(props: {
         </Animated.View>
       ) : null}
       {props.visible !== false && props.trailing ? (
-        <View className="absolute inset-y-0 right-0 justify-center">{props.trailing}</View>
+        <View className="absolute inset-y-0 right-1.5 justify-center">{props.trailing}</View>
       ) : null}
     </View>
   );
@@ -482,14 +483,17 @@ export function ComposerVoiceTrailingSlot(props: {
   }
   return (
     <HoldScale holding={props.holdMode === "holding"} panHandlers={props.panHandlers}>
-      <Animated.View
-        key={trailingContentKey(props)}
-        className="absolute inset-0 items-center justify-center"
-        entering={SLOT_ENTERING}
-        exiting={SLOT_EXITING}
-      >
-        {content}
-      </Animated.View>
+      {/* Pops only when the button changes, not when the slot first appears. */}
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View
+          key={trailingContentKey(props)}
+          className="absolute inset-0 items-center justify-center"
+          entering={SLOT_ENTERING}
+          exiting={SLOT_EXITING}
+        >
+          {content}
+        </Animated.View>
+      </LayoutAnimationConfig>
     </HoldScale>
   );
 }
