@@ -2,9 +2,9 @@ import type { ExpoConfig } from "expo/config";
 import * as NodeModule from "node:module";
 
 // Loaded like the repo's other config plugins: the package has no ESM entry.
-const { AndroidConfig, withStringsXml } = NodeModule.createRequire(import.meta.url)(
-  "expo/config-plugins",
-) as typeof import("expo/config-plugins");
+const { AndroidConfig, withFinalizedMod, withStringsXml } = NodeModule.createRequire(
+  import.meta.url,
+)("expo/config-plugins") as typeof import("expo/config-plugins");
 
 // Helm fork: the app's name and artwork. app.config.ts passes each build
 // variant through applyHelmBrand and the finished config through
@@ -48,6 +48,33 @@ function withBakeliteSplash(plugin: NonNullable<ExpoConfig["plugins"]>[number]) 
 }
 
 /**
+ * Signs every Xcode target with Helm's team. Upstream leaves the share
+ * extension's team empty and passes it to xcodebuild on the command line;
+ * archives made from the project as is (Xcode, Sideshelf) need it written in.
+ * Runs after all other mods, once expo-sharing has added its target.
+ */
+function withHelmTeamOnEveryTarget(config: ExpoConfig): ExpoConfig {
+  return withFinalizedMod(config, [
+    "ios",
+    async (finalized) => {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const root = finalized.modRequest.platformProjectRoot;
+      const project = fs.readdirSync(root).find((name: string) => name.endsWith(".xcodeproj"));
+      if (!project) return finalized;
+      const file = path.join(root, project, "project.pbxproj");
+      const source = fs.readFileSync(file, "utf8");
+      const next = source.replace(
+        /buildSettings = \{\n(?![^}]*DEVELOPMENT_TEAM)/g,
+        `buildSettings = {\n\t\t\t\tDEVELOPMENT_TEAM = ${HELM_APPLE_TEAM_ID};\n`,
+      );
+      if (next !== source) fs.writeFileSync(file, next);
+      return finalized;
+    },
+  ]);
+}
+
+/**
  * Sets the name under the icon and the splash colors. The name is "Helm", and
  * "Штурвал" on a phone set to Russian (a ru localization, which also lets iOS
  * offer a per-app language). Expo derives the native project name from
@@ -73,7 +100,7 @@ export function withHelmConfig(config: ExpoConfig, variantName: Variant): ExpoCo
       infoPlist: { ...config.ios?.infoPlist, CFBundleDisplayName: displayName },
     },
   };
-  return withStringsXml(withIosName, (stringsConfig) => {
+  return withStringsXml(withHelmTeamOnEveryTarget(withIosName), (stringsConfig) => {
     stringsConfig.modResults = AndroidConfig.Strings.setStringItem(
       [{ $: { name: "app_name" }, _: displayName }],
       stringsConfig.modResults,
