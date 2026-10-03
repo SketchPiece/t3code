@@ -386,6 +386,7 @@ function ThreadNavigationSidebarPane(
     threads,
     selectedProjectScope,
   ]);
+  const hasHiddenSettled = settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0;
   // Re-partition the moment the earliest snooze expires (clamped to the
   // signed-32-bit setTimeout range; far-future wakes re-arm at the clamp).
   const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
@@ -893,6 +894,8 @@ function ThreadNavigationSidebarPane(
                 itemsAreEqual={sidebarItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
+                onEndReached={hasHiddenSettled ? showMoreSettled : undefined}
+                onEndReachedThreshold={0.5}
                 automaticallyAdjustsScrollIndicatorInsets={NATIVE_LIQUID_GLASS_SUPPORTED}
                 contentInsetAdjustmentBehavior={
                   NATIVE_LIQUID_GLASS_SUPPORTED ? "automatic" : "never"
@@ -959,6 +962,8 @@ function ThreadNavigationSidebarPane(
                 itemsAreEqual={sidebarItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
+                onEndReached={hasHiddenSettled ? showMoreSettled : undefined}
+                onEndReachedThreshold={0.5}
                 contentContainerStyle={[
                   styles.threadListContent,
                   Platform.OS === "android" ? { paddingHorizontal: 0 } : null,

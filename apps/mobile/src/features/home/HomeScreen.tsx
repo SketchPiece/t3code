@@ -976,6 +976,12 @@ export function HomeScreen(props: HomeScreenProps) {
             recycleItems
             extraData={v2ExtraData}
             ListHeaderComponent={v2ListHeader}
+            onEndReached={
+              settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0
+                ? showMoreSettled
+                : undefined
+            }
+            onEndReachedThreshold={0.5}
             ListFooterComponent={
               settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0 ? (
                 <ThreadListV2ShowMoreRow

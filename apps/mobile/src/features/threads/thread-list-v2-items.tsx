@@ -20,7 +20,7 @@ import type { EnvironmentMachineKind } from "@t3tools/contracts";
 import { canSnooze, resolveSnoozePresets } from "@t3tools/client-runtime/state/thread-settled";
 import type { MenuAction } from "@react-native-menu/menu";
 import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
-import { Alert, Pressable, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, useWindowDimensions, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { SymbolView } from "../../components/AppSymbol";
@@ -146,6 +146,7 @@ function ThreadListV2ProjectTile(props: {
 
 function ThreadListV2Section(props: {
   readonly label: string;
+  readonly count?: number;
   readonly pane?: "screen" | "sidebar";
   readonly tone?: "default" | "snoozed";
   readonly disclosure?: {
@@ -158,40 +159,44 @@ function ThreadListV2Section(props: {
 }) {
   const snoozed = props.tone === "snoozed";
   const sidebarPane = props.pane === "sidebar";
+  // Helm fork: mono caps with a count, like SETTLED on desktop, in a full 44pt row.
   const className = cn(
-    "mb-1.5 mt-4 flex-row items-center gap-2.5",
+    "mt-2 min-h-11 flex-row items-center gap-2.5",
     props.pane === "sidebar" ? "px-3" : "px-5",
   );
   const content = (
     <>
       <Text
         className={cn(
-          "text-xs font-t3-medium",
+          "text-3xs",
           sidebarPane
             ? "text-drawer-foreground-muted"
             : snoozed
-              ? "text-foreground-secondary"
-              : "text-foreground-tertiary",
+              ? "text-warning-foreground"
+              : "text-foreground-secondary",
         )}
+        style={{ fontFamily: MONO_FONT, letterSpacing: 1.2, textTransform: "uppercase" }}
       >
         {props.label}
       </Text>
-      <View
-        className={cn(
-          "h-px flex-1",
-          snoozed ? "bg-primary/20" : sidebarPane ? "bg-drawer-border" : "bg-border",
-        )}
-      />
+      {props.count !== undefined ? (
+        <Text
+          className={cn(
+            "text-3xs",
+            sidebarPane ? "text-drawer-foreground-muted" : "text-foreground-tertiary",
+          )}
+          style={{ fontFamily: MONO_FONT }}
+        >
+          {props.count}
+        </Text>
+      ) : null}
+      <View className={cn("h-px flex-1", sidebarPane ? "bg-drawer-border" : "bg-border")} />
       {props.disclosure ? (
         <SymbolView
           name="chevron.down"
-          size={10}
+          size={13}
           tintColorClassName={
-            sidebarPane
-              ? "accent-drawer-foreground-muted"
-              : snoozed
-                ? "accent-icon-muted"
-                : "accent-foreground-muted"
+            sidebarPane ? "accent-drawer-foreground-muted" : "accent-foreground-muted"
           }
           type="monochrome"
           style={{ transform: [{ rotate: props.disclosure.expanded ? "180deg" : "0deg" }] }}
@@ -243,7 +248,8 @@ function ThreadListV2ShelfHeader(
   const label = props.kind === "snoozed" ? "Snoozed" : "Settled";
   return (
     <ThreadListV2Section
-      label={props.expanded ? label : `${label} (${props.count})`}
+      label={label}
+      count={props.count}
       pane={props.pane}
       tone={props.kind === "snoozed" ? "snoozed" : "default"}
       disclosure={{
@@ -269,6 +275,11 @@ export const ThreadListV2SettledShelfHeader = memo(function ThreadListV2SettledS
   return <ThreadListV2ShelfHeader {...props} kind="settled" />;
 });
 
+/**
+ * Helm fork: the settled tail loads as the list reaches its end (the list's
+ * onEndReached), so this row only shows that more is coming. It stays a
+ * button for VoiceOver and keyboard users.
+ */
 export const ThreadListV2ShowMoreRow = memo(function ThreadListV2ShowMoreRow(props: {
   readonly pane?: "screen" | "sidebar";
   readonly hiddenCount: number;
@@ -279,18 +290,9 @@ export const ThreadListV2ShowMoreRow = memo(function ThreadListV2ShowMoreRow(pro
       accessibilityRole="button"
       accessibilityLabel={`Show ${Math.min(props.hiddenCount, THREAD_LIST_V2_SETTLED_PAGE_COUNT)} more settled threads`}
       onPress={props.onPress}
-      className="mx-4 mt-2 items-center rounded-lg border border-dashed border-border py-2.5"
-      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+      className="h-11 items-center justify-center"
     >
-      <Text
-        className={
-          props.pane === "sidebar"
-            ? "text-xs font-t3-medium text-drawer-foreground-muted"
-            : "text-xs font-t3-medium text-foreground-muted"
-        }
-      >
-        Show more ({props.hiddenCount} settled hidden)
-      </Text>
+      <ActivityIndicator size="small" />
     </Pressable>
   );
 });
