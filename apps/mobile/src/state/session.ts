@@ -5,8 +5,11 @@ import * as Option from "effect/Option";
 import { Atom } from "effect/unstable/reactivity";
 
 import { connectionAtomRuntime } from "../connection/runtime";
+import { withTailnetUrls } from "../../helm/tailscale/session";
 
-export const environmentSession = createEnvironmentSessionAtoms(connectionAtomRuntime);
+export const environmentSession = withTailnetUrls(
+  createEnvironmentSessionAtoms(connectionAtomRuntime),
+);
 
 const EMPTY_PREPARED_CONNECTION_ATOM = Atom.make(Option.none()).pipe(
   Atom.withLabel("mobile-prepared-connection:empty"),

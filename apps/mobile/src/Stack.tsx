@@ -78,6 +78,7 @@ import { SettingsAuthRouteScreen } from "./features/settings/SettingsAuthRouteSc
 import { SettingsEnvironmentDetailRouteScreen } from "./features/settings/SettingsEnvironmentDetailRouteScreen";
 import { SettingsEnvironmentsRouteScreen } from "./features/settings/SettingsEnvironmentsRouteScreen";
 import { SettingsFollowUpRouteScreen } from "./features/settings/SettingsFollowUpRouteScreen";
+import { TailscaleSettingsScreen } from "../helm/tailscale/TailscaleSettingsScreen";
 import {
   SettingsEnvironmentAgentBehaviorRouteScreen,
   SettingsEnvironmentMaintenanceRouteScreen,
@@ -208,6 +209,12 @@ const SettingsContentStack = createNativeStackNavigator({
       options: {
         title: "Environments",
       },
+    }),
+    // Helm fork: the in-app Tailscale node.
+    SettingsTailscale: createNativeStackScreen({
+      screen: TailscaleSettingsScreen,
+      linking: "tailscale",
+      options: { title: "Tailscale" },
     }),
     SettingsEnvironmentDetail: createNativeStackScreen({
       screen: SettingsEnvironmentDetailRouteScreen,

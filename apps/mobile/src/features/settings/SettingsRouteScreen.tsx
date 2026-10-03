@@ -86,6 +86,11 @@ function ConfiguredSettingsRouteScreen() {
             valuePosition="trailing"
             target="SettingsEnvironments"
           />
+          <SettingsRow
+            icon={{ ios: "network", android: "public" }}
+            label="Tailscale"
+            target="SettingsTailscale"
+          />
           <SettingsRow icon="bell.badge" label="Notifications" target="SettingsNotifications" />
         </SettingsSection>
 
@@ -118,6 +123,11 @@ function LocalSettingsRouteScreen() {
             value={`${environmentCount}`}
             valuePosition="trailing"
             target="SettingsEnvironments"
+          />
+          <SettingsRow
+            icon={{ ios: "network", android: "public" }}
+            label="Tailscale"
+            target="SettingsTailscale"
           />
         </SettingsSection>
 

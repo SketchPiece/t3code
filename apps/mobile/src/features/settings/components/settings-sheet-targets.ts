@@ -1,5 +1,6 @@
 export type SettingsSheetTarget =
   | "SettingsEnvironments"
+  | "SettingsTailscale"
   | "SettingsNotifications"
   | "SettingsThreads"
   | "SettingsAbout"

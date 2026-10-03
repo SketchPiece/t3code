@@ -1,3 +1,4 @@
+import "./helm/tailscale/install";
 import { registerRootComponent } from "expo";
 import "react-native-gesture-handler";
 import { LogBox } from "react-native";
