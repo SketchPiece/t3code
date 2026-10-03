@@ -84,7 +84,11 @@ describe("transcribeVoice", () => {
         assert.strictEqual(request?.url, "https://core.example.app/helm/v1/transcriptions");
         assert.strictEqual(request?.authorization, "Bearer server-token");
         assert.deepStrictEqual(request?.form.getAll("languages[]"), ["ru", "en"]);
-        assert.deepStrictEqual(request?.form.getAll("keywords[]"), ["t3code", "helm-voice"]);
+        const keywords = request?.form.getAll("keywords[]") ?? [];
+        // The thread's own names lead, then the fixed coding words, without repeats.
+        assert.deepStrictEqual(keywords.slice(0, 2), ["t3code", "helm-voice"]);
+        assert.include(keywords, "pull request");
+        assert.strictEqual(new Set(keywords).size, keywords.length);
         assert.strictEqual(request?.form.get("seconds"), "4");
         const file = request?.form.get("file");
         assert.instanceOf(file, File);

@@ -17,8 +17,59 @@ import { readHelmPushConfig } from "./pushConfig.ts";
 
 // Helm fork: dictation is transcribed by the Volna core (POST /helm/v1/transcriptions),
 // which holds the OpenAI key; this server only forwards the clip with its server token.
-// Spoken languages are fixed to the owner's two; keywords come from the thread.
+// Spoken languages are fixed to the owner's two; keywords come from the thread plus
+// the coding words a Russian speaker says in English, so they stay in Latin script.
 const LANGUAGES = ["ru", "en"];
+const CODING_KEYWORDS = [
+  "commit",
+  "push",
+  "pull request",
+  "PR",
+  "merge",
+  "rebase",
+  "branch",
+  "main",
+  "worktree",
+  "diff",
+  "review",
+  "deploy",
+  "build",
+  "release",
+  "bug",
+  "fix",
+  "feature",
+  "refactor",
+  "test",
+  "lint",
+  "typecheck",
+  "API",
+  "endpoint",
+  "backend",
+  "frontend",
+  "server",
+  "client",
+  "mobile",
+  "desktop",
+  "web",
+  "UI",
+  "UX",
+  "README",
+  "TypeScript",
+  "React",
+  "React Native",
+  "Effect",
+  "useEffect",
+  "useState",
+  "props",
+  "state",
+  "hook",
+  "component",
+  "GitHub",
+  "Railway",
+  "Codex",
+  "Claude",
+  "Helm",
+];
 const MIME_BY_EXTENSION: Record<string, string> = {
   ".m4a": "audio/mp4",
   ".mp4": "audio/mp4",
@@ -67,7 +118,9 @@ export const transcribeVoice = Effect.fn("HelmVoice.transcribe")(function* (
       `audio${extension}`,
     );
     for (const language of LANGUAGES) form.append("languages[]", language);
-    for (const keyword of new Set(keywords)) form.append("keywords[]", keyword);
+    for (const keyword of new Set([...keywords, ...CODING_KEYWORDS])) {
+      form.append("keywords[]", keyword);
+    }
     if (input.durationSeconds !== undefined) form.set("seconds", String(input.durationSeconds));
 
     const client = yield* HttpClient.HttpClient;
