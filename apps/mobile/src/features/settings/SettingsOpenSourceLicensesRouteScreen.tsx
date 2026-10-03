@@ -58,7 +58,7 @@ function LicenseRow(props: {
         </View>
         <SymbolView
           name="chevron.right"
-          size={16}
+          size={17}
           tintColorClassName={"accent-chevron"}
           type="monochrome"
           weight="semibold"
@@ -238,7 +238,7 @@ export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailPro
               <Text className="font-t3-medium text-primary-text">Project source</Text>
               <SymbolView
                 name="arrow.up.right"
-                size={16}
+                size={17}
                 tintColorClassName={"accent-primary-text"}
                 type="monochrome"
                 weight="semibold"

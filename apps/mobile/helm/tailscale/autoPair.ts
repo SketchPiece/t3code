@@ -13,10 +13,11 @@ import type { TailnetPeer } from "./status";
 // credential like a scanned QR code. Requests go through the in-app node.
 
 /**
- * Where Helm desktop's backend may listen: it starts at 3773 and moves up when
- * the port is taken, which T3 Code running beside it does (apps/desktop/src/app/DesktopApp.ts).
+ * Where Helm desktop's backend may listen: it starts at 3783 and moves up when
+ * the port is taken (apps/desktop/src/app/DesktopApp.ts). Builds before that
+ * started at 3773 and moved past T3 Code, so those ports are tried last.
  */
-const HELM_PORTS = [3773, 3774, 3775, 3776, 3777];
+const HELM_PORTS = [3783, 3784, 3785, 3773, 3774, 3775, 3776, 3777];
 const PROBE_TIMEOUT_MS = 4_000;
 const ANSWER_POLL_MS = 2_000;
 const ANSWER_WAIT_MS = 5 * 60_000;

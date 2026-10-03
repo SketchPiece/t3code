@@ -635,7 +635,7 @@ function MessageAttachmentFile(props: {
           </View>
           <SymbolView
             name="chevron.right"
-            size={12}
+            size={13}
             tintColorClassName="accent-foreground-muted"
             type="monochrome"
           />
@@ -839,7 +839,7 @@ function ArtifactTemplateCard(props: {
       <View className="relative h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-subtle">
         <SymbolView
           name={ARTIFACT_TEMPLATE_SYMBOL_BY_KIND[props.template.artifactKind]}
-          size={20}
+          size={22}
           tintColorClassName="accent-foreground-muted"
           type="monochrome"
         />
@@ -1789,7 +1789,7 @@ function renderFeedEntry(
                   }
                 }}
               >
-                <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
+                <SymbolView name="pencil" size={15} tintColor={iconSubtleColor} />
               </Pressable>
             ) : null}
             {presentation.text.trim().length > 0 ? (
@@ -3189,7 +3189,7 @@ function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
           {props.loading ? (
             <ActivityIndicator size="small" color={accentColor} />
           ) : (
-            <SymbolView name="chevron.up" size={12} tintColor={accentColor} type="monochrome" />
+            <SymbolView name="chevron.up" size={13} tintColor={accentColor} type="monochrome" />
           )}
           <Text className="text-sm font-medium text-foreground">
             {props.loading ? "Loading earlier activity…" : "Load earlier activity"}

@@ -272,7 +272,7 @@ function VoiceActionButton(props: {
           ) : (
             <SymbolView
               name={props.icon}
-              size={variant === "plain" ? 20 : 16}
+              size={variant === "plain" ? 22 : 17}
               weight={variant === "plain" ? "regular" : "semibold"}
               tintColorClassName={
                 variant === "primary"
@@ -327,7 +327,7 @@ export function ComposerDictationStatus(props: {
           >
             <SymbolView
               name="xmark"
-              size={12}
+              size={13}
               tintColorClassName="accent-icon-muted"
               type="monochrome"
             />
@@ -459,7 +459,7 @@ export function ComposerVoiceTrailingSlot(props: {
         <View className="size-[30px] items-center justify-center rounded-full bg-primary">
           <SymbolView
             name="mic"
-            size={16}
+            size={17}
             weight="semibold"
             tintColorClassName="accent-primary-foreground"
             type="monochrome"

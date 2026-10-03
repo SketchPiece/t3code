@@ -15,7 +15,7 @@ import {
 describe("appearancePreferences", () => {
   it("resolves defaults for empty stored preferences", () => {
     expect(resolveAppearancePreferences({})).toEqual({
-      baseFontSize: DEFAULT_BASE_FONT_SIZE + 1,
+      baseFontSize: DEFAULT_BASE_FONT_SIZE,
       terminalFontSize: null,
       codeFontSize: null,
       codeWordBreak: false,
@@ -38,14 +38,14 @@ describe("appearancePreferences", () => {
 
   it("derives terminal and code sizes from the base size when not overridden", () => {
     const appearance = resolveAppearance(resolveAppearancePreferences({ baseFontSize: 15 }));
-    expect(appearance.terminalFontSize).toBe(10);
+    expect(appearance.terminalFontSize).toBe(9.5);
     expect(appearance.codeFontSize).toBe(11);
     expect(appearance.isTerminalFontSizeCustom).toBe(false);
     expect(appearance.isCodeFontSizeCustom).toBe(false);
 
     const scaled = resolveAppearance(resolveAppearancePreferences({ baseFontSize: 22 }));
-    expect(scaled.terminalFontSize).toBe(14);
-    expect(scaled.codeFontSize).toBe(17);
+    expect(scaled.terminalFontSize).toBe(13.5);
+    expect(scaled.codeFontSize).toBe(16);
   });
 
   it("applies explicit overrides over derived values", () => {
@@ -72,10 +72,10 @@ describe("appearancePreferences", () => {
   it("scales markdown typography from the base size", () => {
     expect(resolveMarkdownFontSizes(15)).toMatchObject({
       m: 15,
-      h1: 20,
-      bodyLineHeight: 22,
-      codeBlockFontSize: 12,
-      codeBlockLineHeight: 18,
+      h1: 19,
+      bodyLineHeight: 21,
+      codeBlockFontSize: 11,
+      codeBlockLineHeight: 17,
     });
   });
 
@@ -97,16 +97,16 @@ describe("appearancePreferences", () => {
     expect(resolveAppearancePreferences({ codeWordBreak: false }).codeWordBreak).toBe(false);
   });
 
-  it("returns the authored text scale at the 16pt default", () => {
-    expect(DEFAULT_BASE_FONT_SIZE).toBe(16);
+  it("returns the authored text scale at the 17pt default", () => {
+    expect(DEFAULT_BASE_FONT_SIZE).toBe(17);
 
     const variables = resolveTextScaleVariables(DEFAULT_BASE_FONT_SIZE);
-    expect(variables["--text-base"]).toBe(16);
-    expect(variables["--text-base--line-height"]).toBe(23);
-    expect(variables["--text-sm"]).toBe(14);
-    expect(variables["--text-sm--line-height"]).toBe(19);
-    expect(variables["--text-lg"]).toBe(18);
-    expect(variables["--text-3xl"]).toBe(30);
+    expect(variables["--text-base"]).toBe(17);
+    expect(variables["--text-base--line-height"]).toBe(24);
+    expect(variables["--text-sm"]).toBe(15);
+    expect(variables["--text-sm--line-height"]).toBe(20);
+    expect(variables["--text-lg"]).toBe(19);
+    expect(variables["--text-3xl"]).toBe(31);
   });
 
   it("scales every text variable proportionally with the base size", () => {
@@ -116,10 +116,10 @@ describe("appearancePreferences", () => {
 
     const variables = resolveTextScaleVariables(20);
     expect(variables["--text-base"]).toBe(20);
-    expect(variables["--text-base--line-height"]).toBe(29);
+    expect(variables["--text-base--line-height"]).toBe(28);
     expect(variables["--text-sm"]).toBe(18);
     expect(variables["--text-xs"]).toBe(16);
-    expect(variables["--text-lg"]).toBe(23);
+    expect(variables["--text-lg"]).toBe(22);
 
     const smaller = resolveTextScaleVariables(11);
     expect(smaller["--text-base"]).toBe(11);
@@ -130,8 +130,8 @@ describe("appearancePreferences", () => {
   it("derives native markdown typography from the base size", () => {
     expect(resolveNativeMarkdownTypography(22)).toEqual({
       fontSize: 22,
-      lineHeight: 32,
-      headingFontSizes: [29, 26, 23, 21, 21, 21],
+      lineHeight: 31,
+      headingFontSizes: [28, 26, 23, 21, 21, 21],
     });
   });
 });

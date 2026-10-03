@@ -161,7 +161,7 @@ function ThemeCard(props: {
           <View className="absolute -bottom-0.5 -right-0.5 size-5 items-center justify-center rounded-full border border-border bg-card">
             <SymbolView
               name={appearance === "light" ? "sun.max" : "moon"}
-              size={12}
+              size={13}
               tintColorClassName="accent-icon"
               type="monochrome"
               weight="medium"

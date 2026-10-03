@@ -158,7 +158,7 @@ function OpenVideoPreviewModal(props: {
             onPress={props.onRequestClose}
             className="size-12 items-center justify-center"
           >
-            <SymbolView name="xmark" size={20} tintColor="#ffffff" type="monochrome" />
+            <SymbolView name="xmark" size={22} tintColor="#ffffff" type="monochrome" />
           </Pressable>
         </View>
         <MediaSourceCaption source={mediaActions.title} />

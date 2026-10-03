@@ -18,7 +18,7 @@ export function SidebarFilterButton(props: {
     >
       <SymbolView
         name={props.icon}
-        size={16}
+        size={17}
         tintColorClassName="accent-foreground"
         type="monochrome"
       />

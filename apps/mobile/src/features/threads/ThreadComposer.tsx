@@ -918,7 +918,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             >
               <SymbolView
                 name="arrow.up.left.and.arrow.down.right"
-                size={14}
+                size={15}
                 tintColorClassName="accent-icon-muted"
                 type="monochrome"
               />

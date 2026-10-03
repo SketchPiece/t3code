@@ -162,7 +162,7 @@ function OverlayIcon(props: { readonly phase: GitActionProgress["phase"] }) {
     case "success":
       return (
         <View className="h-6 w-6 items-center justify-center rounded-full bg-green-500">
-          <SymbolView name="checkmark" size={12} tintColor="white" type="monochrome" />
+          <SymbolView name="checkmark" size={13} tintColor="white" type="monochrome" />
         </View>
       );
     case "error":
@@ -170,7 +170,7 @@ function OverlayIcon(props: { readonly phase: GitActionProgress["phase"] }) {
         <View className="h-6 w-6 items-center justify-center rounded-full bg-danger">
           <SymbolView
             name="exclamationmark.triangle"
-            size={12}
+            size={13}
             tintColorClassName="accent-danger-foreground"
             type="monochrome"
           />

@@ -1746,7 +1746,7 @@ export function NewTaskDraftScreen(props: {
           >
             <SymbolView
               name="arrow.up.left.and.arrow.down.right"
-              size={14}
+              size={15}
               tintColorClassName="accent-icon-muted"
               type="monochrome"
             />

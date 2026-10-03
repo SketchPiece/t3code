@@ -149,7 +149,7 @@ export function ThreadSubagentGroup(props: {
           <SubagentElapsed agents={agents} />
           <SymbolView
             name={expanded ? "chevron.up" : "chevron.down"}
-            size={11}
+            size={13}
             tintColor={props.iconSubtleColor}
           />
         </Pressable>
@@ -221,7 +221,7 @@ export function ThreadSubagentGroup(props: {
                 {threadId !== null ? (
                   <SymbolView
                     name="chevron.right"
-                    size={12}
+                    size={13}
                     tintColorClassName="accent-icon-subtle"
                   />
                 ) : null}

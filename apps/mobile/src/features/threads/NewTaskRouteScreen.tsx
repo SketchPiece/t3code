@@ -341,7 +341,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                   <View className="h-7 w-7 items-center justify-center">
                     <SymbolView
                       name="text.bubble"
-                      size={18}
+                      size={17}
                       tintColorClassName="accent-icon-muted"
                       type="monochrome"
                     />
@@ -354,7 +354,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                   </View>
                   <SymbolView
                     name="chevron.right"
-                    size={14}
+                    size={15}
                     tintColorClassName="accent-chevron"
                     type="monochrome"
                   />
@@ -518,7 +518,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                       </View>
                       <SymbolView
                         name="chevron.right"
-                        size={14}
+                        size={15}
                         tintColorClassName="accent-chevron"
                         type="monochrome"
                       />

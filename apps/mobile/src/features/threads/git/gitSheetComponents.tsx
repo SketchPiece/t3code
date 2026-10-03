@@ -49,7 +49,7 @@ export function SheetActionButton(props: {
     >
       <SymbolView
         name={props.icon}
-        size={16}
+        size={17}
         tintColorClassName={textColorClassName}
         type="monochrome"
       />
@@ -98,7 +98,7 @@ export function SheetListRow(props: {
       <View className="items-center justify-center android:size-6 ios:bg-subtle ios:h-9 ios:w-9 ios:rounded-full">
         <SymbolView
           name={props.icon}
-          size={Platform.OS === "android" ? 24 : 16}
+          size={Platform.OS === "android" ? 24 : 17}
           tintColorClassName="accent-icon"
           type="monochrome"
         />

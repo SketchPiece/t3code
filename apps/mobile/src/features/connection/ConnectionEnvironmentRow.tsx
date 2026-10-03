@@ -95,7 +95,7 @@ export function ConnectionEnvironmentRow(props: {
             />
             <EnvironmentMachineSymbol
               kind={resolveEnvironmentMachineKind(serverConfig)}
-              size={14}
+              size={15}
               tintColorClassName="accent-foreground-muted"
             />
             <Text
@@ -139,7 +139,7 @@ export function ConnectionEnvironmentRow(props: {
         />
         <SymbolView
           name={props.opensDetails ? "chevron.right" : "chevron.down"}
-          size={12}
+          size={13}
           tintColorClassName="accent-icon-subtle"
           type="monochrome"
           style={{
@@ -235,7 +235,7 @@ export function ConnectionEnvironmentRow(props: {
               >
                 <SymbolView
                   name="arrow.clockwise"
-                  size={14}
+                  size={15}
                   tintColorClassName="accent-icon-subtle"
                   type="monochrome"
                 />
@@ -247,7 +247,7 @@ export function ConnectionEnvironmentRow(props: {
               >
                 <SymbolView
                   name="trash"
-                  size={14}
+                  size={15}
                   tintColorClassName="accent-danger-foreground"
                   type="monochrome"
                 />

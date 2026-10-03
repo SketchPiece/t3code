@@ -68,7 +68,7 @@ export function ComposerFullscreenEditor(props: {
           >
             <SymbolView
               name="arrow.down.right.and.arrow.up.left"
-              size={18}
+              size={17}
               tintColorClassName="accent-icon"
               type="monochrome"
             />

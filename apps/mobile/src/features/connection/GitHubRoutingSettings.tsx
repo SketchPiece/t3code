@@ -69,7 +69,7 @@ export function GitHubRoutingSettings() {
                 </Text>
                 <SymbolView
                   name={expanded === environmentId ? "chevron.up" : "chevron.down"}
-                  size={12}
+                  size={13}
                   tintColorClassName="accent-icon-muted"
                 />
               </Pressable>
@@ -102,7 +102,7 @@ export function GitHubRoutingSettings() {
                       {selected === option.value ? (
                         <SymbolView
                           name="checkmark"
-                          size={18}
+                          size={17}
                           tintColorClassName="accent-icon"
                           weight="semibold"
                         />

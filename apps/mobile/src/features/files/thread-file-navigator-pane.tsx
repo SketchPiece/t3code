@@ -174,7 +174,7 @@ export function ThreadFileNavigatorPane(props: {
             >
               <SymbolView
                 name="arrow.clockwise"
-                size={14}
+                size={15}
                 tintColorClassName="accent-icon-muted"
                 type="monochrome"
               />

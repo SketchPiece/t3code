@@ -115,7 +115,7 @@ function WorkLogIcon(props: {
               ? { ios: "iphone", android: "smartphone" }
               : props.icon
       }
-      size={14}
+      size={15}
       weight="medium"
       {...(colorClassName ? { tintColorClassName: colorClassName } : { tintColor: props.color })}
       type="monochrome"
@@ -985,7 +985,7 @@ const ThreadWorkLogRow = memo(function ThreadWorkLogRow(
             >
               <SymbolView
                 name="xmark"
-                size={11}
+                size={13}
                 tintColorClassName="accent-danger-foreground/40"
                 type="monochrome"
               />
@@ -996,7 +996,7 @@ const ThreadWorkLogRow = memo(function ThreadWorkLogRow(
               <ThreadDisclosureChevron
                 expanded={expanded}
                 collapsedDirection="down"
-                size={11}
+                size={13}
                 tintColor={props.iconSubtleColor}
               />
             ) : null}
@@ -1109,7 +1109,7 @@ export function ThreadWorkGroupToggle(props: {
         <ThreadDisclosureChevron
           expanded={props.expanded}
           collapsedDirection="down"
-          size={11}
+          size={13}
           tintColor={props.iconSubtleColor}
         />
       </WorkLogPressable>
@@ -1159,7 +1159,7 @@ export const ThreadAgentSpawnCard = memo(function ThreadAgentSpawnCard(props: {
           <View className="h-6 w-6 shrink-0 items-center justify-center">
             <SymbolView
               name={{ ios: "sparkles", android: "auto_awesome" }}
-              size={14}
+              size={15}
               weight="medium"
               tintColor={props.iconSubtleColor}
               type="monochrome"
@@ -1195,7 +1195,7 @@ export const ThreadAgentSpawnCard = memo(function ThreadAgentSpawnCard(props: {
             <ThreadDisclosureChevron
               expanded={expanded}
               collapsedDirection="down"
-              size={11}
+              size={13}
               tintColor={props.iconSubtleColor}
             />
           ) : null}

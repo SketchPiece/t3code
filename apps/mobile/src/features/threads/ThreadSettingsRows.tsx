@@ -10,7 +10,7 @@ function SelectedCheckmark(props: { readonly selected: boolean }) {
   return props.selected ? (
     <SymbolView
       name="checkmark"
-      size={16}
+      size={17}
       tintColorClassName="accent-icon"
       type="monochrome"
       weight="semibold"

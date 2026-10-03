@@ -187,7 +187,7 @@ function ReviewSelectionActionBar(props: {
     <>
       <SymbolView
         name={props.onOpenComment ? "text.bubble" : "line.3.horizontal.decrease.circle"}
-        size={16}
+        size={17}
         tintColorClassName="accent-primary-foreground"
         type="monochrome"
       />
@@ -227,7 +227,7 @@ function ReviewSelectionActionBar(props: {
       >
         <SymbolView
           name="xmark"
-          size={16}
+          size={17}
           tintColorClassName="accent-primary-foreground"
           type="monochrome"
         />

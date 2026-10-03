@@ -31,7 +31,7 @@ export function LocalEnvironmentList({
         <View className="h-12 w-12 items-center justify-center rounded-[16px] bg-subtle">
           <SymbolView
             name="point.3.connected.trianglepath.dotted"
-            size={20}
+            size={22}
             tintColorClassName="accent-icon-muted"
             type="monochrome"
           />

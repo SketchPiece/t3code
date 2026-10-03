@@ -69,8 +69,7 @@ export interface NativeMarkdownTypography {
 
 export function normalizeBaseFontSize(value: number | null | undefined): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    // Helm fork: IBM Plex reads a step smaller than DM Sans, so text starts one step up.
-    return DEFAULT_BASE_FONT_SIZE + 1;
+    return DEFAULT_BASE_FONT_SIZE;
   }
 
   return Math.min(MAX_BASE_FONT_SIZE, Math.max(MIN_BASE_FONT_SIZE, Math.round(value)));
@@ -158,14 +157,15 @@ export function resolveMarkdownFontSizes(baseFontSize: number): ResolvedMarkdown
   const codeBlockFontSize = Math.max(10, Math.round(13 * scale));
 
   return {
-    s: Math.max(10, Math.round(14 * scale)),
+    // Helm fork: one step above upstream, like the text scale.
+    s: Math.max(10, Math.round(15 * scale)),
     m,
-    h1: Math.max(16, Math.round(21 * scale)),
-    h2: Math.max(14, Math.round(19 * scale)),
-    h3: Math.max(13, Math.round(17 * scale)),
-    h4: Math.max(12, Math.round(15 * scale)),
-    h5: Math.max(12, Math.round(15 * scale)),
-    h6: Math.max(12, Math.round(15 * scale)),
+    h1: Math.max(16, Math.round(22 * scale)),
+    h2: Math.max(14, Math.round(20 * scale)),
+    h3: Math.max(13, Math.round(18 * scale)),
+    h4: Math.max(12, Math.round(16 * scale)),
+    h5: Math.max(12, Math.round(16 * scale)),
+    h6: Math.max(12, Math.round(16 * scale)),
     bodyLineHeight: Math.max(18, Math.round(MOBILE_TYPOGRAPHY.body.lineHeight * scale)),
     codeBlockFontSize,
     codeBlockLineHeight: codeBlockFontSize + 6,
