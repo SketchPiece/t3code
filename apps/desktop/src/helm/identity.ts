@@ -4,6 +4,9 @@
 export const HELM_DESKTOP_IDENTITY = {
   appId: "com.sketchpiece.helm",
   productName: "Helm",
+  /** The packed app's package.json name. Electron names its keychain item
+      "<name> Safe Storage" after it, so Helm keeps its own instead of T3 Code's. */
+  packageName: "helm",
   artifactBaseName: "Helm",
   scheme: "helm",
   developmentScheme: "helm-dev",
