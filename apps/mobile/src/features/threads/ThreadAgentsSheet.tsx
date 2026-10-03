@@ -145,7 +145,7 @@ function AgentRow(props: {
         <Text className="shrink-0 text-2xs tabular-nums text-foreground-muted">{elapsed}</Text>
       )}
       {presentation.canOpenThread ? (
-        <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-subtle" />
+        <SymbolView name="chevron.right" size={13} tintColorClassName="accent-icon-subtle" />
       ) : null}
     </View>
   );

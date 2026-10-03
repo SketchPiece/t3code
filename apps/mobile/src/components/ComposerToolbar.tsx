@@ -85,7 +85,7 @@ export function ComposerInlineControl(props: {
       {props.showChevron === false ? null : (
         <SymbolView
           name={props.chevronDirection === "right" ? "chevron.right" : "chevron.down"}
-          size={Math.round(10 * scale)}
+          size={Math.round(13 * scale)}
           tintColorClassName={
             props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
           }
@@ -350,7 +350,7 @@ export function ComposerToolbarButton(props: {
       ) : props.icon ? (
         <SymbolView
           name={props.icon}
-          size={16}
+          size={17}
           tintColorClassName={iconTintClassName}
           type="monochrome"
         />
@@ -375,7 +375,7 @@ export function ComposerToolbarButton(props: {
       {props.showChevron === false ? null : (
         <SymbolView
           name="chevron.down"
-          size={11}
+          size={13}
           tintColorClassName={iconTintClassName}
           type="monochrome"
         />

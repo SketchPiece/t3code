@@ -1375,7 +1375,7 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
                   >
                     <SymbolView
                       name={{ ios: "keyboard", android: "keyboard" }}
-                      size={20}
+                      size={22}
                       tintColor={terminalTheme.foreground}
                       type="monochrome"
                     />

@@ -261,7 +261,7 @@ function VoiceActionButton(props: {
           ) : (
             <SymbolView
               name={props.icon}
-              size={variant === "primary" ? 16 : 20}
+              size={variant === "primary" ? 17 : 22}
               weight={variant === "primary" ? "semibold" : "regular"}
               tintColorClassName={
                 variant === "primary" ? "accent-primary-foreground" : "accent-icon"
@@ -312,7 +312,7 @@ export function ComposerDictationStatus(props: {
           >
             <SymbolView
               name="xmark"
-              size={12}
+              size={13}
               tintColorClassName="accent-icon-muted"
               type="monochrome"
             />

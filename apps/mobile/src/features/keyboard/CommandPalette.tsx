@@ -99,7 +99,7 @@ function PaletteRow(props: {
       <View className="w-7 items-center">
         <SymbolView
           name={itemIcon(props.item)}
-          size={20}
+          size={22}
           tintColorClassName={props.selected ? "accent-thread-selected-foreground" : "accent-icon"}
         />
       </View>

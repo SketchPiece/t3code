@@ -67,7 +67,7 @@ export function ThreadHandoffRow(props: {
           </Fragment>
         ))}
         {endpoints.from.length > 0 ? (
-          <SymbolView name="arrow.right" size={12} tintColor={color} />
+          <SymbolView name="arrow.right" size={13} tintColor={color} />
         ) : null}
         <HandoffEndpoint {...endpoints.to} providers={config?.providers ?? []} />
       </View>

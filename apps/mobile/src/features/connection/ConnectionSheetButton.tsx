@@ -90,7 +90,7 @@ export function ConnectionSheetButton(props: {
     >
       <SymbolView
         name={props.icon}
-        size={props.compact ? 13 : 14}
+        size={props.compact ? 13 : 15}
         tintColorClassName={textColorClassName}
         type="monochrome"
       />

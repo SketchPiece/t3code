@@ -21,7 +21,7 @@ export function SettingsLegalDocumentCloseHeaderButton() {
     >
       <SymbolView
         name="xmark"
-        size={18}
+        size={17}
         tintColorClassName={"accent-icon"}
         type="monochrome"
         weight="semibold"
@@ -47,7 +47,7 @@ export function SettingsLegalDocumentExternalHeaderButton({
     >
       <SymbolView
         name="safari"
-        size={19}
+        size={22}
         tintColorClassName={"accent-icon"}
         type="monochrome"
         weight="regular"

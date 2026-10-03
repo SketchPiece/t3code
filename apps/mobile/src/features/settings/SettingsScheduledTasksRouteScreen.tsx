@@ -201,7 +201,7 @@ function SelectRow(props: {
         {value}
         <SymbolView
           name="chevron.down"
-          size={14}
+          size={15}
           tintColorClassName="accent-chevron"
           type="monochrome"
         />
@@ -236,7 +236,7 @@ function PickerRow(props: {
       </Text>
       <SymbolView
         name="chevron.right"
-        size={14}
+        size={15}
         tintColorClassName="accent-chevron"
         type="monochrome"
       />
@@ -660,7 +660,7 @@ function TaskForm({
           valueIcon={
             <EnvironmentMachineSymbol
               kind={resolveEnvironmentMachineKind(config)}
-              size={18}
+              size={17}
               tintColorClassName="accent-foreground-muted"
             />
           }
@@ -817,7 +817,7 @@ function TaskForm({
               </Text>
               <SymbolView
                 name="chevron.right"
-                size={14}
+                size={15}
                 tintColorClassName="accent-chevron"
                 type="monochrome"
               />
@@ -980,7 +980,7 @@ function EnvironmentTasks({
       titleIcon={
         <EnvironmentMachineSymbol
           kind={resolveEnvironmentMachineKind(environment.serverConfig)}
-          size={16}
+          size={17}
           tintColorClassName={
             Platform.OS === "android" ? "accent-primary" : "accent-foreground-muted"
           }
@@ -1062,7 +1062,7 @@ function EnvironmentTasks({
               >
                 <SymbolView
                   name="ellipsis"
-                  size={18}
+                  size={17}
                   tintColorClassName="accent-icon"
                   type="monochrome"
                 />

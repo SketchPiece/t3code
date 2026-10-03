@@ -322,7 +322,7 @@ export function GitOverviewSheet(props: GitOverviewSheetProps) {
                 <View className="flex-row items-center gap-2 px-1 pt-2 pb-1">
                   <SymbolView
                     name="square.3.layers.3d"
-                    size={14}
+                    size={15}
                     tintColorClassName="accent-foreground-muted"
                   />
                   <Text className="text-xs text-foreground-muted">
@@ -490,7 +490,7 @@ export function GitOverviewSheet(props: GitOverviewSheetProps) {
             >
               <SymbolView
                 name="arrow.clockwise"
-                size={16}
+                size={17}
                 tintColorClassName="accent-icon"
                 type="monochrome"
                 weight="medium"

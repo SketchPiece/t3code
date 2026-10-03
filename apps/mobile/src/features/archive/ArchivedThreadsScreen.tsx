@@ -166,7 +166,7 @@ function ProjectGroupLabel(props: {
         <View className="max-w-[42%] flex-row items-center gap-1">
           <EnvironmentMachineSymbol
             kind={props.environmentMachine}
-            size={10}
+            size={13}
             tintColorClassName="accent-foreground-tertiary"
           />
           <Text className="shrink text-2xs text-foreground-tertiary" numberOfLines={1}>
@@ -251,7 +251,7 @@ function ArchivedThreadRow(props: {
               <View className="flex-row items-center gap-1.5">
                 <SymbolView
                   name="arrow.triangle.branch"
-                  size={10}
+                  size={13}
                   tintColorClassName="accent-icon-subtle"
                   type="monochrome"
                 />

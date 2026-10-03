@@ -220,7 +220,7 @@ export function ComposerContextSheet(props: {
             className="flex-row items-center justify-between gap-3 border-b border-border px-4 pb-2 pt-4"
           >
             {terminal ? (
-              <SymbolView name="terminal" size={20} tintColor={terminalTheme.palette[2]} />
+              <SymbolView name="terminal" size={22} tintColor={terminalTheme.palette[2]} />
             ) : null}
             <View className="min-w-0 flex-1">
               <Text className="text-base font-t3-semibold text-foreground" numberOfLines={2}>

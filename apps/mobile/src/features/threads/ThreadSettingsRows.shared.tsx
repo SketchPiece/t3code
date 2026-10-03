@@ -104,7 +104,7 @@ export function ModelRowContent(
       >
         <SymbolView
           name={props.isFavorite ? "star.fill" : "star"}
-          size={18}
+          size={17}
           tintColorClassName={props.isFavorite ? "accent-icon" : "accent-icon-subtle"}
           type="monochrome"
         />

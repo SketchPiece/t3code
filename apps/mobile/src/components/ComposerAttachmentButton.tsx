@@ -28,7 +28,7 @@ export function ComposerAttachmentButton(props: {
     >
       <SymbolView
         name="plus"
-        size={Math.round(20 * scale)}
+        size={Math.round(22 * scale)}
         weight="regular"
         tintColorClassName="accent-icon"
         type="monochrome"

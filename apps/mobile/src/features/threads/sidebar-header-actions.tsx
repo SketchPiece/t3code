@@ -20,7 +20,7 @@ function FallbackHeaderButton(props: {
     >
       <SymbolView
         name={props.icon}
-        size={18}
+        size={17}
         tintColorClassName="accent-foreground"
         type="monochrome"
       />
