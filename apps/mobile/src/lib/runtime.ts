@@ -6,6 +6,7 @@ import { remoteHttpClientLayer } from "@t3tools/client-runtime/rpc";
 
 import { cryptoLayer } from "../features/cloud/dpop";
 import { managedRelayClientLayer } from "../features/cloud/managedRelayLayer";
+import { withHelmPushRelay } from "../../helm/push/relayClient";
 import { resolveCloudPublicConfig } from "../features/cloud/publicConfig";
 import { tracingLayer } from "../features/observability/tracing";
 import * as Persistence from "../persistence/layer";
@@ -28,7 +29,7 @@ type RuntimeLayerSource =
   | typeof tracingLayer;
 
 const runtimeLayer = Layer.merge(
-  managedRelayClientLayer(configuredRelayUrl()),
+  withHelmPushRelay(managedRelayClientLayer(configuredRelayUrl())),
   Socket.layerWebSocketConstructorGlobal,
 ).pipe(
   Layer.provideMerge(cryptoLayer),

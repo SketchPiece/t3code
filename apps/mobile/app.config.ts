@@ -3,6 +3,7 @@ import type { ExpoConfig } from "expo/config";
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 import { applyHelmBrand, helmFontPlugin, withHelmConfig } from "./helm/brand.ts";
+import { helmPushConfigFromEnv } from "./helm/push/config.ts";
 
 type AppVariant = "development" | "preview" | "production";
 
@@ -423,8 +424,10 @@ const config: ExpoConfig = {
     appVariant: APP_VARIANT,
     iosPersonalTeamBuild: isIosPersonalTeamBuild,
     relay: {
-      url: repoEnv.T3CODE_RELAY_URL ?? null,
+      // Helm fork: agent awareness registers with the Volna core (helm/push).
+      url: repoEnv.T3CODE_RELAY_URL ?? helmPushConfigFromEnv(repoEnv)?.url ?? null,
     },
+    helmPush: helmPushConfigFromEnv(repoEnv),
     clerk: {
       publishableKey: repoEnv.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? null,
       jwtTemplate: repoEnv.EXPO_PUBLIC_CLERK_JWT_TEMPLATE ?? null,
