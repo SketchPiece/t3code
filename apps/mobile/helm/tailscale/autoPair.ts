@@ -12,8 +12,11 @@ import type { TailnetPeer } from "./status";
 // owner allows it in Helm on that Mac, then pairs with the one-time
 // credential like a scanned QR code. Requests go through the in-app node.
 
-/** Helm desktop's default backend port (apps/desktop/src/app/DesktopApp.ts). */
-export const HELM_DESKTOP_PORT = 3773;
+/**
+ * Where Helm desktop's backend may listen: it starts at 3773 and moves up when
+ * the port is taken, which T3 Code running beside it does (apps/desktop/src/app/DesktopApp.ts).
+ */
+const HELM_PORTS = [3773, 3774, 3775, 3776, 3777];
 const PROBE_TIMEOUT_MS = 4_000;
 const ANSWER_POLL_MS = 2_000;
 const ANSWER_WAIT_MS = 5 * 60_000;
@@ -68,8 +71,24 @@ async function savedEnvironmentIds(): Promise<ReadonlySet<string>> {
   return new Set();
 }
 
+/**
+ * The base URL of Helm on this computer. Only Helm answers the pairing route
+ * with JSON (T3 Code serves its web app there), so asking about a request id
+ * that does not exist finds it without leaving a request behind.
+ */
+async function findHelm(address: string): Promise<string | null> {
+  for (const port of HELM_PORTS) {
+    const base = `http://${address}:${port}`;
+    const probe = await request(`${base}/api/helm/tailnet-pair?id=probe`).catch(() => null);
+    if (!probe?.ok || !probe.headers.get("content-type")?.includes("json")) continue;
+    return base;
+  }
+  return null;
+}
+
 async function pairPeer(address: string): Promise<AutoPairState> {
-  const base = `http://${address}:${HELM_DESKTOP_PORT}`;
+  const base = await findHelm(address);
+  if (!base) return "not-helm";
   let environmentId: string;
   try {
     const descriptor = await request(`${base}/.well-known/t3/environment`);
