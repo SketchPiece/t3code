@@ -6,10 +6,12 @@ import { AppText as Text } from "../../src/components/AppText";
 import { useAndroidControlSizing } from "../../src/components/useAndroidControlSizing";
 import { IPAD_HOME_TITLE_OFFSET } from "../../src/lib/layoutMetrics";
 import { helmAppName } from "../appName";
+import { HelmMark } from "./HelmMark";
 
 // Helm fork: replaces src/components/CompactBrandTitle.tsx (see ../metro.cjs).
-// The navigation bar shows the app's name; builds other than production keep a
-// stage pill so a dev build is never mistaken for the real one.
+// The navigation bar shows the helm's square screen and the app's name, like
+// the desktop sidebar; builds other than production keep a stage pill so a dev
+// build is never mistaken for the real one.
 
 export function brandTitleOffset(): number {
   if (Platform.OS !== "ios") return 0;
@@ -32,9 +34,10 @@ export function CompactBrandTitle(
       accessibilityLabel={`${helmAppName}, threads`}
       accessible
       role="heading"
-      className="flex-row items-center gap-1.5"
+      className="flex-row items-center gap-2"
       style={{ marginLeft: brandTitleOffset() }}
     >
+      <HelmMark size={Math.round(22 * scale)} />
       <Text
         allowFontScaling={props.allowFontScaling}
         className="font-brand text-foreground"
