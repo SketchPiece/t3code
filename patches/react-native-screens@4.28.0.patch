@@ -455,7 +455,7 @@ index a54cb63..4ff30b3 100644
 +  if (mailSearchToolbarConfig != nil && !reuseMailSearchToolbar) {
 +#if RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
 +    if (@available(iOS 26.0, *)) {
-+      CGFloat horizontalInset = 18.0;
++      CGFloat horizontalInset = 16.0;
 +      NSNumber *width = mailSearchToolbarConfig[@"width"];
 +      CGFloat hostWidth = chromeHostView.bounds.size.width;
 +      if (hostWidth <= 0.0) {
@@ -476,7 +476,7 @@ index a54cb63..4ff30b3 100644
 +      CGFloat sideButtonReserve = buttonSize + 8.0;
 +      CGFloat searchFieldHeight = 42.0;
 +      CGFloat toolbarBottomSpacing = 4.0;
-+      UIFont *searchFont = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle3];
++      UIFont *searchFont = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
 +      NSDictionary<NSAttributedStringKey, id> *placeholderAttributes = @{
 +        NSForegroundColorAttributeName : UIColor.secondaryLabelColor,
 +        NSFontAttributeName : searchFont,
@@ -608,8 +608,8 @@ index a54cb63..4ff30b3 100644
 +        searchBar.translatesAutoresizingMaskIntoConstraints = NO;
 +        [glassView.contentView addSubview:searchBar];
 +        [NSLayoutConstraint activateConstraints:@[
-+          [searchBar.leadingAnchor constraintEqualToAnchor:glassView.contentView.leadingAnchor constant:8.0],
-+          [searchBar.trailingAnchor constraintEqualToAnchor:glassView.contentView.trailingAnchor constant:-8.0],
++          [searchBar.leadingAnchor constraintEqualToAnchor:glassView.contentView.leadingAnchor constant:6.0],
++          [searchBar.trailingAnchor constraintEqualToAnchor:glassView.contentView.trailingAnchor constant:-6.0],
 +          [searchBar.centerYAnchor constraintEqualToAnchor:glassView.contentView.centerYAnchor],
 +          [searchBar.heightAnchor constraintEqualToConstant:searchFieldHeight],
 +        ]];
@@ -629,8 +629,8 @@ index a54cb63..4ff30b3 100644
 +        searchField.translatesAutoresizingMaskIntoConstraints = NO;
 +        [glassView.contentView addSubview:searchField];
 +        [NSLayoutConstraint activateConstraints:@[
-+          [searchField.leadingAnchor constraintEqualToAnchor:glassView.contentView.leadingAnchor constant:14.0],
-+          [searchField.trailingAnchor constraintEqualToAnchor:glassView.contentView.trailingAnchor constant:-14.0],
++          [searchField.leadingAnchor constraintEqualToAnchor:glassView.contentView.leadingAnchor constant:12.0],
++          [searchField.trailingAnchor constraintEqualToAnchor:glassView.contentView.trailingAnchor constant:-12.0],
 +          [searchField.centerYAnchor constraintEqualToAnchor:glassView.contentView.centerYAnchor],
 +          [searchField.heightAnchor constraintEqualToConstant:searchFieldHeight],
 +        ]];
