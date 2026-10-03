@@ -134,6 +134,14 @@ describe("resolveTranscriptCommit", () => {
     });
   });
 
+  it("spaces a Russian transcript like any language written with spaces", () => {
+    const atEnd = draft({ text: "Сделай commit.", selection: { start: 14, end: 14 } });
+    expect(resolveTranscriptCommit(atEnd, atEnd, "Потом PR", "ru")).toMatchObject({
+      kind: "commit",
+      text: "Сделай commit. Потом PR",
+    });
+  });
+
   it("does not add English boundary spaces to CJK or selected inline text", () => {
     const cjk = draft({ text: "修正キャッシュ", selection: { start: 8, end: 8 } });
     expect(resolveTranscriptCommit(cjk, cjk, "テストも", "ja-JP")).toMatchObject({
@@ -295,6 +303,61 @@ describe("VoiceInputController", () => {
       { text: "hello new text", selection: { start: 14, end: 14 } },
     ]);
     expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+  });
+
+  it("sends the draft after a hold-to-talk transcript lands in it", async () => {
+    const submitDraft = vi.fn();
+    const harness = createHarness(
+      { submitDraft },
+      draft({ text: "", selection: { start: 0, end: 0 } }),
+    );
+    await harness.controller.start();
+    await harness.controller.stop("send");
+
+    expect(harness.commits).toEqual([{ text: "new text", selection: { start: 8, end: 8 } }]);
+    expect(submitDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a take whose transcription failed so retry does not need a new recording", async () => {
+    const submitDraft = vi.fn();
+    const transcribe = vi
+      .fn<PreparedVoiceTranscription["transcribe"]>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce("second try");
+    const harness = createHarness(
+      {
+        submitDraft,
+        getTranscriber: () => ({ prepare: async () => preparedTranscription(transcribe) }),
+      },
+      draft({ text: "", selection: { start: 0, end: 0 } }),
+    );
+    await harness.controller.start();
+    await harness.controller.stop("send");
+    expect(harness.controller.currentState).toMatchObject({ phase: "error", errorAction: "retry" });
+    expect(harness.deleted).toEqual([]);
+
+    await harness.controller.retry();
+    expect(transcribe).toHaveBeenCalledTimes(2);
+    expect(transcribe.mock.calls[1]?.[0]).toBe("file:///voice.m4a");
+    expect(harness.recorder.record).toHaveBeenCalledTimes(1);
+    expect(harness.commits).toEqual([{ text: "second try", selection: { start: 10, end: 10 } }]);
+    expect(submitDraft).toHaveBeenCalledTimes(1);
+    expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+  });
+
+  it("deletes a kept take when the failed dictation is dismissed", async () => {
+    const harness = createHarness({
+      getTranscriber: () => ({
+        prepare: async () =>
+          preparedTranscription(async () => Promise.reject(new Error("offline"))),
+      }),
+    });
+    await harness.controller.start();
+    await harness.controller.stop();
+    expect(harness.deleted).toEqual([]);
+    harness.controller.cancel();
+    expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+    expect(harness.controller.currentState.phase).toBe("idle");
   });
 
   it.each(["cancel", "dispose", "ownerChanged"] as const)(

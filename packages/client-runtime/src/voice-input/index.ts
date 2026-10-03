@@ -3,6 +3,7 @@ export {
   VOICE_RECORDING_LIMIT_SECONDS,
   voiceInputBlocksSubmission,
   voiceInputFreezesEditor,
+  type VoiceFinishIntent,
   type VoiceDraftSnapshot,
   type VoiceInputControllerDependencies,
   type VoiceInputPhase,
@@ -18,3 +19,4 @@ export {
   type VoiceTranscriptionErrorCode,
   type VoiceTranscriptionOptions,
 } from "./transcription.ts";
+export { createServerVoiceTranscriber } from "./serverTranscriber.ts";

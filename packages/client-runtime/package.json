@@ -127,6 +127,10 @@
       "types": "./src/state/attachments.ts",
       "default": "./src/state/attachments.ts"
     },
+    "./state/voiceTranscription": {
+      "types": "./src/state/voiceTranscription.ts",
+      "default": "./src/state/voiceTranscription.ts"
+    },
     "./text-paste": {
       "types": "./src/textPaste.ts",
       "default": "./src/textPaste.ts"
