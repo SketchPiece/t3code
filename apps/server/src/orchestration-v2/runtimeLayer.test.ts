@@ -952,6 +952,137 @@ it.layer(TestLayer)("OrchestrationV2LayerLive", (it) => {
     }),
   );
 
+  it.effect("closes the detached session's open tool calls when a handoff moves the thread", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const eventSink = yield* EventSink.EventSinkV2;
+      const outbox = yield* EffectOutbox.EffectOutboxV2;
+      const threadId = ThreadId.make("runtime-handoff-detach");
+      const projectId = ProjectId.make("runtime-handoff-detach-project");
+      yield* seedProject({
+        projectId,
+        title: "Handoff detach project",
+        workspaceRoot: process.cwd(),
+        defaultModelSelection: null,
+        createdAt: "2026-09-07T00:00:00.000Z",
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-handoff-detach-create"),
+        threadId,
+        projectId,
+        title: "Handoff detach",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-handoff-detach-message"),
+        threadId,
+        messageId: MessageId.make("runtime-handoff-detach-message"),
+        text: "Move into a worktree.",
+        attachments: [],
+        dispatchMode: { type: "start_immediately" },
+      });
+      const initial = yield* orchestrator.getThreadProjection(threadId);
+      const run = initial.runs[0]!;
+      const providerThread = initial.providerThreads[0]!;
+      const now = yield* DateTime.now;
+      const toolItem = (id: string, toolName: string, status: "running" | "completed") => ({
+        id: TurnItemId.make(id),
+        threadId,
+        runId: run.id,
+        nodeId: run.rootNodeId,
+        providerThreadId: providerThread.id,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: 1,
+        status,
+        title: null,
+        startedAt: now,
+        completedAt: status === "completed" ? now : null,
+        updatedAt: now,
+        type: "dynamic_tool" as const,
+        toolName,
+        input: {},
+      });
+      const handoff = toolItem(
+        "runtime-handoff-detach-handoff",
+        "mcp__t3-code__t3_worktree_handoff",
+        "running",
+      );
+      const monitor = toolItem("runtime-handoff-detach-monitor", "Monitor", "running");
+      const finished = toolItem("runtime-handoff-detach-finished", "Read", "completed");
+      yield* eventSink.write({
+        commandId: CommandId.make("runtime-handoff-detach-running"),
+        events: [
+          {
+            id: EventId.make("runtime-handoff-detach-run-event"),
+            type: "run.updated",
+            threadId,
+            runId: run.id,
+            occurredAt: now,
+            payload: { ...run, status: "running", startedAt: now },
+          },
+          {
+            id: EventId.make("runtime-handoff-detach-session-event"),
+            type: "provider-session.attached",
+            threadId,
+            occurredAt: now,
+            payload: {
+              id: providerThread.providerSessionId!,
+              driver,
+              providerInstanceId: modelSelection.instanceId,
+              status: "running",
+              cwd: process.cwd(),
+              model: modelSelection.model,
+              capabilities: CodexProviderCapabilitiesV2,
+              createdAt: now,
+              updatedAt: now,
+              lastError: null,
+            },
+          },
+          ...[handoff, monitor, finished].map((payload) => ({
+            id: EventId.make(`${payload.id}-event`),
+            type: "turn-item.updated" as const,
+            threadId,
+            runId: run.id,
+            occurredAt: now,
+            payload,
+          })),
+        ],
+      });
+
+      const handoffCommandId = CommandId.make("runtime-handoff-detach-metadata");
+      yield* orchestrator.dispatch({
+        type: "thread.metadata.update",
+        commandId: handoffCommandId,
+        threadId,
+        branch: "feature/handoff",
+        worktreePath: "/tmp/runtime-handoff-detach",
+        expectedWorktreePath: null,
+      });
+
+      const items = (yield* orchestrator.getThreadProjection(threadId)).turnItems;
+      const statusOf = (id: TurnItemId) => items.find((item) => item.id === id)?.status;
+      assert.equal(statusOf(handoff.id), "completed");
+      assert.equal(statusOf(monitor.id), "cancelled");
+      assert.equal(statusOf(finished.id), "completed");
+      assert.deepEqual(
+        (yield* outbox.listByCommandId(handoffCommandId)).map((effect) => effect.request.type),
+        ["provider-session.detach"],
+      );
+    }),
+  );
+
   it.effect("answers an async question after its provider exits and commits the answer once", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;

@@ -13,6 +13,7 @@ import {
 import {
   type ChatAttachment,
   CommandId,
+  isOrchestrationV2WorkActive,
   isProviderNativeSubagentThread,
   MessageId,
   type ModelSelection,
@@ -51,6 +52,7 @@ import {
   derivePendingBackgroundWork,
   pendingBackgroundTurnItems,
 } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
+import { resolveT3McpToolSummaryAction } from "@t3tools/shared/t3McpToolPresentation";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -3052,6 +3054,60 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           session.status !== "stopped" &&
           session.status !== "error",
       );
+      // A detached session never finishes the tool calls and shells it left
+      // running, so close them here; otherwise they read as pending background
+      // work forever. The worktree handoff call is the one that asked for this
+      // detach and it succeeded, so it completes instead of being cancelled.
+      if (liveSessions.length > 0) {
+        const liveSessionIds = new Set<string>(liveSessions.map((session) => session.id));
+        const owned = yield* loadProjectionForCommand(command, ["providerThreads", "turnItems"], {
+          turnItemTypes: ["command_execution", "dynamic_tool"],
+          turnItemStatuses: ["pending", "running", "waiting"],
+        });
+        const ownedProviderThreads = new Map(
+          owned.providerThreads
+            .filter(
+              (providerThread) =>
+                providerThread.providerSessionId !== null &&
+                liveSessionIds.has(providerThread.providerSessionId),
+            )
+            .map((providerThread) => [providerThread.id, providerThread] as const),
+        );
+        for (const item of owned.turnItems) {
+          const providerThread =
+            item.providerThreadId == null
+              ? undefined
+              : ownedProviderThreads.get(item.providerThreadId);
+          if (
+            providerThread === undefined ||
+            item.threadId !== command.threadId ||
+            !isOrchestrationV2WorkActive(item.status)
+          ) {
+            continue;
+          }
+          const completesHandoff =
+            command.type === "thread.metadata.update" &&
+            item.type === "dynamic_tool" &&
+            resolveT3McpToolSummaryAction(item.toolName) === "worktree-handoff";
+          yield* emit(
+            events,
+            command,
+          )({
+            type: "turn-item.updated",
+            threadId: command.threadId,
+            ...(item.runId === null ? {} : { runId: item.runId }),
+            ...(item.nodeId === null ? {} : { nodeId: item.nodeId }),
+            providerInstanceId: providerThread.providerInstanceId,
+            occurredAt: now,
+            payload: {
+              ...item,
+              status: completesHandoff ? "completed" : "cancelled",
+              completedAt: now,
+              updatedAt: now,
+            },
+          });
+        }
+      }
       yield* Effect.forEach(
         liveSessions,
         (session) =>
