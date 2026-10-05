@@ -168,7 +168,7 @@ it.effect("creates one Scratch project, even for concurrent first requests", () 
       assert.equal(scratchProjects[0]?.title, "No project");
       assert.deepEqual(scratchProjects[0]?.projectIcon, {
         kind: "lucide",
-        name: "message-square-dashed",
+        name: "message-square-text",
         color: "gray",
       });
     }),

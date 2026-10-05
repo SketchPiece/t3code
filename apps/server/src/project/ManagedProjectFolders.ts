@@ -314,13 +314,13 @@ const make = Effect.gen(function* () {
           Effect.mapError((cause) => new ScratchProjectError({ workspaceRoot, cause })),
         );
       if (bootstrapped.created) {
-        // A dashed chat bubble in neutral gray marks Scratch. Set once at
+        // A chat bubble with text lines in neutral gray marks Scratch. Set once at
         // create, so a user's own icon choice is never overwritten.
         yield* projects
           .update({
             commandId: CommandId.make(`scratch-project-icon:${id}`),
             projectId: bootstrapped.project.id,
-            projectIcon: { kind: "lucide", name: "message-square-dashed", color: "gray" },
+            projectIcon: { kind: "lucide", name: "message-square-text", color: "gray" },
           })
           .pipe(Effect.mapError((cause) => new ScratchProjectError({ workspaceRoot, cause })));
       }
