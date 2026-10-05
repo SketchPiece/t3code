@@ -10,9 +10,17 @@ import {
 describe("T3 orchestration provider instructions", () => {
   it("distinguishes delegated subagents from ordinary top-level threads", () => {
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Use `delegate_task`");
-    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "ordinary top-level T3 conversations");
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "ordinary top-level Helm conversations");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Never use them merely");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "cross-provider");
+  });
+
+  it("names Helm in its prose but keeps tool names and ids exact", () => {
+    assert.notMatch(T3_CODE_ORCHESTRATION_INSTRUCTIONS, /\bT3(?: Code)?\b(?![-_])/);
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "does not update Helm's thread binding");
+    for (const id of ["`t3_worktree_handoff`", "mcp__t3_code__delegate_task", "T3_ACP_MCP_NODE"]) {
+      assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, id);
+    }
   });
 
   it("documents structured schedules instead of JSON strings", () => {
@@ -52,9 +60,9 @@ describe("T3 orchestration provider instructions", () => {
       state: { interactionMode: "default", hasT3Mcp: true },
     });
 
-    assert.include(injected, "T3 Code interaction mode: Default");
-    assert.include(injected, "T3 Code collaborative browser");
-    assert.include(injected, "T3 Code orchestration");
+    assert.include(injected, "Helm interaction mode: Default");
+    assert.include(injected, "Helm collaborative browser");
+    assert.include(injected, "Helm orchestration");
     assert.include(injected, "<user_request>\nInspect the repository.\n</user_request>");
   });
 
@@ -72,14 +80,14 @@ describe("T3 orchestration provider instructions", () => {
         state: { ...defaultState, interactionMode: "plan" },
         previousState: defaultState,
       }),
-      "T3 Code interaction mode: Plan",
+      "Helm interaction mode: Plan",
     );
     const withoutMcp = t3AcpPromptWithInstructions({
       prompt,
       state: { interactionMode: "default", hasT3Mcp: false },
     });
-    assert.include(withoutMcp, "T3 Code interaction mode: Default");
-    assert.notInclude(withoutMcp, "T3 Code collaborative browser");
-    assert.notInclude(withoutMcp, "T3 Code orchestration");
+    assert.include(withoutMcp, "Helm interaction mode: Default");
+    assert.notInclude(withoutMcp, "Helm collaborative browser");
+    assert.notInclude(withoutMcp, "Helm orchestration");
   });
 });
