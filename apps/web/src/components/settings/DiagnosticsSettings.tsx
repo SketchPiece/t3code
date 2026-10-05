@@ -39,6 +39,7 @@ import { ResourceTelemetryDiagnostics } from "./ResourceTelemetryDiagnostics";
 import { SettingsPageContainer, SettingsSection, useRelativeTimeTick } from "./settingsLayout";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useSettingsScope } from "./SettingsScopeContext";
+import { APP_BASE_NAME } from "../../branding";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 
@@ -879,8 +880,7 @@ export function DiagnosticsSettingsPanel() {
             toastManager.add({
               type: "info",
               title: "Process already exited",
-              description:
-                "The process is not a child of the T3 Server. It might already have exited.",
+              description: `The process is not a child of the ${APP_BASE_NAME} Server. It might already have exited.`,
             });
             return;
           }
@@ -993,7 +993,7 @@ export function DiagnosticsSettingsPanel() {
           <StatBlock
             label="CPU Time"
             value={resourceData ? formatCpuTime(resourceData.totalCpuSecondsApprox) : "..."}
-            tooltip="Approximate active CPU time for the T3 server root process and its descendants during the selected window. It grows only while sampled processes use CPU and older samples leave as the window moves."
+            tooltip={`Approximate active CPU time for the ${APP_BASE_NAME} server root process and its descendants during the selected window. It grows only while sampled processes use CPU and older samples leave as the window moves.`}
           />
           <StatBlock
             label="Samples"
