@@ -26,6 +26,7 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
+import { helmBrandIngestedTurnItem } from "../helm/brandTurnItem.ts";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
@@ -465,7 +466,7 @@ export const layer: Layer.Layer<
               yield* makeDomainEvent(input, {
                 type: "turn-item.updated",
                 threadId: input.event.turnItem.threadId,
-                payload: input.event.turnItem,
+                payload: helmBrandIngestedTurnItem(input.event.turnItem),
                 runId: input.event.turnItem.runId,
                 nodeId: input.event.turnItem.nodeId,
               }),

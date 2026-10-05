@@ -1,3 +1,5 @@
+import { helmBrandToolDefinition } from "./helmBrand.ts";
+
 export type T3McpToolLogo = "t3-code";
 
 export interface T3McpToolPresentation {
@@ -71,7 +73,7 @@ function tool(
   icon: T3McpToolDefinition["icon"] = "t3-code",
   displayName = `${labels[0]} ${labels[3]}`,
 ): T3McpToolDefinition {
-  return { displayName, labels, icon, summaryAction };
+  return helmBrandToolDefinition({ displayName, labels, icon, summaryAction });
 }
 
 const T3_MCP_SERVER_ALIASES = new Set(["t3-code", "t3_code", "t3code"]);
