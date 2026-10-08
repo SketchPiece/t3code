@@ -99,6 +99,7 @@ import {
   VoiceTranscribeInput,
   VoiceTranscribeResult,
 } from "./voiceTranscription.ts";
+import { HelmRemoteCommand, HelmRemoteSendResult } from "./helmRemote.ts";
 import {
   PersistChatAttachmentsError,
   PersistChatAttachmentsInput,
@@ -382,6 +383,8 @@ export const WS_METHODS = {
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
   attachmentsDelete: "attachments.delete",
   voiceTranscribe: "voice.transcribe",
+  // Helm fork: Helm Mobile as a remote (helmRemote.ts).
+  helmRemoteSend: "helm.remote.send",
 
   // MCP Apps methods
   mcpAppsCallTool: "mcpApps.callTool",
@@ -564,6 +567,7 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
+  helmRemoteSubscribe: "helm.remote.subscribe",
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -1260,6 +1264,19 @@ const WsVoiceTranscribeRpc = Rpc.make(WS_METHODS.voiceTranscribe, {
   error: Schema.Union([VoiceTranscribeError, EnvironmentAuthorizationError]),
 });
 
+const WsHelmRemoteSendRpc = Rpc.make(WS_METHODS.helmRemoteSend, {
+  payload: HelmRemoteCommand,
+  success: HelmRemoteSendResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsHelmRemoteSubscribeRpc = Rpc.make(WS_METHODS.helmRemoteSubscribe, {
+  payload: Schema.Struct({}),
+  success: HelmRemoteCommand,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 const WsMcpAppsCallToolRpc = Rpc.make(WS_METHODS.mcpAppsCallTool, {
   payload: McpAppCallToolInput,
   success: McpAppCallToolResult,
@@ -1908,6 +1925,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
   WsVoiceTranscribeRpc,
+  WsHelmRemoteSendRpc,
+  WsHelmRemoteSubscribeRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,

@@ -187,6 +187,7 @@ import { attachmentRelativePath, createDeterministicAttachmentId } from "./attac
 import { parseBase64DataUrl } from "./imageMime.ts";
 import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/AttachmentUpload.ts";
 import { transcribeVoice } from "./helm/voiceTranscription.ts";
+import { remoteCommands, sendRemoteCommand } from "./helm/remoteCommands.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
@@ -2705,6 +2706,8 @@ const layerWsRpc = (
                   );
             return yield* transcribeVoice(input, keywords);
           }),
+        // Helm fork: helm/remoteCommands.ts
+        [WS_METHODS.helmRemoteSend]: (input) => sendRemoteCommand(input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -3118,6 +3121,7 @@ const layerWsRpc = (
               Stream.concat(Stream.make(latest), changes),
             ),
           ),
+        [WS_METHODS.helmRemoteSubscribe]: (_input) => remoteCommands,
         [WS_METHODS.subscribeResourceTelemetry]: (_input) =>
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>

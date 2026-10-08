@@ -1202,6 +1202,8 @@ export interface DesktopBridge {
    * lack it, and callers no-op when it is missing.
    */
   openSystemSettings?: (pane: SystemSettingsPane) => Promise<boolean>;
+  /** Helm fork: bring this window forward (Helm Mobile's "Open on Mac"). Older builds lack it. */
+  revealWindow?: () => Promise<void>;
   checkSystemPermission?: (pane: SystemSettingsPane) => Promise<boolean>;
   /**
    * Probe this desktop machine for installed remote-capable editor CLIs
