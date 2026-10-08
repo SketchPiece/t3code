@@ -293,6 +293,7 @@ import { WizardPopup } from "./ui/wizard";
 import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
 import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
+import { retainOpenThreadScope } from "../lib/backgroundActivityReporter";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { resolveChatShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
@@ -1860,6 +1861,12 @@ export default function ChatView(props: ChatViewProps) {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [isWorkspaceFileDragActive, setIsWorkspaceFileDragActive] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
+  // Helm fork: tell the server which thread this window shows (Helm Mobile's remote).
+  useEffect(() => {
+    if (routeKind !== "server") return;
+    return retainOpenThreadScope(environmentId, threadId);
+  }, [environmentId, routeKind, threadId]);
+
   useEffect(() => {
     const item = expandedImage?.images[expandedImage.index];
     if (item?.type !== "video" || item.src === null || !item.src.startsWith("blob:")) return;

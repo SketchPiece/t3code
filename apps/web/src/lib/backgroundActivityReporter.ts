@@ -8,6 +8,7 @@ import {
   type BackgroundScope,
   type ClientActivityReportInput,
   type EnvironmentId,
+  type ThreadId,
   WS_METHODS,
 } from "@t3tools/contracts";
 import * as Clock from "effect/Clock";
@@ -142,6 +143,15 @@ function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundSc
       notifyRetainedScopesChanged();
     }
   };
+}
+
+// Helm fork: the thread open in this window rides along in the activity report,
+// so Helm Mobile can offer a remote for what the Mac is looking at.
+export function retainOpenThreadScope(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+): () => void {
+  return retainBackgroundScope(environmentId, { type: "thread", threadId });
 }
 
 export function observeBackgroundActivitySubscription(

@@ -173,6 +173,7 @@ import * as ProjectHttp from "./project/http.ts";
 import * as NetService from "@t3tools/shared/Net";
 import * as RelayClient from "@t3tools/shared/relayClient";
 import { disableTailscaleServe, ensureTailscaleServe } from "@t3tools/tailscale";
+import { nearbyAdvertiserLayer } from "./helm/nearbyAdvertiser.ts";
 import { tailnetPairRouteLayer } from "./helm/tailnetPairRoute.ts";
 import * as ServerActivation from "./serverActivation.ts";
 
@@ -673,6 +674,7 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
     tailnetPairRouteLayer, // Helm fork: helm/tailnetPairRoute.ts
+    nearbyAdvertiserLayer, // Helm fork: helm/nearbyAdvertiser.ts
     ServerHttp.layerAttachmentUploadRoute,
     DeviceHubProxy.layer,
     ServerBrowserStream.routeLayer,
