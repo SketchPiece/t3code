@@ -61,7 +61,7 @@ function SelectionRow(props: {
           props.icon === "arrow.triangle.branch" ? (
             <SymbolView
               name="arrow.triangle.branch"
-              size={22}
+              size={24}
               tintColorClassName="accent-icon-muted"
             />
           ) : (
@@ -70,7 +70,7 @@ function SelectionRow(props: {
         }
         trailing={
           props.selected ? (
-            <SymbolView name="checkmark" size={22} tintColorClassName="accent-focus" />
+            <SymbolView name="checkmark" size={20} tintColorClassName="accent-focus" />
           ) : null
         }
         accessibilityRole="radio"
@@ -116,7 +116,7 @@ function SelectionRow(props: {
       {props.selected ? (
         <SymbolView
           name="checkmark"
-          size={17}
+          size={16}
           tintColorClassName="accent-icon"
           type="monochrome"
           weight="semibold"

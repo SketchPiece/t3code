@@ -55,6 +55,6 @@ export function getThreadListV2RowAppearance(
     cardStyle: sidebarPane ? { ...style, paddingHorizontal: 12, paddingVertical: 10 } : style,
     swipeContainerStyle,
     swipeBackgroundColor: backgroundColor,
-    badgeRingColor: selected ? selectedBackgroundColor : backgroundColor,
+    providerIconSurfaceColor: selected ? selectedBackgroundColor : backgroundColor,
   };
 }

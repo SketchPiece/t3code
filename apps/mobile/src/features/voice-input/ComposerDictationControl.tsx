@@ -1,5 +1,4 @@
 import type { VoiceInputPhase, VoiceInputState } from "@t3tools/client-runtime/voice-input";
-import type { GestureResponderHandlers } from "react-native";
 import { memo, useCallback, useLayoutEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -12,12 +11,10 @@ import {
 } from "react-native";
 import Animated, {
   Easing,
-  LayoutAnimationConfig,
   LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
   type EntryExitAnimationFunction,
   type SharedValue,
@@ -25,9 +22,7 @@ import Animated, {
 
 import { AppText as Text } from "../../components/AppText";
 import { SymbolView, type AppSymbolName } from "../../components/AppSymbol";
-import { PRESS_SPRING, usePressSpring } from "../../components/usePressSpring";
 import { cn } from "../../lib/cn";
-import type { HoldToTalkMode } from "./holdToTalkRelease";
 import type { VoiceComposerPresentation } from "./voiceInputPresentation";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
@@ -142,8 +137,6 @@ export function ComposerDictationToolbar(props: {
   readonly children: ReactNode;
   readonly showsDictation: boolean;
   readonly visible?: boolean;
-  /** Stays mounted while the row flips, so a hold on it keeps its touch; the row reserves 50pt. */
-  readonly trailing?: ReactNode;
 }) {
   return (
     <View className="relative h-[44px] overflow-hidden">
@@ -157,9 +150,6 @@ export function ComposerDictationToolbar(props: {
         >
           {props.children}
         </Animated.View>
-      ) : null}
-      {props.visible !== false && props.trailing ? (
-        <View className="absolute inset-y-0 right-1.5 justify-center">{props.trailing}</View>
       ) : null}
     </View>
   );
@@ -281,7 +271,7 @@ function VoiceActionButton(props: {
   readonly icon: AppSymbolName;
   readonly loading?: boolean;
   readonly onPress: () => void;
-  readonly variant?: "plain" | "primary" | "danger";
+  readonly variant?: "plain" | "primary";
 }) {
   const variant = props.variant ?? "plain";
   const loadingVisibility = useSharedValue(props.loading ? 1 : 0);
@@ -289,30 +279,22 @@ function VoiceActionButton(props: {
     loadingVisibility.value = withTiming(props.loading ? 1 : 0, DICTATION_TIMING);
   }, [loadingVisibility, props.loading]);
   const primaryStyle = useAnimatedStyle(() => ({ opacity: 1 - loadingVisibility.value }));
-  const press = usePressSpring();
 
   return (
     <Pressable
       accessibilityLabel={props.accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ busy: props.loading, disabled: props.disabled }}
-      className="size-[44px] shrink-0 items-center justify-center"
+      className="size-[44px] shrink-0 items-center justify-center active:opacity-70"
       disabled={props.disabled}
       onPress={props.onPress}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
       style={{ opacity: props.disabled && !props.loading ? 0.4 : 1 }}
     >
-      <Animated.View
+      <View
         className={cn(
           "items-center justify-center",
-          variant === "primary"
-            ? "size-[36px] rounded-full bg-subtle"
-            : variant === "danger"
-              ? "size-[36px] rounded-full bg-danger"
-              : "size-[44px]",
+          variant === "primary" ? "size-[30px] rounded-full bg-subtle" : "size-[44px]",
         )}
-        style={press.style}
       >
         {variant === "primary" ? (
           <Animated.View
@@ -326,20 +308,16 @@ function VoiceActionButton(props: {
           ) : (
             <SymbolView
               name={props.icon}
-              size={variant === "plain" ? 22 : 17}
-              weight={variant === "plain" ? "regular" : "semibold"}
+              size={variant === "primary" ? 16 : 20}
+              weight={variant === "primary" ? "semibold" : "regular"}
               tintColorClassName={
-                variant === "primary"
-                  ? "accent-primary-foreground"
-                  : variant === "danger"
-                    ? "accent-danger-foreground"
-                    : "accent-icon"
+                variant === "primary" ? "accent-primary-foreground" : "accent-icon"
               }
               type="monochrome"
             />
           )}
         </View>
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }
@@ -380,7 +358,7 @@ export function ComposerDictationStatus(props: {
           >
             <SymbolView
               name="xmark"
-              size={13}
+              size={12}
               tintColorClassName="accent-icon-muted"
               type="monochrome"
             />
@@ -416,8 +394,6 @@ export function ComposerDictationStatus(props: {
 
 export function ComposerDictationCancelAction(props: {
   readonly presentation: VoiceComposerPresentation;
-  /** A hold slid onto the cross: releasing now cancels. */
-  readonly armed?: boolean;
   readonly onCancel: () => void;
 }) {
   if (props.presentation.leadingAction !== "cancel") return null;
@@ -426,174 +402,7 @@ export function ComposerDictationCancelAction(props: {
       accessibilityLabel="Cancel dictation"
       icon="xmark"
       onPress={props.onCancel}
-      variant={props.armed ? "danger" : "plain"}
     />
-  );
-}
-
-/** "Release to send" over the composer while a hold records; red once sliding cancels. */
-export function ComposerHoldToTalkHint(props: {
-  readonly mode: HoldToTalkMode;
-  readonly cancelArmed: boolean;
-}) {
-  if (props.mode !== "holding") return null;
-  return (
-    <View className="pointer-events-none absolute inset-x-0 bottom-full mb-2 items-center">
-      <Text
-        className={cn(
-          "text-sm",
-          props.cancelArmed ? "font-t3-medium text-danger-foreground" : "text-foreground-muted",
-        )}
-      >
-        {props.cancelArmed ? "Release to cancel" : "Release to send · slide left to cancel"}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * The composer's right-hand button. Empty draft: a mic you hold to talk or tap to dictate.
- * While recording: send (hold) or finish (tap); after a failed take: retry. Otherwise the
- * caller's send or stop button. The wrapping view always carries the hold handlers so a
- * hold that started on the mic keeps its touch when the button changes under the finger.
- */
-export function ComposerVoiceTrailingSlot(props: {
-  readonly state: VoiceInputState;
-  readonly presentation: VoiceComposerPresentation;
-  readonly holdMode: HoldToTalkMode;
-  readonly panHandlers: GestureResponderHandlers;
-  readonly showsHoldMic: boolean;
-  readonly onConfirm: () => void;
-  readonly onRetry: () => void;
-  readonly onCancel: () => void;
-  readonly children: ReactNode;
-}) {
-  const { presentation } = props;
-  let content: ReactNode;
-  if (presentation.trailingAction === "confirm") {
-    const holding = props.holdMode === "holding";
-    content = (
-      <VoiceActionButton
-        accessibilityLabel={
-          presentation.confirmationEnabled
-            ? holding
-              ? "Release to send"
-              : "Finish dictation"
-            : (presentation.statusLabel ?? "Preparing voice input")
-        }
-        disabled={!presentation.confirmationEnabled || holding}
-        icon={holding ? "arrow.up" : "checkmark"}
-        loading={!presentation.confirmationEnabled}
-        onPress={props.onConfirm}
-        variant="primary"
-      />
-    );
-  } else if (presentation.trailingAction === "retry") {
-    content = (
-      <VoiceActionButton
-        accessibilityLabel="Try transcribing again"
-        icon="arrow.clockwise"
-        onPress={props.onRetry}
-        variant="primary"
-      />
-    );
-  } else if (props.showsHoldMic && props.state.errorAction !== "settings") {
-    content = (
-      <View
-        accessibilityHint="Hold to talk and release to send, or tap to dictate."
-        accessibilityLabel="Voice input"
-        accessibilityRole="button"
-        accessible
-        className="size-[44px] items-center justify-center"
-      >
-        <View className="size-[36px] items-center justify-center rounded-full bg-primary">
-          <SymbolView
-            name="mic"
-            size={17}
-            weight="semibold"
-            tintColorClassName="accent-primary-foreground"
-            type="monochrome"
-          />
-        </View>
-      </View>
-    );
-  } else if (props.showsHoldMic) {
-    content = <ComposerDictationStartAction {...props} isAvailable onStart={() => {}} />;
-  } else {
-    content = props.children;
-  }
-  return (
-    <HoldScale holding={props.holdMode === "holding"} panHandlers={props.panHandlers}>
-      {/* Pops only when the button changes, not when the slot first appears. */}
-      <LayoutAnimationConfig skipEntering>
-        <Animated.View
-          key={trailingContentKey(props)}
-          className="absolute inset-0 items-center justify-center"
-          entering={SLOT_ENTERING}
-          exiting={SLOT_EXITING}
-        >
-          {content}
-        </Animated.View>
-      </LayoutAnimationConfig>
-    </HoldScale>
-  );
-}
-
-// Mic, send, finish and retry trade places with a short crossfade and a slight scale:
-// no spring, so the button never overshoots or bounces.
-const SLOT_SWAP_TIMING = {
-  duration: 160,
-  easing: Easing.out(Easing.cubic),
-  reduceMotion: ReduceMotion.System,
-} as const;
-const SLOT_ENTERING: EntryExitAnimationFunction = () => {
-  "worklet";
-  return {
-    initialValues: { opacity: 0, transform: [{ scale: 0.85 }] },
-    animations: {
-      opacity: withTiming(1, SLOT_SWAP_TIMING),
-      transform: [{ scale: withTiming(1, SLOT_SWAP_TIMING) }],
-    },
-  };
-};
-const SLOT_EXITING: EntryExitAnimationFunction = () => {
-  "worklet";
-  const timing = { ...SLOT_SWAP_TIMING, duration: 110 };
-  return {
-    initialValues: { opacity: 1, transform: [{ scale: 1 }] },
-    animations: {
-      opacity: withTiming(0, timing),
-      transform: [{ scale: withTiming(0.85, timing) }],
-    },
-  };
-};
-
-function trailingContentKey(props: {
-  readonly presentation: VoiceComposerPresentation;
-  readonly holdMode: HoldToTalkMode;
-  readonly showsHoldMic: boolean;
-}): string {
-  const action = props.presentation.trailingAction;
-  if (action === "confirm") return props.holdMode === "holding" ? "send-hold" : "finish";
-  if (action === "retry") return "retry";
-  return props.showsHoldMic ? "mic" : "caller";
-}
-
-/** The slot grows a little under a hold, the way a pressed record button does. */
-function HoldScale(props: {
-  readonly holding: boolean;
-  readonly panHandlers: GestureResponderHandlers;
-  readonly children: ReactNode;
-}) {
-  const scale = useSharedValue(1);
-  useLayoutEffect(() => {
-    scale.value = withSpring(props.holding ? 1.15 : 1, PRESS_SPRING);
-  }, [props.holding, scale]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  return (
-    <Animated.View {...props.panHandlers} className="size-[44px]" style={style}>
-      {props.children}
-    </Animated.View>
   );
 }
 
@@ -604,19 +413,8 @@ export function ComposerDictationPrimaryAction(props: {
   readonly disabled?: boolean;
   readonly onStart: () => void;
   readonly onConfirm: () => void;
-  readonly onRetry: () => void;
   readonly onCancel: () => void;
 }) {
-  if (props.presentation.trailingAction === "retry") {
-    return (
-      <VoiceActionButton
-        accessibilityLabel="Try transcribing again"
-        icon="arrow.clockwise"
-        onPress={props.onRetry}
-        variant="primary"
-      />
-    );
-  }
   if (props.presentation.trailingAction === "confirm") {
     return (
       <VoiceActionButton

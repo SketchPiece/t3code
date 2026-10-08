@@ -1,7 +1,5 @@
 import defaultThemeVariables from "../../generated-uniwind-default-theme-variables.json";
-import type { ThemeColors } from "@t3tools/shared/themePalettes";
 import {
-  createMobileThemeVariables,
   DEFAULT_MOBILE_THEME_ID,
   getMobileThemeVariables,
   themeColorWithAlpha,
@@ -28,29 +26,6 @@ export function getMobileThemeRuntimeVariables(
   const variables = usesDefaultPalette
     ? defaults[appearance]
     : getMobileThemeVariables(themeId, appearance);
-  return withPlatformFrame(variables, usesDefaultPalette, appearance, platform);
-}
-
-/** A palette a connected machine publishes, framed like any other non-default theme. */
-export function getPublishedMobileThemeRuntimeVariables(
-  colors: ThemeColors,
-  appearance: MobileThemeAppearance,
-  platform: string,
-): MobileThemeVariables {
-  return withPlatformFrame(
-    createMobileThemeVariables(colors, appearance),
-    false,
-    appearance,
-    platform,
-  );
-}
-
-function withPlatformFrame(
-  variables: MobileThemeVariables,
-  usesDefaultPalette: boolean,
-  appearance: MobileThemeAppearance,
-  platform: string,
-): MobileThemeVariables {
   // Android's frame surrounds the sidebar and chat panes. Light iPad sidebars
   // reuse that stronger tonal fill; dark sidebars retain the shared black pane
   // beneath the near-black chat canvas. System colors replace these roles later.

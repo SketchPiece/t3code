@@ -2,8 +2,6 @@ import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
-import { applyHelmBrand, helmFontPlugin, withHelmConfig } from "./helm/brand.ts";
-import { helmPushConfigFromEnv } from "./helm/push/config.ts";
 
 type AppVariant = "development" | "preview" | "production";
 
@@ -111,10 +109,16 @@ function resolveAppVariant(value: string | undefined): AppVariant {
   }
 }
 
-const variant = applyHelmBrand(VARIANT_CONFIG[APP_VARIANT]);
+const variant = VARIANT_CONFIG[APP_VARIANT];
 const iosBundleIdentifier = isIosPersonalTeamBuild
   ? personalTeamBundleIdentifier!
   : variant.iosBundleIdentifier;
+
+const dmSansFonts = {
+  regular: "@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf",
+  medium: "@expo-google-fonts/dm-sans/500Medium/DMSans_500Medium.ttf",
+  bold: "@expo-google-fonts/dm-sans/700Bold/DMSans_700Bold.ttf",
+} as const;
 
 const widgetsPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
   "expo-widgets",
@@ -313,8 +317,30 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-asset",
-    // Helm fork: fonts (helm/brand.ts).
-    helmFontPlugin,
+    [
+      "expo-font",
+      {
+        ios: {
+          fonts: [dmSansFonts.regular, dmSansFonts.medium, dmSansFonts.bold],
+        },
+        android: {
+          fonts: [
+            {
+              fontFamily: "DMSans-Regular",
+              fontDefinitions: [{ path: dmSansFonts.regular, weight: 400 }],
+            },
+            {
+              fontFamily: "DMSans-Medium",
+              fontDefinitions: [{ path: dmSansFonts.medium, weight: 500 }],
+            },
+            {
+              fontFamily: "DMSans-Bold",
+              fontDefinitions: [{ path: dmSansFonts.bold, weight: 700 }],
+            },
+          ],
+        },
+      },
+    ],
     "expo-secure-store",
     "expo-sqlite",
     ...(isIosPersonalTeamBuild
@@ -352,8 +378,7 @@ const config: ExpoConfig = {
       "expo-audio",
       {
         microphonePermission: "Allow T3 Code to use your microphone for voice input.",
-        // Helm fork: dictation is transcribed by the server, so Android records too.
-        recordAudioAndroid: true,
+        recordAudioAndroid: false,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
       },
@@ -442,10 +467,8 @@ const config: ExpoConfig = {
     appVariant: APP_VARIANT,
     iosPersonalTeamBuild: isIosPersonalTeamBuild,
     relay: {
-      // Helm fork: agent awareness registers with the Volna core (helm/push).
-      url: repoEnv.T3CODE_RELAY_URL ?? helmPushConfigFromEnv(repoEnv)?.url ?? null,
+      url: repoEnv.T3CODE_RELAY_URL ?? null,
     },
-    helmPush: helmPushConfigFromEnv(repoEnv),
     clerk: {
       publishableKey: repoEnv.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? null,
       jwtTemplate: repoEnv.EXPO_PUBLIC_CLERK_JWT_TEMPLATE ?? null,
@@ -471,4 +494,4 @@ const config: ExpoConfig = {
   owner: "pingdotgg",
 };
 
-export default withHelmConfig(config, APP_VARIANT);
+export default config;

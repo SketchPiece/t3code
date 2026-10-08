@@ -31,7 +31,7 @@ export function ComposerUsageLimits({
       onPress={onClose}
       className="-me-1 p-1 active:opacity-60"
     >
-      <SymbolView name="xmark" size={15} tintColorClassName="accent-icon-muted" type="monochrome" />
+      <SymbolView name="xmark" size={14} tintColorClassName="accent-icon-muted" type="monochrome" />
     </Pressable>
   );
   return (

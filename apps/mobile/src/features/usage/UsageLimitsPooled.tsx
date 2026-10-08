@@ -297,7 +297,7 @@ export function UsageLimitsSection({
         >
           <SymbolView
             name="exclamationmark.triangle"
-            size={17}
+            size={16}
             tintColorClassName="accent-warning-foreground"
           />
           <View className="min-w-0 flex-1 gap-0.5">

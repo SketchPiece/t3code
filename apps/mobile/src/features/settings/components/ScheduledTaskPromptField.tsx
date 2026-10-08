@@ -72,8 +72,7 @@ export function ScheduledTaskPromptField(props: {
               isAvailable={voice.isAvailable}
               disabled={props.disabled}
               onStart={voice.start}
-              onConfirm={() => void voice.stop("insert")}
-              onRetry={voice.retry}
+              onConfirm={voice.stop}
               onCancel={voice.cancel}
             />
           </View>

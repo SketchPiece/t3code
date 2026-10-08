@@ -2,8 +2,7 @@ import type { VoiceInputState } from "@t3tools/client-runtime/voice-input";
 
 export type VoiceComposerPresentation = {
   readonly leadingAction: "cancel" | null;
-  /** "retry" transcribes a kept take again (or records anew when none was kept). */
-  readonly trailingAction: "mic" | "confirm" | "retry";
+  readonly trailingAction: "mic" | "confirm";
   readonly showsSend: boolean;
   readonly statusKind: "active" | "error" | null;
   readonly statusLabel: string | null;
@@ -25,25 +24,14 @@ export function resolveVoiceComposerPresentation(
         confirmationEnabled: false,
       };
     case "error":
-      // A failed take keeps the dictation bar: dismiss on the left, retry on the right.
-      // Missing microphone access keeps the mic, which opens Settings.
-      return state.errorAction === "retry"
-        ? {
-            leadingAction: "cancel",
-            trailingAction: "retry",
-            showsSend: false,
-            statusKind: "error",
-            statusLabel: state.error,
-            confirmationEnabled: false,
-          }
-        : {
-            leadingAction: null,
-            trailingAction: "mic",
-            showsSend: true,
-            statusKind: "error",
-            statusLabel: state.error,
-            confirmationEnabled: false,
-          };
+      return {
+        leadingAction: null,
+        trailingAction: "mic",
+        showsSend: true,
+        statusKind: "error",
+        statusLabel: state.error,
+        confirmationEnabled: false,
+      };
     case "preparing":
       return {
         leadingAction: "cancel",

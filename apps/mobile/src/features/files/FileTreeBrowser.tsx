@@ -74,7 +74,7 @@ const FileTreeRow = memo(function FileTreeRow(props: {
       {node.kind === "directory" ? (
         <SymbolView
           name={props.expanded ? "chevron.down" : "chevron.right"}
-          size={13}
+          size={12}
           tintColorClassName="accent-icon-muted"
           type="monochrome"
         />

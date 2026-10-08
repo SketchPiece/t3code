@@ -20,8 +20,8 @@ const SPLIT_SIDEBAR_DEFAULT_MAX_WIDTH = 380;
 
 export const AUXILIARY_PANE_MIN_CONTENT_WIDTH = 960;
 export const CHAT_CONTENT_MAX_WIDTH = 960;
-// min-h-8 uses the 16px rem configured in metro.config.js.
-export const THREAD_WORK_ROW_MIN_HEIGHT = 32;
+// min-h-8 uses the 14px rem configured in metro.config.js.
+export const THREAD_WORK_ROW_MIN_HEIGHT = 28;
 
 export function deriveThreadWorkLogSizing(input: {
   readonly baseFontSize: number;

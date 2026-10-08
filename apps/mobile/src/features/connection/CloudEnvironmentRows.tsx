@@ -349,7 +349,7 @@ function CloudEnvironmentRowShell(props: {
           <ConnectionStatusDot state={props.connectionState} pulse={shouldPulse} size={7} />
           <EnvironmentMachineSymbol
             kind={props.machine}
-            size={15}
+            size={14}
             tintColorClassName="accent-foreground-muted"
           />
           <Text
@@ -394,7 +394,7 @@ function CloudEnvironmentRowShell(props: {
           {errorCanExpand ? (
             <SymbolView
               name="chevron.down"
-              size={13}
+              size={10}
               tintColorClassName={"accent-chevron"}
               type="monochrome"
               style={{
@@ -413,7 +413,7 @@ function CloudEnvironmentRowShell(props: {
       />
       {props.opensDetails || props.showChevron ? (
         <View style={{ opacity: props.opensDetails ? 1 : 0.4 }}>
-          <SymbolView name="chevron.right" size={13} tintColorClassName="accent-icon-subtle" />
+          <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-subtle" />
         </View>
       ) : null}
     </View>
@@ -431,7 +431,7 @@ function CopyTraceIdButton(props: { readonly traceId: string }) {
     >
       <SymbolView
         name="doc.on.doc"
-        size={13}
+        size={12}
         tintColorClassName={"accent-icon"}
         type="monochrome"
       />

@@ -105,7 +105,7 @@ export function WorktreeSetupCard(props: WorktreeSetupCardProps) {
             ) : failed ? (
               <SymbolView
                 name="exclamationmark.circle"
-                size={13}
+                size={12}
                 tintColorClassName="accent-danger-foreground"
               />
             ) : null}
@@ -113,7 +113,7 @@ export function WorktreeSetupCard(props: WorktreeSetupCardProps) {
               {backgroundSetup ? scriptName : "Details"}
             </Text>
             {!backgroundSetup ? (
-              <SymbolView name="chevron.right" size={13} tintColorClassName="accent-icon-muted" />
+              <SymbolView name="chevron.right" size={10} tintColorClassName="accent-icon-muted" />
             ) : null}
           </View>
         </Pressable>
@@ -310,7 +310,7 @@ function StageRow({
         ) : (
           <SymbolView
             name={icons[stage.status]}
-            size={15}
+            size={14}
             tintColorClassName={
               stage.status === "failed"
                 ? "accent-danger-foreground"

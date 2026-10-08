@@ -514,7 +514,7 @@ function QueueRowSwipeable(props: {
           className="items-center justify-center bg-danger active:opacity-70 disabled:opacity-40"
           style={{ width: REMOVE_ACTION_WIDTH }}
         >
-          <SymbolView name="trash" size={17} tintColorClassName="accent-danger-foreground" />
+          <SymbolView name="trash" size={16} tintColorClassName="accent-danger-foreground" />
           <Text className="pt-1 text-2xs font-t3-medium text-danger-foreground">Remove</Text>
         </Pressable>
       )}
@@ -623,7 +623,7 @@ function QueueDragHandle(props: {
       >
         <SymbolView
           name="line.3.horizontal"
-          size={17}
+          size={16}
           tintColorClassName="accent-foreground-muted"
         />
       </View>

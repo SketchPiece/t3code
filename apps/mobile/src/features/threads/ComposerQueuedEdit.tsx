@@ -16,7 +16,7 @@ export function ComposerQueuedEditBanner(props: {
 }) {
   return (
     <View className="flex-row items-center gap-2 px-4 pb-2">
-      <SymbolView name="pencil" size={13} tintColorClassName="accent-foreground-muted" />
+      <SymbolView name="pencil" size={12} tintColorClassName="accent-foreground-muted" />
       <Text className="min-w-0 flex-1 text-xs text-foreground-muted" numberOfLines={1}>
         Editing queued message
       </Text>
@@ -101,7 +101,7 @@ function QueuedEditAttachmentChip(props: {
         <View className="h-6 w-6 items-center justify-center rounded-md bg-subtle">
           <SymbolView
             name={isImage ? "photo" : "doc"}
-            size={13}
+            size={12}
             tintColorClassName="accent-icon-subtle"
           />
         </View>
@@ -117,7 +117,7 @@ function QueuedEditAttachmentChip(props: {
         onPress={() => props.onRemove(attachment.id)}
         className="active:opacity-70 disabled:opacity-40"
       >
-        <SymbolView name="xmark.circle.fill" size={15} tintColorClassName="accent-icon-subtle" />
+        <SymbolView name="xmark.circle.fill" size={14} tintColorClassName="accent-icon-subtle" />
       </Pressable>
     </View>
   );

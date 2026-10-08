@@ -23,7 +23,7 @@ describe.each([
         expect(active.style?.backgroundColor).toBe(theme["--color-thread-selected"]);
         // Pointer feedback must not mix a second color into the active background.
         expect(active.interactionOpacity).toBe(0);
-        expect(active.badgeRingColor).toBe(active.style?.backgroundColor);
+        expect(active.providerIconSurfaceColor).toBe(active.style?.backgroundColor);
         expect(idle.foregroundClassName).toBe("text-drawer-foreground");
         expect(idle.mutedForegroundClassName).toBe("text-drawer-foreground-muted");
 

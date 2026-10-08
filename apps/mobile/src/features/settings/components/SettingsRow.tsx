@@ -32,7 +32,7 @@ export function SettingsRow(props: {
           props.valuePosition === "trailing" && props.value ? (
             <View className="flex-row items-center gap-3">
               <Text className="text-sm text-foreground-muted">{props.value}</Text>
-              <SymbolView name="chevron.right" size={17} tintColorClassName="accent-chevron" />
+              <SymbolView name="chevron.right" size={16} tintColorClassName="accent-chevron" />
             </View>
           ) : undefined
         }
@@ -40,7 +40,7 @@ export function SettingsRow(props: {
         leading={
           <SymbolView
             name={props.icon}
-            size={22}
+            size={24}
             tintColorClassName="accent-icon"
             type="monochrome"
             weight="regular"
@@ -85,7 +85,7 @@ export function SettingsRow(props: {
       </>
       <SymbolView
         name="chevron.right"
-        size={17}
+        size={16}
         tintColorClassName="accent-chevron"
         type="monochrome"
         weight="semibold"

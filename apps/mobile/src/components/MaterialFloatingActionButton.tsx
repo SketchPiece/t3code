@@ -22,7 +22,7 @@ export function MaterialFloatingActionButton(
     >
       <SymbolView
         name={props.icon}
-        size={22}
+        size={24}
         tintColorClassName={
           props.tone === "primary" ? "accent-primary-foreground" : "accent-secondary-foreground"
         }

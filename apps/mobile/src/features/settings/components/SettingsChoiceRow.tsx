@@ -30,7 +30,7 @@ export function SettingsChoiceRow(props: {
       {props.selected ? (
         <SymbolView
           name="checkmark"
-          size={17}
+          size={18}
           tintColorClassName="accent-icon"
           type="monochrome"
           weight="semibold"

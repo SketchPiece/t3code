@@ -5,7 +5,7 @@ export function QueuedMessageIcon({ selected = false }: { readonly selected?: bo
   return (
     <SymbolView
       name="tray.and.arrow.up"
-      size={13}
+      size={12}
       tintColorClassName={
         selected ? "accent-user-bubble-foreground-muted" : "accent-foreground-muted"
       }

@@ -44,22 +44,16 @@ describe("resolveVoiceComposerPresentation", () => {
     });
     expect(
       resolveVoiceComposerPresentation(
-        { phase: "error", error: "Could not transcribe this recording.", errorAction: "retry" },
+        { phase: "error", error: "Microphone unavailable", errorAction: "retry" },
         0,
       ),
     ).toMatchObject({
-      leadingAction: "cancel",
-      trailingAction: "retry",
-      showsSend: false,
+      leadingAction: null,
+      trailingAction: "mic",
+      showsSend: true,
       statusKind: "error",
-      statusLabel: "Could not transcribe this recording.",
+      statusLabel: "Microphone unavailable",
     });
-    expect(
-      resolveVoiceComposerPresentation(
-        { phase: "error", error: "Microphone access is required.", errorAction: "settings" },
-        0,
-      ),
-    ).toMatchObject({ leadingAction: null, trailingAction: "mic", showsSend: true });
 
     expect(voiceInputFreezesEditor({ phase: "preparing", error: null, errorAction: null })).toBe(
       true,

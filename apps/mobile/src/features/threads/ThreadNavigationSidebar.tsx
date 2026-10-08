@@ -63,6 +63,7 @@ import {
   ThreadListV2SnoozedShelfHeader,
   ThreadListV2WorkingShelfHeader,
 } from "./thread-list-v2-items";
+import { useThreadRowProviderInstanceResolver } from "./thread-provider-instance";
 import {
   buildThreadListV2Items,
   getThreadListV2OrderedSection,
@@ -314,6 +315,7 @@ function ThreadNavigationSidebarPane(
   // settled (the user could neither un-settle nor pin them).
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const {
+    providersByEnvironmentId,
     machineByEnvironmentId,
     settlementEnvironmentIds,
     snoozeEnvironmentIds,
@@ -323,6 +325,7 @@ function ThreadNavigationSidebarPane(
     activeReorderEnvironmentIds,
     titleRegenerationEnvironmentIds,
   } = listEnvironments;
+  const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
   // Up/down menu availability for every card, computed once per section per
   // rebuild (see computeThreadMoveAvailability): per-thread planner calls made
@@ -402,7 +405,6 @@ function ThreadNavigationSidebarPane(
     threads,
     selectedProjectScope,
   ]);
-  const hasHiddenSettled = settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0;
   // Re-partition the moment the earliest snooze expires (clamped to the
   // signed-32-bit setTimeout range; far-future wakes re-arm at the clamp).
   const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
@@ -699,6 +701,8 @@ function ThreadNavigationSidebarPane(
               timeLabel={item.timeLabel}
               project={projectByKey.get(scopeKey) ?? null}
               projectTitle={projectTitleByProjectKey.get(scopeKey)}
+              providerInstance={resolveProviderInstance(thread)}
+              providers={providersByEnvironmentId.get(thread.environmentId)}
               environmentLabel={
                 Object.keys(savedConnectionsById).length > 1
                   ? (savedConnectionsById[thread.environmentId]?.environmentLabel ?? null)
@@ -814,6 +818,8 @@ function ThreadNavigationSidebarPane(
       props.selectedThreadKey,
       props.width,
       savedConnectionsById,
+      resolveProviderInstance,
+      providersByEnvironmentId,
       threadSearchMatchByKey,
       titleRegenerationEnvironmentIds,
       settleThread,
@@ -929,8 +935,6 @@ function ThreadNavigationSidebarPane(
                 itemsAreEqual={sidebarItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
-                onEndReached={hasHiddenSettled ? showMoreSettled : undefined}
-                onEndReachedThreshold={0.5}
                 automaticallyAdjustsScrollIndicatorInsets={NATIVE_LIQUID_GLASS_SUPPORTED}
                 contentInsetAdjustmentBehavior={
                   NATIVE_LIQUID_GLASS_SUPPORTED ? "automatic" : "never"
@@ -997,8 +1001,6 @@ function ThreadNavigationSidebarPane(
                 itemsAreEqual={sidebarItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
-                onEndReached={hasHiddenSettled ? showMoreSettled : undefined}
-                onEndReachedThreshold={0.5}
                 contentContainerStyle={[
                   styles.threadListContent,
                   Platform.OS === "android" ? { paddingHorizontal: 0 } : null,

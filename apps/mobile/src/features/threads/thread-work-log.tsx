@@ -135,7 +135,7 @@ function WorkLogIcon(props: {
               ? { ios: "iphone", android: "smartphone" }
               : props.icon
       }
-      size={15}
+      size={14}
       weight="medium"
       {...(colorClassName ? { tintColorClassName: colorClassName } : { tintColor: props.color })}
       type="monochrome"
@@ -420,7 +420,7 @@ function isFreshRow(createdAt: string): boolean {
 // accessibility scaling can make the single-line text taller than that minimum.
 const WORK_ROW_HEIGHT = THREAD_WORK_ROW_MIN_HEIGHT;
 const WORK_ROW_GAP = 1; // gap-px
-const WORK_LOG_BOTTOM_MARGIN = 4; // mb-1 with the mobile 16px rem
+const WORK_LOG_BOTTOM_MARGIN = 3.5; // mb-1 with the mobile 14px rem
 const WORK_GROUP_MAX_HEIGHT = 256;
 const WORK_GROUP_EDGE_FADE_HEIGHT = 12;
 
@@ -1101,7 +1101,7 @@ const ThreadWorkLogRow = memo(function ThreadWorkLogRow(
             >
               <SymbolView
                 name="xmark"
-                size={13}
+                size={11}
                 tintColorClassName="accent-danger-foreground/40"
                 type="monochrome"
               />
@@ -1112,7 +1112,7 @@ const ThreadWorkLogRow = memo(function ThreadWorkLogRow(
               <ThreadDisclosureChevron
                 expanded={expanded}
                 collapsedDirection="down"
-                size={13}
+                size={11}
                 tintColor={props.iconSubtleColor}
               />
             ) : null}
@@ -1296,7 +1296,7 @@ export function ThreadWorkGroupToggle(props: {
         <ThreadDisclosureChevron
           expanded={props.expanded}
           collapsedDirection="down"
-          size={13}
+          size={11}
           tintColor={props.iconSubtleColor}
         />
       </WorkLogPressable>
@@ -1346,7 +1346,7 @@ export const ThreadAgentSpawnCard = memo(function ThreadAgentSpawnCard(props: {
           <View className="h-6 w-6 shrink-0 items-center justify-center">
             <SymbolView
               name={{ ios: "sparkles", android: "auto_awesome" }}
-              size={15}
+              size={14}
               weight="medium"
               tintColor={props.iconSubtleColor}
               type="monochrome"
@@ -1382,7 +1382,7 @@ export const ThreadAgentSpawnCard = memo(function ThreadAgentSpawnCard(props: {
             <ThreadDisclosureChevron
               expanded={expanded}
               collapsedDirection="down"
-              size={13}
+              size={11}
               tintColor={props.iconSubtleColor}
             />
           ) : null}

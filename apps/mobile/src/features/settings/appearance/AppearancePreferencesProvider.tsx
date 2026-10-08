@@ -26,29 +26,17 @@ import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../../sta
 import type { Preferences } from "../../../persistence/mobile-preferences";
 import { isSystemColorsAvailable, readSystemColorPalettes } from "../../../lib/materialYouPalette";
 import { materialYouPaletteToMobileThemeVariables } from "../../../lib/materialYouTheme";
-import {
-  getMobileThemeRuntimeVariables,
-  getPublishedMobileThemeRuntimeVariables,
-} from "../../../lib/mobileThemeVariables";
-import {
-  isPublishedMobileThemeId,
-  resolvePublishedMobileThemes,
-  type PublishedMobileTheme,
-} from "../../../lib/publishedMobileThemes";
-import { environmentServerConfigsAtom } from "../../../state/server";
+import { getMobileThemeRuntimeVariables } from "../../../lib/mobileThemeVariables";
 import type { MobileThemeVariables } from "../../../lib/mobileTheme";
 import {
   createMobileThemePairPatch,
   createMobileThemeSelectionPatch,
-  DEFAULT_MOBILE_THEME_ID,
-  legacyMobileThemeId,
   normalizeMobileThemeMode,
   resolveMobileThemeIds,
   type MobileThemeAppearance,
   type MobileThemeId,
   type MobileThemeIds,
   type MobileThemeMode,
-  type MobileThemeSelection,
 } from "../../../lib/mobileTheme";
 import {
   createMobileThemeRuntimeOperations,
@@ -59,12 +47,8 @@ import {
 interface AppearancePreferencesContextValue {
   /** Effective values with base-size derivation applied. Use this for rendering. */
   readonly appearance: ResolvedAppearance;
-  /** The built-in in effect; a published selection reads as the T3 Code default here. */
   readonly themeId: MobileThemeId;
-  /** What the user picked per appearance, published themes included. */
   readonly themeIds: MobileThemeIds;
-  /** Themes connected machines publish, offered beside the built-ins. */
-  readonly publishedThemes: ReadonlyArray<PublishedMobileTheme>;
   readonly themeMode: MobileThemeMode;
   readonly themeAppearance: MobileThemeAppearance;
   readonly systemColorsAvailable: boolean;
@@ -77,9 +61,9 @@ interface AppearancePreferencesContextValue {
   readonly isReady: boolean;
   readonly setThemeIdForAppearance: (
     appearance: MobileThemeAppearance,
-    value: MobileThemeSelection,
+    value: MobileThemeId,
   ) => void;
-  readonly setThemeIdForBothAppearances: (value: MobileThemeSelection) => void;
+  readonly setThemeIdForBothAppearances: (value: MobileThemeId) => void;
   readonly setThemeMode: (value: MobileThemeMode) => void;
   readonly setBaseFontSize: (value: number) => void;
   /** Pass null to clear the override and follow the base font size. */
@@ -109,28 +93,7 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
     () => ({ light: resolvedThemeIds.light, dark: resolvedThemeIds.dark }),
     [resolvedThemeIds.dark, resolvedThemeIds.light],
   );
-  const serverConfigs = useAtomValue(environmentServerConfigsAtom);
-  const publishedThemes = useMemo(
-    () =>
-      resolvePublishedMobileThemes(
-        [...serverConfigs.values()].map((config) => ({
-          environmentLabel: config.environment.label,
-          themes: config.environmentThemes,
-        })),
-      ),
-    [serverConfigs],
-  );
-  // A published selection whose machine is offline (or that stopped
-  // publishing it) paints the default until the theme is back.
-  const publishedColors = useMemo(() => {
-    const colorsFor = (appearance: MobileThemeAppearance) => {
-      const selection = themeIds[appearance];
-      if (!isPublishedMobileThemeId(selection)) return null;
-      return publishedThemes.find((theme) => theme.id === selection)?.colors[appearance] ?? null;
-    };
-    return { light: colorsFor("light"), dark: colorsFor("dark") };
-  }, [publishedThemes, themeIds]);
-  const themeId = legacyMobileThemeId(themeIds[themeAppearance]);
+  const themeId = themeIds[themeAppearance];
   const systemColorsActive = themeId === "material-you" && isSystemColorsAvailable;
   const [systemColorPalettes, setSystemColorPalettes] = useState(readSystemColorPalettes);
   useEffect(() => {
@@ -152,15 +115,8 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   }, []);
   const themeVariablesByAppearance = useMemo(() => {
     const resolve = (appearance: MobileThemeAppearance) => {
-      const colors = publishedColors[appearance];
-      if (colors) return getPublishedMobileThemeRuntimeVariables(colors, appearance, Platform.OS);
-      const selection = themeIds[appearance];
-      const base = getMobileThemeRuntimeVariables(
-        isPublishedMobileThemeId(selection) ? DEFAULT_MOBILE_THEME_ID : selection,
-        appearance,
-        Platform.OS,
-      );
-      return selection === "material-you" && systemColorPalettes
+      const base = getMobileThemeRuntimeVariables(themeIds[appearance], appearance, Platform.OS);
+      return themeIds[appearance] === "material-you" && systemColorPalettes
         ? materialYouPaletteToMobileThemeVariables(
             systemColorPalettes[appearance],
             appearance,
@@ -169,9 +125,9 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
         : base;
     };
     return { light: resolve("light"), dark: resolve("dark") };
-  }, [themeIds, systemColorPalettes, publishedColors]);
+  }, [themeIds, systemColorPalettes]);
   const themeVariables = themeVariablesByAppearance[themeAppearance];
-  const activeThemeName = getMobileUniwindThemeName(themeIds[themeAppearance], themeAppearance);
+  const activeThemeName = getMobileUniwindThemeName(themeId, themeAppearance);
   const { baseFontSize, codeFontSize, codeWordBreak, terminalFontSize } = preferences;
   const appearance = useMemo(
     () => resolveAppearance({ baseFontSize, codeFontSize, codeWordBreak, terminalFontSize }),
@@ -235,7 +191,7 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   }, [runtimeState, syncThemeRuntime, themeIds]);
 
   const setThemeIdForAppearance = useCallback(
-    (appearance: MobileThemeAppearance, value: MobileThemeSelection) => {
+    (appearance: MobileThemeAppearance, value: MobileThemeId) => {
       const patch = createMobileThemeSelectionPatch(
         selectedThemeIdsRef.current,
         themeAppearance,
@@ -249,7 +205,7 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   );
 
   const setThemeIdForBothAppearances = useCallback(
-    (value: MobileThemeSelection) => {
+    (value: MobileThemeId) => {
       const patch = createMobileThemePairPatch(value);
       selectedThemeIdsRef.current = resolveMobileThemeIds(patch);
       updateThemePreferences(patch);
@@ -321,7 +277,6 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
       appearance,
       themeId,
       themeIds,
-      publishedThemes,
       themeMode,
       themeAppearance,
       systemColorsAvailable: isSystemColorsAvailable,
@@ -342,7 +297,6 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
       appearance,
       themeId,
       themeIds,
-      publishedThemes,
       themeMode,
       themeAppearance,
       systemColorsActive,

@@ -52,6 +52,7 @@ import {
   ThreadListV2SnoozedShelfHeader,
   ThreadListV2WorkingShelfHeader,
 } from "../threads/thread-list-v2-items";
+import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider-instance";
 import {
   buildThreadListV2Items,
   getThreadListV2OrderedSection,
@@ -69,7 +70,6 @@ import {
   findHomeProjectScope,
   type HomeProjectSortOrder,
 } from "./homeThreadList";
-import { HomeProjectChips } from "./HomeProjectChips";
 import { createSwipeRowActivation } from "./swipe-row-activation";
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "./thread-swipe-actions";
 import { useMaterialFabScroll } from "./MaterialFabScrollContext";
@@ -416,29 +416,6 @@ export function HomeScreen(props: HomeScreenProps) {
           ),
     [v2ScopedProjectGroup],
   );
-  // Chip counts cover live work only: settled history would drown the signal.
-  const v2ActiveCounts = useMemo(() => {
-    const scopeKeyByProjectKey = new Map(
-      v2ScopeProjects.flatMap((scope) =>
-        scope.projectRefs.map(
-          (projectRef) =>
-            [scopedProjectKey(projectRef.environmentId, projectRef.projectId), scope.key] as const,
-        ),
-      ),
-    );
-    const byScopeKey = new Map<string, number>();
-    let total = 0;
-    for (const thread of props.threads) {
-      if (thread.archivedAt !== null || thread.settledOverride === "settled") continue;
-      const scopeKey = scopeKeyByProjectKey.get(
-        scopedProjectKey(thread.environmentId, thread.projectId),
-      );
-      if (scopeKey === undefined) continue;
-      byScopeKey.set(scopeKey, (byScopeKey.get(scopeKey) ?? 0) + 1);
-      total += 1;
-    }
-    return { byScopeKey, total };
-  }, [props.threads, v2ScopeProjects]);
   // Thread List v2 (beta): one flat list in creation order, no grouping.
   // Settled threads collapse into a recency tail below the card block.
   // Settled threads stay in the live shell stream (settled ≠ archived), so
@@ -536,6 +513,7 @@ export function HomeScreen(props: HomeScreenProps) {
   // settled (the user could neither un-settle nor pin them).
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const {
+    providersByEnvironmentId,
     machineByEnvironmentId,
     settlementEnvironmentIds,
     snoozeEnvironmentIds,
@@ -545,6 +523,7 @@ export function HomeScreen(props: HomeScreenProps) {
     activeReorderEnvironmentIds,
     titleRegenerationEnvironmentIds,
   } = listEnvironments;
+  const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
   const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
   // Up/down menu availability for every card, computed once per section per
   // rebuild (see computeThreadMoveAvailability): per-thread planner calls made
@@ -777,6 +756,8 @@ export function HomeScreen(props: HomeScreenProps) {
           projectTitle={v2ProjectTitleByProjectKey.get(
             scopedProjectKey(thread.environmentId, thread.projectId),
           )}
+          providerInstance={resolveProviderInstance(thread)}
+          providers={providersByEnvironmentId.get(thread.environmentId)}
           environmentLabel={
             Object.keys(props.savedConnectionsById).length > 1
               ? (props.savedConnectionsById[thread.environmentId]?.environmentLabel ?? null)
@@ -851,6 +832,8 @@ export function HomeScreen(props: HomeScreenProps) {
       fullSwipeWidth,
       props.onNewThreadOnBranch,
       props.savedConnectionsById,
+      resolveProviderInstance,
+      providersByEnvironmentId,
       settlementEnvironmentIds,
       snoozeEnvironmentIds,
       threadSearchMatchByKey,
@@ -957,19 +940,11 @@ export function HomeScreen(props: HomeScreenProps) {
     );
   }
 
-  const v2ListHeader = (
-    <>
-      {Platform.OS === "ios" ? null : <HomeTopContentSpacer />}
-      <HomeProjectChips
-        scopes={v2ScopeProjects}
-        activeCountByScopeKey={v2ActiveCounts.byScopeKey}
-        totalActiveCount={v2ActiveCounts.total}
-        selectedScope={v2ScopedProjectGroup}
-        onProjectChange={props.onProjectChange}
-        onNewThreadInProject={(scope) => props.onNewThreadInProject(scope.representative)}
-      />
-    </>
-  );
+  const listHeader = Platform.OS === "ios" ? undefined : <HomeTopContentSpacer />;
+
+  // Project scoping lives in the header filter menu (no inline chip row on
+  // mobile — the menu is the one filter surface).
+  const v2ListHeader = listHeader;
 
   // Use the v2 project scope for its empty state. Snoozed threads need no
   // special empty state: their shelf header is a list row even while collapsed.
@@ -1043,12 +1018,6 @@ export function HomeScreen(props: HomeScreenProps) {
             recycleItems
             extraData={v2ExtraData}
             ListHeaderComponent={v2ListHeader}
-            onEndReached={
-              settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0
-                ? showMoreSettled
-                : undefined
-            }
-            onEndReachedThreshold={0.5}
             ListFooterComponent={
               settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0 ? (
                 <ThreadListV2ShowMoreRow

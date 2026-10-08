@@ -10,7 +10,7 @@ export function resolveAndroidControlSizing(baseFontSize: number) {
   return {
     scale,
     iconSize,
-    smallIconSize: Math.round(17 * scale),
+    smallIconSize: Math.round(16 * scale),
     mediumIconSize: Math.round(18 * scale),
     buttonSize,
     fabSize,

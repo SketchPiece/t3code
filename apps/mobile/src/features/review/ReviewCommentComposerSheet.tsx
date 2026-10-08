@@ -168,7 +168,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
             >
               <SymbolView
                 name="xmark"
-                size={17}
+                size={18}
                 tintColorClassName={"accent-icon"}
                 type="monochrome"
               />

@@ -34,7 +34,7 @@ function ImagePreviewHeader() {
           onPress={props.onRequestClose}
           className="min-h-11 min-w-11 items-center justify-center"
         >
-          <SymbolView name="xmark" size={22} tintColor="#ffffff" type="monochrome" />
+          <SymbolView name="xmark" size={20} tintColor="#ffffff" type="monochrome" />
         </Pressable>
       </View>
       <MediaSourceCaption source={mediaActions.title} />

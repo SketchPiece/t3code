@@ -339,7 +339,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                   <View className="h-7 w-7 items-center justify-center">
                     <SymbolView
                       name="text.bubble"
-                      size={17}
+                      size={18}
                       tintColorClassName="accent-icon-muted"
                       type="monochrome"
                     />
@@ -352,7 +352,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                   </View>
                   <SymbolView
                     name="chevron.right"
-                    size={15}
+                    size={14}
                     tintColorClassName="accent-chevron"
                     type="monochrome"
                   />
@@ -470,7 +470,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                           environmentId={scope.representative.environmentId}
                           faviconPath={scope.representative.faviconPath}
                           projectIcon={scope.representative.projectIcon}
-                          size={32}
+                          size={24}
                           projectTitle={scope.title}
                           workspaceRoot={scope.representative.workspaceRoot}
                         />
@@ -490,12 +490,12 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                       onPress={() => void selectProject(selectionTarget)}
                       className="flex-row items-center gap-3 bg-grouped-card px-4 py-3.5"
                     >
-                      <View className="h-10 w-10 items-center justify-center">
+                      <View className="h-7 w-7 items-center justify-center">
                         <ProjectFavicon
                           environmentId={scope.representative.environmentId}
                           faviconPath={scope.representative.faviconPath}
                           projectIcon={scope.representative.projectIcon}
-                          size={32}
+                          size={20}
                           projectTitle={scope.title}
                           workspaceRoot={scope.representative.workspaceRoot}
                         />
@@ -516,7 +516,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                       </View>
                       <SymbolView
                         name="chevron.right"
-                        size={15}
+                        size={14}
                         tintColorClassName="accent-chevron"
                         type="monochrome"
                       />

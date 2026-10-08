@@ -23,7 +23,7 @@ export function DevicePreviewButton(props: {
     >
       <SymbolView
         name={{ ios: "iphone", android: "smartphone" }}
-        size={22}
+        size={20}
         tintColorClassName="accent-icon"
         type="monochrome"
       />

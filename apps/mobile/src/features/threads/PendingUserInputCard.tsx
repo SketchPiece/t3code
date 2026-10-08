@@ -190,7 +190,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         <View className="flex-1" />
         <SymbolView
           name="chevron.up"
-          size={13}
+          size={12}
           tintColorClassName={"accent-icon-subtle"}
           type="monochrome"
         />

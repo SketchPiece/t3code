@@ -165,7 +165,7 @@ const CommandRow = memo(function CommandRow(props: {
       ) : iconName ? (
         <SymbolView
           name={iconName}
-          size={15}
+          size={14}
           tintColorClassName={"accent-icon-subtle"}
           type="monochrome"
         />

@@ -157,15 +157,14 @@ export function resolveMarkdownFontSizes(baseFontSize: number): ResolvedMarkdown
   const codeBlockFontSize = Math.max(10, Math.round(13 * scale));
 
   return {
-    // Helm fork: one step above upstream, like the text scale.
-    s: Math.max(10, Math.round(15 * scale)),
+    s: Math.max(10, Math.round(14 * scale)),
     m,
-    h1: Math.max(16, Math.round(22 * scale)),
-    h2: Math.max(14, Math.round(20 * scale)),
-    h3: Math.max(13, Math.round(18 * scale)),
-    h4: Math.max(12, Math.round(16 * scale)),
-    h5: Math.max(12, Math.round(16 * scale)),
-    h6: Math.max(12, Math.round(16 * scale)),
+    h1: Math.max(16, Math.round(21 * scale)),
+    h2: Math.max(14, Math.round(19 * scale)),
+    h3: Math.max(13, Math.round(17 * scale)),
+    h4: Math.max(12, Math.round(15 * scale)),
+    h5: Math.max(12, Math.round(15 * scale)),
+    h6: Math.max(12, Math.round(15 * scale)),
     bodyLineHeight: Math.max(18, Math.round(MOBILE_TYPOGRAPHY.body.lineHeight * scale)),
     codeBlockFontSize,
     codeBlockLineHeight: codeBlockFontSize + 6,

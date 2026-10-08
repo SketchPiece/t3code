@@ -43,12 +43,12 @@ import { AppText as Text } from "../../components/AppText";
 import { SwipeRowActivationContext, type SwipeRowActivation } from "./swipe-row-activation";
 import { registerThreadDismissal } from "./thread-dismissal";
 
-// Helm fork: sized for 13pt labels and 17pt icons. Wide enough for "Unarchive".
-const ACTION_ITEM_WIDTH = 68;
-const ACTION_CIRCLE_SIZE = 40;
-const ACTION_ICON_SIZE = 17;
+// Wide enough for the longest action label ("Unarchive").
+const ACTION_ITEM_WIDTH = 58;
+const ACTION_CIRCLE_SIZE = 36;
+const ACTION_ICON_SIZE = 15;
 const COMPACT_ACTION_CIRCLE_SIZE = 28;
-const COMPACT_ACTION_ICON_SIZE = 15;
+const COMPACT_ACTION_ICON_SIZE = 13;
 
 export const THREAD_SWIPE_ACTIONS_WIDTH = ACTION_ITEM_WIDTH * 2;
 export const THREAD_SWIPE_SPRING = {
@@ -658,11 +658,11 @@ function SwipeActionButton(props: {
       </View>
       <Animated.View
         style={[
-          { height: 17, justifyContent: "center", paddingTop: props.compact ? 0 : 2 },
+          { height: 14, justifyContent: "center", paddingTop: props.compact ? 0 : 2 },
           labelStyle,
         ]}
       >
-        <Text className="text-2xs font-t3-medium text-foreground-muted" numberOfLines={1}>
+        <Text className="text-3xs font-t3-medium text-foreground-muted" numberOfLines={1}>
           {props.label}
         </Text>
       </Animated.View>

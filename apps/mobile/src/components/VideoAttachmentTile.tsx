@@ -62,7 +62,7 @@ export function VideoAttachmentTile(props: {
           >
             <SymbolView
               name="play"
-              size={props.compact ? 15 : 22}
+              size={props.compact ? 15 : 24}
               tintColor="#ffffff"
               type="monochrome"
             />

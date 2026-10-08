@@ -69,7 +69,7 @@ export function EnvironmentConnectionNotice(props: {
         ) : (
           <SymbolView
             name={props.connection.phase === "offline" ? "wifi.slash" : "bolt.horizontal.circle"}
-            size={22}
+            size={24}
             tintColorClassName={"accent-icon-muted"}
             type="monochrome"
           />

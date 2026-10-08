@@ -53,8 +53,8 @@ export function getThreadListV2RowAppearance(
     cardStyle: sidebarPane ? { ...style, paddingHorizontal: 12, paddingVertical: 10 } : undefined,
     swipeContainerStyle,
     swipeBackgroundColor: theme[sidebarPane ? "--color-drawer" : "--color-screen"],
-    // Status badges on project tiles ring themselves in the row surface.
-    badgeRingColor: sidebarPane
+    // Provider badges blend into the surface beneath them.
+    providerIconSurfaceColor: sidebarPane
       ? selected
         ? selectedBackgroundColor
         : theme["--color-drawer"]

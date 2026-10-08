@@ -37,7 +37,7 @@ export function MaterialIconButton(props: {
     >
       <SymbolView
         name={props.icon}
-        size={22}
+        size={24}
         tintColorClassName={
           props.disabled
             ? "accent-icon-subtle"

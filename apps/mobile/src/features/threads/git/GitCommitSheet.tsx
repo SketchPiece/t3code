@@ -228,7 +228,7 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
                             {included ? (
                               <SymbolView
                                 name="checkmark"
-                                size={17}
+                                size={16}
                                 tintColorClassName="accent-primary-foreground"
                                 type="monochrome"
                               />

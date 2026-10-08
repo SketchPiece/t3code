@@ -196,7 +196,7 @@ export function T3ConnectProfilePage() {
                     <View className="rotate-90">
                       <SymbolView
                         name="ellipsis"
-                        size={17}
+                        size={18}
                         tintColorClassName={"accent-clerk-foreground-muted"}
                         type="monochrome"
                       />

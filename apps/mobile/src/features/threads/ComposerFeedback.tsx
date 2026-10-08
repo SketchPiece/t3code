@@ -34,7 +34,7 @@ export function ComposerFeedback({
             >
               <SymbolView
                 name="xmark"
-                size={15}
+                size={14}
                 tintColorClassName="accent-icon-muted"
                 type="monochrome"
               />

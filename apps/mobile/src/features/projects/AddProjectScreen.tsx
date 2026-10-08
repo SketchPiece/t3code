@@ -589,7 +589,7 @@ export function AddProjectSourceScreen() {
                   environment.environmentId === selectedEnvironment?.environmentId ? (
                     <SymbolView
                       name="checkmark"
-                      size={Platform.OS === "android" ? 20 : 15}
+                      size={Platform.OS === "android" ? 20 : 14}
                       tintColorClassName="accent-icon"
                       type="monochrome"
                     />
@@ -1041,7 +1041,7 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
               selected ? (
                 <SymbolView
                   name="checkmark"
-                  size={Platform.OS === "android" ? 20 : 15}
+                  size={Platform.OS === "android" ? 20 : 14}
                   tintColorClassName="accent-icon"
                   type="monochrome"
                 />

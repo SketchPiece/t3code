@@ -16,10 +16,7 @@ import {
 import { cn } from "../lib/cn";
 import { AppText as Text } from "./AppText";
 import { SymbolView } from "./AppSymbol";
-import Animated from "react-native-reanimated";
-
 import { useAndroidControlSizing } from "./useAndroidControlSizing";
-import { usePressSpring } from "./usePressSpring";
 
 const COMPOSER_TOOLBAR_GAP = 8;
 const COMPOSER_TOOLBAR_FADE_WIDTH = 18;
@@ -88,7 +85,7 @@ export function ComposerInlineControl(props: {
       {props.showChevron === false ? null : (
         <SymbolView
           name={props.chevronDirection === "right" ? "chevron.right" : "chevron.down"}
-          size={Math.round(13 * scale)}
+          size={Math.round(10 * scale)}
           tintColorClassName={
             props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
           }
@@ -241,24 +238,20 @@ export function ComposerActionButton(props: {
   readonly onTouchStart?: PressableProps["onTouchStart"];
 }) {
   const { scale, smallIconSize } = useAndroidControlSizing();
-  // Helm fork: a 36pt circle like ChatGPT's composer, answering presses with a spring.
-  const circleSize = Math.round(36 * scale);
-  const press = usePressSpring();
+  const circleSize = Math.round(30 * scale);
   return (
     <Pressable
       accessibilityLabel={props.accessibilityLabel}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled }}
-      className="size-[44px] shrink-0 items-center justify-center"
+      className="size-[44px] shrink-0 items-center justify-center active:opacity-70"
       disabled={props.disabled}
       onPress={props.onPress}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
       onLongPress={props.onLongPress}
       onTouchStart={props.onTouchStart}
     >
-      <Animated.View
-        style={[{ width: circleSize, height: circleSize }, press.style]}
+      <View
+        style={{ width: circleSize, height: circleSize }}
         className={cn(
           "items-center justify-center rounded-full",
           props.variant === "danger"
@@ -277,7 +270,7 @@ export function ComposerActionButton(props: {
           }
           type="monochrome"
         />
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }
@@ -357,7 +350,7 @@ export function ComposerToolbarButton(props: {
       ) : props.icon ? (
         <SymbolView
           name={props.icon}
-          size={17}
+          size={16}
           tintColorClassName={iconTintClassName}
           type="monochrome"
         />
@@ -382,7 +375,7 @@ export function ComposerToolbarButton(props: {
       {props.showChevron === false ? null : (
         <SymbolView
           name="chevron.down"
-          size={13}
+          size={11}
           tintColorClassName={iconTintClassName}
           type="monochrome"
         />

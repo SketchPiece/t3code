@@ -148,7 +148,7 @@ function ProviderHeader(props: {
           ) : null}
           <SymbolView
             name={props.collapsed ? "chevron.down" : "chevron.up"}
-            size={13}
+            size={12}
             tintColorClassName="accent-icon-subtle"
             type="monochrome"
           />
@@ -203,7 +203,7 @@ function DisclosureRow(props: {
       ) : null}
       <SymbolView
         name="chevron.right"
-        size={13}
+        size={12}
         tintColorClassName="accent-icon-subtle"
         type="monochrome"
       />
@@ -926,7 +926,7 @@ function ThreadSettingsMainContent(props: {
                 <View pointerEvents="none" className="px-2">
                   <SymbolView
                     name="magnifyingglass"
-                    size={22}
+                    size={24}
                     tintColorClassName="accent-icon-subtle"
                   />
                 </View>
