@@ -1,8 +1,9 @@
 # Helm upstream sync
 
 Procedure the daily Helm scheduled task follows: merge the newest upstream T3
-Code nightly into `helm`, and when the merge is easy, ship it as a Helm update
-with `scripts/helm-release.sh`. Installed Helm apps then offer the update.
+Code nightly into `helm`, and when the merge is easy, ship it, together with
+Helm's own commits since the last release, as a Helm update with
+`scripts/helm-release.sh`. Installed Helm apps then offer the update.
 
 Main checkout: `~/Documents/Projects/t3code` (branch `helm`, remotes
 `origin` = SketchPiece/t3code, `upstream` = pingdotgg/t3code). The user and
@@ -17,7 +18,18 @@ tag=$(git -C ~/Documents/Projects/t3code tag -l 'v*-nightly.*' --sort=-creatorda
 git -C ~/Documents/Projects/t3code merge-base --is-ancestor "$tag" helm && echo "up to date"
 ```
 
-Up to date: stop and reply with one short line. Nothing else.
+Helm's own work ships the same way. Find what the last release was built from:
+
+```sh
+git -C ~/Documents/Projects/t3code fetch origin --tags
+last=$(gh release list -R SketchPiece/t3code -L 1 --json tagName -q '.[0].tagName')
+git -C ~/Documents/Projects/t3code log --oneline "$last"..helm
+```
+
+- New upstream tag: go on with step 2.
+- Upstream up to date, but `helm` has commits since `$last`: skip the merge,
+  run step 3 in the main checkout (no worktree needed), then step 4.
+- Neither: stop and reply with one short line. Nothing else.
 
 ## 2. Merge in the sync worktree
 
