@@ -52,22 +52,23 @@ Fix these yourself:
 - version fields, generated files, changelogs;
 - a Helm one-line hook (`// Helm:` comment, Helm naming, Helm port 3783,
   palette import) sitting next to an upstream edit: keep both;
-- upstream moved or renamed code a Helm hook lives in: move the hook along.
+- upstream moved or renamed code a Helm hook lives in: move the hook along;
+- anything in `apps/mobile`: take upstream's side. The fork's mobile app is no
+  longer developed; Helm Mobile is a separate project.
 
 Stop and ask when:
 
 - upstream rewrote logic that a Helm change also rewrote, and both sides
   can't simply be kept;
-- upstream removed or replaced something Helm builds on (the mobile
-  Tailscale module, push via the Volna core, voice input, the theme);
+- upstream removed or replaced something Helm builds on (voice
+  input, the theme);
 - you're unsure what the user would want.
 
 To ask: leave the worktree mid-merge and reply in the thread with, for each
 hard conflict, the file, what upstream changed, what Helm changed, 2-3 options
 and the one you recommend. The user answers in the thread; then continue here.
 
-Background on what Helm changes and why: the `helm-fork` memory and
-`apps/mobile/helm/`.
+Background on what Helm changes and why: the `helm-fork` memory.
 
 ## 3. Check
 
@@ -76,14 +77,11 @@ In the sync worktree, after the merge is committed:
 ```sh
 T3CODE_PROJECT_ROOT=~/Documents/Projects/t3code node scripts/setup-worktree.ts
 PATH="$PWD/node_modules/.bin:$PATH"
-vp run --filter t3 --filter @t3tools/web --filter @t3tools/desktop --filter @t3tools/mobile typecheck
-vp test run apps/server/src/helm apps/mobile/helm
-node apps/mobile/helm/i18n/scan.cjs
+vp run --filter t3 --filter @t3tools/web --filter @t3tools/desktop typecheck
+vp test run apps/server/src/helm packages/client-runtime/src/voice-input
 ```
 
-New untranslated strings from the scan: add Russian entries to
-`apps/mobile/helm/i18n/ru.json` (short, ты-form, display text only) and
-commit. A typecheck or test failure caused by the merge is a conflict too:
+Mobile isn't checked (see above). A typecheck or test failure caused by the merge is a conflict too:
 fix it if it's easy, ask if it's hard.
 
 ## 4. Release
