@@ -6,6 +6,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  Text as SystemText,
   View,
   type LayoutChangeEvent,
 } from "react-native";
@@ -167,8 +168,10 @@ export function ComposerDictationToolbar(props: {
 const WaveformBar = memo(function WaveformBar(props: {
   readonly audioLevels: SharedValue<number[]>;
   readonly sampleIndex: number;
+  readonly height?: number;
 }) {
   const { audioLevels, sampleIndex } = props;
+  const height = props.height ?? WAVEFORM_BAR_HEIGHT;
   const animatedStyle = useAnimatedStyle(() => {
     const level = audioLevels.value[sampleIndex] ?? 0;
     return {
@@ -176,8 +179,7 @@ const WaveformBar = memo(function WaveformBar(props: {
       transform: [
         {
           scaleY: withTiming(
-            (WAVEFORM_MIN_BAR_HEIGHT + level * (WAVEFORM_BAR_HEIGHT - WAVEFORM_MIN_BAR_HEIGHT)) /
-              WAVEFORM_BAR_HEIGHT,
+            (WAVEFORM_MIN_BAR_HEIGHT + level * (height - WAVEFORM_MIN_BAR_HEIGHT)) / height,
             WAVEFORM_TIMING,
           ),
         },
@@ -188,8 +190,34 @@ const WaveformBar = memo(function WaveformBar(props: {
   return (
     <Animated.View
       className="w-0.5 rounded-full bg-foreground"
-      style={[{ height: WAVEFORM_BAR_HEIGHT }, animatedStyle]}
+      style={[{ height }, animatedStyle]}
     />
+  );
+});
+
+const COMPACT_WAVEFORM_BAR_COUNT = 8;
+const COMPACT_WAVEFORM_BAR_HEIGHT = 14;
+
+/** A fixed-size waveform of the latest samples, for tight spaces like the global dictation pill. */
+export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
+  readonly audioLevels: SharedValue<number[]>;
+}) {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      className="flex-row items-center gap-0.5"
+      style={{ height: COMPACT_WAVEFORM_BAR_HEIGHT }}
+    >
+      {Array.from({ length: COMPACT_WAVEFORM_BAR_COUNT }, (_, index) => (
+        <WaveformBar
+          key={index}
+          audioLevels={props.audioLevels}
+          height={COMPACT_WAVEFORM_BAR_HEIGHT}
+          sampleIndex={VOICE_WAVEFORM_SAMPLE_COUNT - COMPACT_WAVEFORM_BAR_COUNT + index}
+        />
+      ))}
+    </View>
   );
 });
 
@@ -227,6 +255,25 @@ const VoiceWaveform = memo(function VoiceWaveform(props: {
     </View>
   );
 });
+
+/**
+ * Renders the recording time in the system font: DM Sans has no tabular
+ * figures, so `tabular-nums` alone would still let the width jitter.
+ */
+export function DictationElapsedTime(props: {
+  readonly seconds: number;
+  readonly className?: string;
+}) {
+  return (
+    <SystemText
+      className={cn("text-xs", props.className)}
+      numberOfLines={1}
+      style={{ fontVariant: ["tabular-nums"] }}
+    >
+      {Math.floor(props.seconds / 60)}:{String(props.seconds % 60).padStart(2, "0")}
+    </SystemText>
+  );
+}
 
 function VoiceActionButton(props: {
   readonly accessibilityLabel: string;
@@ -317,7 +364,6 @@ export function ComposerDictationStatus(props: {
 
   if (!props.presentation.statusLabel) return null;
   const isError = props.presentation.statusKind === "error";
-  const elapsedLabel = `${Math.floor(props.elapsedSeconds / 60)}:${String(props.elapsedSeconds % 60).padStart(2, "0")}`;
   return (
     <View className="relative h-11 min-w-0 flex-1 justify-center">
       {isError ? (
@@ -352,13 +398,10 @@ export function ComposerDictationStatus(props: {
             style={waveformStyle}
           >
             <VoiceWaveform audioLevels={props.audioLevels} />
-            <Text
-              className="text-xs text-foreground-muted"
-              numberOfLines={1}
-              style={{ fontVariant: ["tabular-nums"] }}
-            >
-              {elapsedLabel}
-            </Text>
+            <DictationElapsedTime
+              className="text-foreground-muted"
+              seconds={props.elapsedSeconds}
+            />
           </Animated.View>
           <Animated.View className="absolute inset-0 justify-center px-2" style={labelStyle}>
             <Text className="text-center text-sm text-foreground-muted" numberOfLines={1}>

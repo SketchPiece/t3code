@@ -13,6 +13,11 @@ describe("T3 orchestration provider instructions", () => {
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "ordinary top-level Helm conversations");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Never use them merely");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "cross-provider");
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "call `delegate_task` again");
+    assert.include(
+      T3_CODE_ORCHESTRATION_INSTRUCTIONS,
+      "Do not use `t3_thread_send` on `childThreadId`",
+    );
   });
 
   it("names Helm in its prose but keeps tool names and ids exact", () => {

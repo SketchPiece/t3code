@@ -33,16 +33,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import {
-  Alert,
-  Keyboard,
-  PanResponder,
-  Platform,
-  Pressable,
-  useWindowDimensions,
-  View,
-  type ViewStyle,
-} from "react-native";
+import { Alert, Keyboard, Platform, Pressable, View, type ViewStyle } from "react-native";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
 import {
   composerAttachmentUploadBlockReason,
@@ -56,7 +47,6 @@ import Animated, {
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
@@ -64,9 +54,13 @@ import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { armAgentAwarenessLiveActivityForLocalWork } from "../agent-awareness/remoteRegistration";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
+  getComposerDraftSnapshot,
+  composerDraftsAtom,
+  setComposerDraftText,
   composerContextImportsAtom,
   countComposerDraftAttachmentsAfterSelection,
 } from "../../state/use-composer-drafts";
+import { appAtomRegistry } from "../../state/atom-registry";
 import type { ComposerDocumentAttachment } from "../../lib/composerContext";
 import { useProject, useThreadShells } from "../../state/entities";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
@@ -108,20 +102,17 @@ import {
   type ComposerSendPresentation,
 } from "./composerSendPresentation";
 import { ComposerCommandPopover } from "./ComposerCommandPopover";
+import { ComposerPopoverAnchor } from "./ComposerPopoverAnchor";
 import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
 import {
   ComposerDictationCancelAction,
   ComposerDictationDraftContent,
+  ComposerDictationPrimaryAction,
   ComposerDictationStartAction,
   ComposerDictationStatus,
   ComposerDictationToolbar,
-  ComposerHoldToTalkHint,
-  ComposerVoiceTrailingSlot,
 } from "../voice-input/ComposerDictationControl";
-import { SymbolView } from "../../components/AppSymbol";
-import { useHoldToTalk } from "../voice-input/useHoldToTalk";
-import { ComposerFullscreenEditor, composerDraftWantsFullscreen } from "./ComposerFullscreenEditor";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -150,6 +141,7 @@ export const COMPOSER_COLLAPSED_CHROME = 60;
 export const COMPOSER_EXPANDED_CHROME = 156;
 
 export interface ThreadComposerProps {
+  readonly canOperateThread: boolean;
   readonly draftMessage: string;
   readonly draftAttachments: ReadonlyArray<DraftComposerAttachment>;
   readonly placeholder: string;
@@ -229,18 +221,12 @@ export const COMPOSER_TRANSITION_DURATION_MS = 220;
 // Side panes already animate the dock's width. Nested horizontal layout
 // transitions would leave the surface trailing its toolbar's new position.
 // Keep the vertical pill/card morph while horizontal layout follows the dock.
-// Helm fork: a near-critically damped spring instead of a fixed 220ms curve, so the
-// card snaps open and settles without a visible bounce.
-const DOCK_INSET_EXPANDED = 12;
-const DOCK_INSET_RESTING = 28;
-export const COMPOSER_SPRING = {
-  damping: 26,
-  stiffness: 300,
-  mass: 0.9,
-  reduceMotion: ReduceMotion.System,
-} as const;
 const composerHeightTransition: LayoutAnimationFunction = (values) => {
   "worklet";
+  const timing = {
+    duration: COMPOSER_TRANSITION_DURATION_MS,
+    reduceMotion: ReduceMotion.System,
+  };
   return {
     initialValues: {
       originX: values.targetOriginX,
@@ -250,9 +236,9 @@ const composerHeightTransition: LayoutAnimationFunction = (values) => {
     },
     animations: {
       originX: values.targetOriginX,
-      originY: withSpring(values.targetOriginY, COMPOSER_SPRING),
+      originY: withTiming(values.targetOriginY, timing),
       width: values.targetWidth,
-      height: withSpring(values.targetHeight, COMPOSER_SPRING),
+      height: withTiming(values.targetHeight, timing),
     },
   };
 };
@@ -337,7 +323,10 @@ export function ComposerSurface(props: {
   const shouldAnimate = props.animateLayout !== false && Platform.OS !== "android";
   useLayoutEffect(() => {
     animatedBorderRadius.value = shouldAnimate
-      ? withSpring(targetBorderRadius, COMPOSER_SPRING)
+      ? withTiming(targetBorderRadius, {
+          duration: COMPOSER_TRANSITION_DURATION_MS,
+          reduceMotion: ReduceMotion.System,
+        })
       : targetBorderRadius;
   }, [animatedBorderRadius, shouldAnimate, targetBorderRadius]);
   const animatedShapeStyle = useAnimatedStyle(() => ({
@@ -395,22 +384,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const fallbackInputRef = useRef<ComposerEditorHandle>(null);
   const inputRef = props.editorRef ?? fallbackInputRef;
   const [isFocused, setIsFocused] = useState(false);
-  const [isFullscreenEditorOpen, setIsFullscreenEditorOpen] = useState(false);
-  const { height: windowHeight } = useWindowDimensions();
-  const expandedEditorMaxHeight = Math.max(160, Math.round(windowHeight * 0.32));
-  // Swiping the open card down puts the keyboard away; the draft rests as two lines.
-  const collapseHandlers = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          gesture.dy > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-        onPanResponderRelease: (_event, gesture) => {
-          if (gesture.dy > 32) Keyboard.dismiss();
-        },
-      }).panHandlers,
-    [],
-  );
   const pendingPastedTextAttachmentCountRef = useRef(0);
   const [pendingPastedTextAttachmentCount, setPendingPastedTextAttachmentCount] = useState(0);
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
@@ -537,32 +510,18 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
       usageLimitsOffered && props.draftAttachments.length === 0 ? openUsageLimits : undefined,
   });
   const voiceInput = useVoiceInputController({
-    ownerKey: composerOwnerKey,
-    draftMessage: props.draftMessage,
+    ownerKey: composerDraftKey,
+    label: props.selectedThread.title || "Untitled thread",
+    readDraftMessage: () => getComposerDraftSnapshot(composerDraftKey).text,
+    subscribeToDraftChanges: (onChange) => appAtomRegistry.subscribe(composerDraftsAtom, onChange),
     selection: composerMenu.selection,
-    environmentId: props.environmentId,
-    threadId: props.selectedThread.id,
-    onChangeDraftMessage: props.onChangeDraftMessage,
+    onChangeDraftMessage: (text) => setComposerDraftText(composerDraftKey, text),
     onChangeSelection: composerMenu.onSelectionChange,
-    onSubmitDraft: () => void handleSend(),
   });
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
   );
-  // An empty draft puts the mic where send goes: hold to talk, or tap to dictate.
-  const showsHoldMic =
-    voiceInput.isAvailable &&
-    !hasContent &&
-    !showStopAction &&
-    voicePresentation.trailingAction === "mic";
-  const holdToTalk = useHoldToTalk({
-    enabled: showsHoldMic && !voiceInput.isBusy,
-    phase: voiceInput.state.phase,
-    start: voiceInput.start,
-    stop: (intent) => void voiceInput.stop(intent),
-    cancel: voiceInput.cancel,
-  });
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   // An open draft stays visible; only a collapsed composer becomes a voice strip.
   const isExpanded = isFocused || settingsSheetPresentation.keepsComposerExpanded;
@@ -582,6 +541,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     (pendingPastedTextAttachmentCount > 0 ? "Attaching pasted text" : null) ??
     attachmentBlockReason;
   const canSend =
+    (props.canOperateThread || props.connectionState !== "connected") &&
     hasContent &&
     !contextImports[composerDraftKey] &&
     !voiceInput.blocksSubmission &&
@@ -786,55 +746,15 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     [navigation, settingsSheetPresentation.onStackTransitionsFinished],
   );
 
-  // At rest the pill sits narrower than the open card, like ChatGPT's; opening springs it wide.
-  const dockInset = isExpanded ? DOCK_INSET_EXPANDED : DOCK_INSET_RESTING;
-  const dockInsetValue = useSharedValue(dockInset);
-  useLayoutEffect(() => {
-    dockInsetValue.value =
-      Platform.OS === "android" ? dockInset : withSpring(dockInset, COMPOSER_SPRING);
-  }, [dockInset, dockInsetValue]);
-  const dockInsetStyle = useAnimatedStyle(() => ({ paddingHorizontal: dockInsetValue.value }));
-  const wantsFullscreen = !voiceInput.isBusy && composerDraftWantsFullscreen(props.draftMessage);
-  const trailingSlot = (
-    <ComposerVoiceTrailingSlot
-      state={voiceInput.state}
-      presentation={voicePresentation}
-      holdMode={holdToTalk.mode}
-      panHandlers={holdToTalk.panHandlers}
-      showsHoldMic={showsHoldMic}
-      onConfirm={() => void voiceInput.stop("insert")}
-      onRetry={voiceInput.retry}
-      onCancel={voiceInput.cancel}
-    >
-      {showStopAction ? (
-        <ComposerActionButton
-          accessibilityLabel="Stop agent"
-          icon="stop.fill"
-          variant="danger"
-          onPress={props.onStopThread}
-        />
-      ) : (
-        <SendActionButton
-          accessibilityLabel={sendBlockedReason ?? sendLabel}
-          presentation={sendPresentation}
-          disabled={!canSend}
-          onSend={handleSend}
-        />
-      )}
-    </ComposerVoiceTrailingSlot>
-  );
-
   return (
     <Animated.View
-      style={[
-        dockInsetStyle,
-        {
-          paddingTop: isExpanded ? 8 : 6,
-          paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : 6),
-          backgroundColor:
-            Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
-        },
-      ]}
+      className="px-[12px]"
+      style={{
+        paddingTop: isExpanded ? 8 : 6,
+        paddingBottom: (props.bottomInset ?? 0) + (isExpanded ? 8 : 6),
+        backgroundColor:
+          Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
+      }}
     >
       {/* The backdrop gradient lives on a plain View: Reanimated's Animated.View
           silently drops experimental_backgroundImage on Android, which left this
@@ -854,7 +774,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
         {!voiceInput.isBusy &&
         composerMenu.trigger &&
         (composerMenu.items.length > 0 || composerMenu.trigger.kind === "pull-request") ? (
-          <View className="absolute inset-x-0 bottom-full z-10 mb-2">
+          <ComposerPopoverAnchor>
             <ComposerCommandPopover
               items={composerMenu.items}
               triggerKind={composerMenu.trigger.kind}
@@ -862,7 +782,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               error={composerMenu.error}
               onSelect={composerMenu.onSelect}
             />
-          </View>
+          </ComposerPopoverAnchor>
         ) : null}
 
         {selectedProviderStatus?.compatibilityAdvisory?.message &&
@@ -892,7 +812,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
           </Pressable>
         ) : null}
 
-        <ComposerHoldToTalkHint mode={holdToTalk.mode} cancelArmed={holdToTalk.cancelArmed} />
         <ComposerSurface
           style={
             isExpanded
@@ -912,32 +831,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 }
           }
         >
-          {isExpanded ? (
-            <View
-              {...collapseHandlers}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              className="absolute inset-x-0 top-0 z-10 h-[14px] items-center pt-[5px]"
-            >
-              <View className="h-1 w-9 rounded-full bg-foreground-muted opacity-40" />
-            </View>
-          ) : null}
-          {isExpanded && wantsFullscreen ? (
-            <Pressable
-              accessibilityLabel="Open the message full screen"
-              accessibilityRole="button"
-              className="absolute top-1.5 right-1.5 z-10 size-[30px] items-center justify-center rounded-full bg-subtle active:opacity-70"
-              hitSlop={6}
-              onPress={() => setIsFullscreenEditorOpen(true)}
-            >
-              <SymbolView
-                name="arrow.up.left.and.arrow.down.right"
-                size={15}
-                tintColorClassName="accent-icon-muted"
-                type="monochrome"
-              />
-            </Pressable>
-          ) : null}
           <ComposerDictationDraftContent
             className={isExpanded ? undefined : "flex-row items-center"}
             compact={!isExpanded}
@@ -993,13 +886,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               </Animated.View>
             ) : null}
             <Animated.View
-              className={
-                isExpanded
-                  ? wantsFullscreen
-                    ? "pr-[40px] pl-[14px]"
-                    : "px-[14px]"
-                  : "min-w-0 flex-1 px-[4px]"
-              }
+              className={isExpanded ? "px-[14px]" : "min-w-0 flex-1 px-[4px]"}
               layout={COMPOSER_LAYOUT_TRANSITION}
             >
               <ComposerEditor
@@ -1123,14 +1010,11 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   isExpanded
                     ? {
                         minHeight: 72,
-                        // A long dictation stays readable: up to about a third of the screen.
-                        maxHeight: expandedEditorMaxHeight,
+                        maxHeight: 160,
                         paddingVertical: 4,
                       }
                     : {
-                        // At rest a long draft keeps two lines in view.
-                        minHeight: 36,
-                        maxHeight: 36 + bodyText.lineHeight,
+                        height: 36,
                       }
                 }
                 textStyle={{
@@ -1163,20 +1047,34 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               </View>
             ) : null}
             {!isExpanded ? (
-              <View className="flex-row items-center pr-1.5">
+              <View className="flex-row items-center">
                 <ComposerDictationStartAction
                   state={voiceInput.state}
-                  isAvailable={voiceInput.isAvailable && !showsHoldMic}
+                  isAvailable={voiceInput.isAvailable}
                   onStart={voiceInput.start}
                   onCancel={voiceInput.cancel}
                 />
-                {trailingSlot}
+                {showStopAction ? (
+                  <ComposerActionButton
+                    accessibilityLabel="Stop agent"
+                    icon="stop.fill"
+                    variant="danger"
+                    disabled={!props.canOperateThread}
+                    onPress={props.onStopThread}
+                  />
+                ) : (
+                  <SendActionButton
+                    accessibilityLabel={sendBlockedReason ?? sendLabel}
+                    presentation={sendPresentation}
+                    disabled={!canSend}
+                    onSend={handleSend}
+                  />
+                )}
               </View>
             ) : null}
             {isExpanded ? <View className="h-1" /> : null}
           </ComposerDictationDraftContent>
           <Animated.View
-            {...(isExpanded ? collapseHandlers : {})}
             accessibilityElementsHidden={!isToolbarVisible}
             collapsable={false}
             importantForAccessibility={isToolbarVisible ? "auto" : "no-hide-descendants"}
@@ -1196,7 +1094,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             <ComposerDictationToolbar
               showsDictation={isVoiceInputPresented}
               visible={isToolbarVisible}
-              trailing={trailingSlot}
             >
               <ComposerToolbarRow
                 paddingBottom={0}
@@ -1206,7 +1103,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               >
                 <ComposerDictationCancelAction
                   presentation={voicePresentation}
-                  armed={holdToTalk.cancelArmed}
                   onCancel={voiceInput.cancel}
                 />
                 {isVoiceInputPresented ? (
@@ -1245,42 +1141,45 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   </View>
                 )}
                 <View className="shrink-0 flex-row items-center">
-                  {voicePresentation.trailingAction === "mic" ? (
-                    <ComposerDictationStartAction
-                      state={voiceInput.state}
-                      isAvailable={voiceInput.isAvailable && !showsHoldMic}
-                      onStart={voiceInput.start}
-                      onCancel={voiceInput.cancel}
+                  <ComposerDictationPrimaryAction
+                    state={voiceInput.state}
+                    presentation={voicePresentation}
+                    isAvailable={voiceInput.isAvailable}
+                    onStart={voiceInput.start}
+                    onConfirm={voiceInput.stop}
+                    onCancel={voiceInput.cancel}
+                  />
+                  {showStopAction ? (
+                    <ComposerActionButton
+                      accessibilityLabel="Stop agent"
+                      icon="stop.fill"
+                      variant="danger"
+                      disabled={!props.canOperateThread}
+                      onPress={props.onStopThread}
+                    />
+                  ) : voicePresentation.showsSend ? (
+                    <SendActionButton
+                      accessibilityLabel={sendBlockedReason ?? sendLabel}
+                      presentation={sendPresentation}
+                      disabled={!canSend}
+                      onSend={handleSend}
                     />
                   ) : null}
-                  {/* The trailing slot sits over this space, outside the flipping row. */}
-                  <View className="h-[44px] w-[50px]" />
                 </View>
               </ComposerToolbarRow>
             </ComposerDictationToolbar>
           </Animated.View>
         </ComposerSurface>
+
+        {props.connectionState === "connected" && !props.canOperateThread ? (
+          <Text className="pt-2 text-xs text-foreground-muted">
+            This connection cannot control this task. You can still edit your draft.
+          </Text>
+        ) : null}
       </Animated.View>
 
       <VideoPreviewModal source={previewVideo} onRequestClose={closePreview} />
       <FilePreviewModal source={previewFile} onRequestClose={closePreview} />
-      {isFullscreenEditorOpen ? (
-        <ComposerFullscreenEditor
-          visible
-          draftKey={composerDraftKey}
-          environmentId={props.environmentId}
-          value={props.draftMessage}
-          selection={composerMenu.selection}
-          skills={composerMenu.skills}
-          placeholder={props.placeholder}
-          sendLabel={sendBlockedReason ?? sendLabel}
-          canSend={canSend}
-          onChangeText={props.onChangeDraftMessage}
-          onSelectionChange={composerMenu.onSelectionChange}
-          onSend={() => void handleSend()}
-          onClose={() => setIsFullscreenEditorOpen(false)}
-        />
-      ) : null}
     </Animated.View>
   );
 });

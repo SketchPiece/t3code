@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { clampFileAttachmentUploadBytes } from "@t3tools/client-runtime/state/attachments";
 import {
   nextPastedTextFileName,
@@ -17,7 +17,7 @@ import {
   type NavigationAction,
 } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, View } from "react-native";
 import {
   KeyboardController,
   KeyboardStickyView,
@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useFontFamily } from "../../lib/useFontFamily";
 import {
+  AuthOrchestrationOperateScope,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   resolveEnvironmentMachineKind,
@@ -71,14 +72,10 @@ import { ComposerCommandPopover } from "./ComposerCommandPopover";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
 import {
   ComposerDictationCancelAction,
-  ComposerDictationStartAction,
+  ComposerDictationPrimaryAction,
   ComposerDictationStatus,
   ComposerDictationToolbar,
-  ComposerHoldToTalkHint,
-  ComposerVoiceTrailingSlot,
 } from "../voice-input/ComposerDictationControl";
-import { useHoldToTalk } from "../voice-input/useHoldToTalk";
-import { ComposerFullscreenEditor, composerDraftWantsFullscreen } from "./ComposerFullscreenEditor";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import {
@@ -100,6 +97,7 @@ import {
   captureComposerDraftInsertion,
   countComposerDraftAttachmentsAfterSelection,
   getComposerDraftSnapshot,
+  composerDraftsAtom,
   mergeComposerDraftContent,
   restoreComposerDraftSnapshot,
   updateComposerDraftSettings,
@@ -121,6 +119,10 @@ import { armAgentAwarenessLiveActivityForLocalWork } from "../agent-awareness/re
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { useRemoteConnectionStatus } from "../../state/use-remote-environment-registry";
 import { useNewTaskFlow } from "./new-task-flow-provider";
+import {
+  nextEnvironmentId,
+  useHardwareKeyboardCommand,
+} from "../keyboard/hardwareKeyboardCommands";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 import { resolveDraftProjectSelection } from "./new-task-project-selection";
 import {
@@ -132,6 +134,7 @@ import { selectIncomingShareAttachmentsForServer } from "../sharing/incoming-sha
 import { appAtomRegistry } from "../../state/atom-registry";
 import { serverEnvironment } from "../../state/server";
 import { fileRoutePathSegments } from "../files/filePath";
+import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 
 function NewTaskWorkspaceIcon(props: {
   readonly workspaceMode: "local" | "worktree";
@@ -218,6 +221,12 @@ export function NewTaskDraftScreen(props: {
     connectedEnvironments.find(
       (environment) => environment.environmentId === selectedProject.environmentId,
     )?.connectionState === "connected";
+  const canOperate = useEnvironmentScope(
+    selectedProject?.environmentId ?? null,
+    AuthOrchestrationOperateScope,
+  );
+  const taskPermissionReason =
+    environmentConnected && !canOperate ? "This connection cannot start tasks." : null;
   const modelUnavailable = environmentConnected && flow.selectedModelOption?.isUnavailable === true;
   // A project added by cloning exists before its files do: the prompt can be
   // written meanwhile, but Start waits for the clone.
@@ -308,8 +317,6 @@ export function NewTaskDraftScreen(props: {
   const promptInputRef = useRef<ComposerEditorHandle>(null);
   const loadedBranchesProjectKeyRef = useRef<string | null>(null);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
-  const [isFullscreenEditorOpen, setIsFullscreenEditorOpen] = useState(false);
-  const { height: windowHeight } = useWindowDimensions();
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const wasFocusedBeforePreviewRef = useRef(false);
@@ -440,6 +447,26 @@ export function NewTaskDraftScreen(props: {
   const isImportingContext = flow.draftKey ? contextImports[flow.draftKey] === true : false;
   const isComposerInteractionLocked =
     isIncomingShareTransferPending || flow.submitting || isImportingContext;
+  // Hardware keyboard: step to the next machine, from the one a switch in
+  // progress is heading to so repeated presses keep advancing.
+  const { environments, selectedEnvironmentId, switchEnvironment, switchingToEnvironmentId } = flow;
+  const cycleEnvironment = useCallback(() => {
+    if (isComposerInteractionLocked) return true;
+    const next = nextEnvironmentId(environments, switchingToEnvironmentId ?? selectedEnvironmentId);
+    if (next !== null) void switchEnvironment(next);
+    return true;
+  }, [
+    environments,
+    isComposerInteractionLocked,
+    selectedEnvironmentId,
+    switchEnvironment,
+    switchingToEnvironmentId,
+  ]);
+  const cycleEnvironmentCommands = useMemo(
+    () => (environments.length > 1 ? (["cycleHost"] as const) : []),
+    [environments.length],
+  );
+  useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
   // Also guard while a submit is in flight: an Android back press or iOS
   // Cancel would otherwise abandon the screen while the task still starts.
   // T3 owns /usage-limits only where Limits has data for the selected provider.
@@ -479,38 +506,18 @@ export function NewTaskDraftScreen(props: {
   });
   const voiceInput = useVoiceInputController({
     ownerKey: flow.draftKey,
-    draftMessage: flow.prompt,
+    label: selectedProject ? `New task in ${selectedProject.title}` : "New task",
+    readDraftMessage: () => (flow.draftKey ? getComposerDraftSnapshot(flow.draftKey).text : null),
+    subscribeToDraftChanges: (onChange) => appAtomRegistry.subscribe(composerDraftsAtom, onChange),
     selection: composerMenu.selection,
     disabled: isIncomingShareTransferPending || isImportingShare || flow.submitting,
-    environmentId: selectedProject?.environmentId ?? null,
     onChangeDraftMessage: flow.setPrompt,
     onChangeSelection: composerMenu.onSelectionChange,
-    onSubmitDraft: () => void handleStart(),
   });
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
   );
-  const voiceDisabled = isIncomingShareTransferPending || isImportingShare || flow.submitting;
-  // An empty prompt puts the mic where start goes: hold to talk, or tap to dictate.
-  const showsHoldMic =
-    voiceInput.isAvailable &&
-    !voiceDisabled &&
-    flow.prompt.trim().length === 0 &&
-    voicePresentation.trailingAction === "mic";
-  // Like the thread composer, an untouched draft rests as a pill; focus opens the card.
-  const isComposerResting =
-    !isComposerFocused &&
-    !settingsSheetPresentation.keepsComposerExpanded &&
-    flow.prompt.length === 0 &&
-    flow.attachments.length === 0;
-  const holdToTalk = useHoldToTalk({
-    enabled: showsHoldMic && !voiceInput.isBusy,
-    phase: voiceInput.state.phase,
-    start: voiceInput.start,
-    stop: (intent) => void voiceInput.stop(intent),
-    cancel: voiceInput.cancel,
-  });
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const preventRemove =
     (isIncomingShareTransferPending && !isProjectPickerReturnActive) ||
@@ -1215,6 +1222,12 @@ export function NewTaskDraftScreen(props: {
     if (!selectedProject || !draftKey) {
       return;
     }
+    if (
+      environmentConnected &&
+      !readEnvironmentScope(selectedProject.environmentId, AuthOrchestrationOperateScope)
+    ) {
+      return;
+    }
     const draft = getComposerDraftSnapshot(draftKey);
     if (appAtomRegistry.get(composerContextImportsAtom)[draftKey]) return;
     // Read the latest explicit pick. Antigravity selections stay unchanged
@@ -1379,6 +1392,7 @@ export function NewTaskDraftScreen(props: {
   const canStart =
     !isImportingContext &&
     !cloneBlocksStart &&
+    taskPermissionReason === null &&
     attachmentBlockReason === null &&
     !modelUnavailable &&
     Boolean(flow.selectedProject) &&
@@ -1449,18 +1463,13 @@ export function NewTaskDraftScreen(props: {
         onPasteImages={(uris) => void handleNativePasteImages(uris)}
         onPasteText={(paste) => void handleNativePasteText(paste)}
         placeholder="Ask anything…"
-        singleLineCentered={isComposerResting}
-        contentInsetVertical={isComposerResting && Platform.OS !== "android" ? 6 : 0}
-        style={
-          isComposerResting
-            ? { height: 36 }
-            : {
-                minHeight: 72,
-                // A long dictation stays readable: up to about a third of the screen.
-                maxHeight: Math.max(160, Math.round(windowHeight * 0.32)),
-                paddingVertical: 4,
-              }
-        }
+        singleLineCentered={false}
+        contentInsetVertical={0}
+        style={{
+          minHeight: 72,
+          maxHeight: 160,
+          paddingVertical: 4,
+        }}
         textStyle={{ ...bodyText, color: foregroundColor, fontFamily: regularFontFamily }}
       />
     </>
@@ -1570,7 +1579,7 @@ export function NewTaskDraftScreen(props: {
         alwaysBounceVertical={isKeyboardVisible}
         className="flex-1"
         contentInsetAdjustmentBehavior="never"
-        contentContainerClassName="grow items-center justify-center pb-[200px] pt-6"
+        contentContainerClassName="grow items-center pb-[236px] pt-12 ios:pt-[72px]"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -1611,136 +1620,6 @@ export function NewTaskDraftScreen(props: {
         onPress={() => openContextPicker("NewTaskBranch")}
       />
     </View>
-  );
-
-  const wantsFullscreen = !voiceInput.isBusy && composerDraftWantsFullscreen(flow.prompt);
-  const startButton = (
-    <ComposerActionButton
-      accessibilityLabel={
-        attachmentBlockReason ??
-        (cloneBlocksStart
-          ? projectClone === null || projectClone.phase === "running"
-            ? "Cloning repository"
-            : "Repository not cloned"
-          : pendingPastedTextAttachmentCount > 0
-            ? "Attaching pasted text"
-            : flow.submitting
-              ? "Starting task"
-              : attachmentsUploading
-                ? "Queue task, sends when uploads finish"
-                : environmentConnected
-                  ? "Start task"
-                  : "Queue task")
-      }
-      disabled={!canStart}
-      icon={queuesInsteadOfStarting ? "tray.and.arrow.up" : "arrow.up"}
-      onPress={() => void handleStart()}
-      variant="primary"
-    />
-  );
-
-  const trailingSlot = (
-    <ComposerVoiceTrailingSlot
-      state={voiceInput.state}
-      presentation={voicePresentation}
-      holdMode={holdToTalk.mode}
-      panHandlers={holdToTalk.panHandlers}
-      showsHoldMic={showsHoldMic}
-      onConfirm={() => void voiceInput.stop("insert")}
-      onRetry={voiceInput.retry}
-      onCancel={voiceInput.cancel}
-    >
-      {startButton}
-    </ComposerVoiceTrailingSlot>
-  );
-  const attachmentButton = (
-    <ComposerAttachmentButton
-      disabled={isComposerInteractionLocked}
-      supportsFiles={Boolean(
-        selectedEnvironmentServerConfig?.environment.capabilities.fileAttachments,
-      )}
-      onPickMedia={handlePickMedia}
-      onPickFiles={handlePickFiles}
-    />
-  );
-  const composerToolbar = (
-    <Animated.View layout={COMPOSER_LAYOUT_TRANSITION} collapsable={false}>
-      <ComposerDictationToolbar showsDictation={isVoiceInputPresented} trailing={trailingSlot}>
-        <ComposerToolbarRow
-          paddingBottom={0}
-          paddingHorizontal={0}
-          paddingTop={0}
-          style={{ gap: 0 }}
-        >
-          <ComposerDictationCancelAction
-            presentation={voicePresentation}
-            armed={holdToTalk.cancelArmed}
-            onCancel={voiceInput.cancel}
-          />
-          {isVoiceInputPresented ? (
-            <ComposerDictationStatus
-              audioLevels={voiceInput.audioLevels}
-              elapsedSeconds={voiceInput.elapsedSeconds}
-              phase={voiceInput.state.phase}
-              presentation={voicePresentation}
-              onDismissError={voiceInput.cancel}
-            />
-          ) : (
-            <>
-              {attachmentButton}
-              <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
-                <View className="min-w-0 shrink">
-                  <ComposerInlineControl
-                    accessibilityLabel="Model and reasoning settings"
-                    disabled={isComposerInteractionLocked}
-                    emphasized
-                    renderIcon={(size) => (
-                      <ProviderIcon
-                        iconUrl={flow.selectedModelOption?.providerIconUrl}
-                        provider={flow.selectedModelOption?.providerDriver}
-                        size={size}
-                      />
-                    )}
-                    label={flow.selectedModelOption?.label ?? "Choose model"}
-                    maxWidth="100%"
-                    onPress={settingsSheetPresentation.open}
-                  />
-                </View>
-                {flow.planModeEnabled ? (
-                  <ComposerInlineControl
-                    accessibilityHint={`Switches to ${flow.interactionMode === "plan" ? "Build" : "Plan"} mode`}
-                    accessibilityLabel={`Interaction mode: ${flow.interactionMode === "plan" ? "Plan" : "Build"}`}
-                    disabled={isComposerInteractionLocked}
-                    emphasized
-                    icon={
-                      flow.interactionMode === "plan"
-                        ? { ios: "list.bullet.clipboard", android: "auto_awesome" }
-                        : { ios: "hammer", android: "construction" }
-                    }
-                    label={flow.interactionMode === "plan" ? "Plan" : "Build"}
-                    onPress={() =>
-                      flow.setInteractionMode(flow.interactionMode === "plan" ? "default" : "plan")
-                    }
-                    showChevron={false}
-                  />
-                ) : null}
-              </View>
-            </>
-          )}
-          {voicePresentation.trailingAction === "mic" ? (
-            <ComposerDictationStartAction
-              state={voiceInput.state}
-              isAvailable={voiceInput.isAvailable && !showsHoldMic}
-              disabled={voiceDisabled}
-              onStart={voiceInput.start}
-              onCancel={voiceInput.cancel}
-            />
-          ) : null}
-          {/* The trailing slot sits over this space, outside the flipping row. */}
-          <View className="h-[44px] w-[50px]" />
-        </ComposerToolbarRow>
-      </ComposerDictationToolbar>
-    </Animated.View>
   );
 
   const composerDock = (
@@ -1791,6 +1670,10 @@ export function NewTaskDraftScreen(props: {
       ) : null}
       {flow.canChooseWorkspace ? <View className="pb-1">{workspaceControls}</View> : null}
 
+      {taskPermissionReason ? (
+        <Text className="px-3 py-2 text-xs text-muted-foreground">{taskPermissionReason}</Text>
+      ) : null}
+
       {modelUnavailable ? (
         <Pressable
           accessibilityRole="button"
@@ -1802,21 +1685,14 @@ export function NewTaskDraftScreen(props: {
         </Pressable>
       ) : null}
 
-      <View className="relative">
-        <ComposerHoldToTalkHint mode={holdToTalk.mode} cancelArmed={holdToTalk.cancelArmed} />
-      </View>
       <ComposerSurface
-        style={
-          isComposerResting
-            ? { borderRadius: 27, overflow: "hidden", paddingVertical: 2 }
-            : {
-                borderRadius: 26,
-                minHeight: 140,
-                overflow: "hidden",
-                paddingBottom: 6,
-                paddingTop: 14,
-              }
-        }
+        style={{
+          borderRadius: 26,
+          minHeight: 140,
+          overflow: "hidden",
+          paddingBottom: 6,
+          paddingTop: 14,
+        }}
       >
         {stripAttachments.length > 0 ? (
           <View className="px-[14px] pb-2.5">
@@ -1851,70 +1727,120 @@ export function NewTaskDraftScreen(props: {
           </View>
         ) : null}
 
-        <View className={isComposerResting ? "flex-row items-center" : undefined}>
-          {isComposerResting ? (
-            <View style={{ opacity: isVoiceInputPresented ? 0 : 1 }}>{attachmentButton}</View>
-          ) : null}
-          <View
-            className={
-              isComposerResting
-                ? "min-w-0 flex-1 px-[4px]"
-                : wantsFullscreen
-                  ? "pr-[40px] pl-[14px]"
-                  : "px-[14px]"
-            }
-            style={isComposerResting && isVoiceInputPresented ? { opacity: 0 } : undefined}
-          >
-            {promptEditor}
-          </View>
-          {isComposerResting ? (
-            <View className="flex-row items-center pr-1.5">{trailingSlot}</View>
-          ) : null}
-        </View>
-        {isComposerResting && isVoiceInputPresented ? (
-          // A hold that started on the resting pill keeps its touch on the pill's own
-          // mic underneath; the dictation bar shows on top of it.
-          <View className="absolute inset-0 justify-center">{composerToolbar}</View>
-        ) : null}
-        {!isComposerResting && wantsFullscreen ? (
-          <Pressable
-            accessibilityLabel="Open the message full screen"
-            accessibilityRole="button"
-            className="absolute top-1.5 right-1.5 z-10 size-[30px] items-center justify-center rounded-full bg-subtle active:opacity-70"
-            hitSlop={6}
-            onPress={() => setIsFullscreenEditorOpen(true)}
-          >
-            <SymbolView
-              name="arrow.up.left.and.arrow.down.right"
-              size={15}
-              tintColorClassName="accent-icon-muted"
-              type="monochrome"
-            />
-          </Pressable>
-        ) : null}
-        {isComposerResting ? null : <View className="h-1" />}
+        <View className="px-[14px]">{promptEditor}</View>
+        <View className="h-1" />
 
-        {isComposerResting ? null : composerToolbar}
+        <Animated.View layout={COMPOSER_LAYOUT_TRANSITION} collapsable={false}>
+          <ComposerDictationToolbar showsDictation={isVoiceInputPresented}>
+            <ComposerToolbarRow
+              paddingBottom={0}
+              paddingHorizontal={0}
+              paddingTop={0}
+              style={{ gap: 0 }}
+            >
+              <ComposerDictationCancelAction
+                presentation={voicePresentation}
+                onCancel={voiceInput.cancel}
+              />
+              {isVoiceInputPresented ? (
+                <ComposerDictationStatus
+                  audioLevels={voiceInput.audioLevels}
+                  elapsedSeconds={voiceInput.elapsedSeconds}
+                  phase={voiceInput.state.phase}
+                  presentation={voicePresentation}
+                  onDismissError={voiceInput.cancel}
+                />
+              ) : (
+                <>
+                  <ComposerAttachmentButton
+                    disabled={isComposerInteractionLocked}
+                    supportsFiles={Boolean(
+                      selectedEnvironmentServerConfig?.environment.capabilities.fileAttachments,
+                    )}
+                    onPickMedia={handlePickMedia}
+                    onPickFiles={handlePickFiles}
+                  />
+                  <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
+                    <View className="min-w-0 shrink">
+                      <ComposerInlineControl
+                        accessibilityLabel="Model and reasoning settings"
+                        disabled={isComposerInteractionLocked}
+                        emphasized
+                        renderIcon={(size) => (
+                          <ProviderIcon
+                            iconUrl={flow.selectedModelOption?.providerIconUrl}
+                            provider={flow.selectedModelOption?.providerDriver}
+                            size={size}
+                          />
+                        )}
+                        label={flow.selectedModelOption?.label ?? "Choose model"}
+                        maxWidth="100%"
+                        onPress={settingsSheetPresentation.open}
+                      />
+                    </View>
+                    {flow.planModeEnabled ? (
+                      <ComposerInlineControl
+                        accessibilityHint={`Switches to ${flow.interactionMode === "plan" ? "Build" : "Plan"} mode`}
+                        accessibilityLabel={`Interaction mode: ${flow.interactionMode === "plan" ? "Plan" : "Build"}`}
+                        disabled={isComposerInteractionLocked}
+                        emphasized
+                        icon={
+                          flow.interactionMode === "plan"
+                            ? { ios: "list.bullet.clipboard", android: "auto_awesome" }
+                            : { ios: "hammer", android: "construction" }
+                        }
+                        label={flow.interactionMode === "plan" ? "Plan" : "Build"}
+                        onPress={() =>
+                          flow.setInteractionMode(
+                            flow.interactionMode === "plan" ? "default" : "plan",
+                          )
+                        }
+                        showChevron={false}
+                      />
+                    ) : null}
+                  </View>
+                </>
+              )}
+              <ComposerDictationPrimaryAction
+                state={voiceInput.state}
+                presentation={voicePresentation}
+                isAvailable={voiceInput.isAvailable}
+                disabled={isIncomingShareTransferPending || isImportingShare || flow.submitting}
+                onStart={voiceInput.start}
+                onConfirm={voiceInput.stop}
+                onCancel={voiceInput.cancel}
+              />
+              {voicePresentation.showsSend ? (
+                <ComposerActionButton
+                  accessibilityLabel={
+                    taskPermissionReason ??
+                    attachmentBlockReason ??
+                    (cloneBlocksStart
+                      ? projectClone === null || projectClone.phase === "running"
+                        ? "Cloning repository"
+                        : "Repository not cloned"
+                      : pendingPastedTextAttachmentCount > 0
+                        ? "Attaching pasted text"
+                        : flow.submitting
+                          ? "Starting task"
+                          : attachmentsUploading
+                            ? "Queue task, sends when uploads finish"
+                            : environmentConnected
+                              ? "Start task"
+                              : "Queue task")
+                  }
+                  disabled={!canStart}
+                  icon={queuesInsteadOfStarting ? "tray.and.arrow.up" : "arrow.up"}
+                  onPress={() => void handleStart()}
+                  variant="primary"
+                />
+              ) : null}
+            </ComposerToolbarRow>
+          </ComposerDictationToolbar>
+        </Animated.View>
       </ComposerSurface>
       <VideoPreviewModal source={previewVideo} onRequestClose={closeMediaPreview} />
       <FilePreviewModal source={previewFile} onRequestClose={closeMediaPreview} />
-      {isFullscreenEditorOpen && flow.draftKey ? (
-        <ComposerFullscreenEditor
-          visible
-          draftKey={flow.draftKey}
-          environmentId={selectedProject?.environmentId}
-          value={flow.prompt}
-          selection={composerMenu.selection}
-          skills={composerMenu.skills}
-          placeholder="Ask anything…"
-          sendLabel={environmentConnected ? "Start task" : "Queue task"}
-          canSend={canStart}
-          onChangeText={flow.setPrompt}
-          onSelectionChange={composerMenu.onSelectionChange}
-          onSend={() => void handleStart()}
-          onClose={() => setIsFullscreenEditorOpen(false)}
-        />
-      ) : null}
     </View>
   );
 

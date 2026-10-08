@@ -1,5 +1,6 @@
 import { ThreadContextDivider } from "./thread-context-divider";
 import { ThreadHandoffRow } from "./thread-handoff-row";
+import { SecretRequestCard } from "./SecretRequestCard";
 import {
   WorktreeWorkingHeader,
   WorktreeSetupCard,
@@ -24,6 +25,7 @@ import {
 } from "@t3tools/contracts";
 import { renderAssistantCitationsAsText } from "@t3tools/shared/assistantCitations";
 import { encodeComposerContextFragment } from "@t3tools/shared/composerContextClipboard";
+import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
 import {
   parseComposerContextHref,
   collectComposerContextReferences,
@@ -36,6 +38,8 @@ import {
   type CodexArtifactTemplate,
 } from "@t3tools/client-runtime/codex-artifact-templates";
 import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
+import { isMarkdownFileLinkLabel } from "@t3tools/client-runtime/markdown-links";
+import { getTextContent, type MarkdownNode } from "react-native-nitro-markdown/headless";
 import { formatAttachmentSize } from "@t3tools/client-runtime/state/attachments";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
@@ -77,7 +81,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Keyboard,
   Platform,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -161,6 +164,7 @@ import {
   threadFeedRunIsUnsettled,
   isContextCompactionActivityGroup,
   isContextHandoffActivityGroup,
+  isSecretRequestActivityGroup,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
 } from "../../lib/threadActivity";
@@ -182,6 +186,9 @@ import {
 import { appendPendingThreadMessages, type PendingThreadFeedEntry } from "./pending-thread-feed";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import { resolveThreadFeedFixedItemSize } from "./thread-feed-item-size";
+import { htmlRenderFrameHeight } from "@t3tools/shared/htmlRender";
+import { htmlRenderRowHeight, ThreadHtmlRender } from "./HtmlRenderWebView";
+import { mcpAppRowHeight, ThreadMcpApp } from "./McpAppWebView";
 import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import {
   assetEnvironment,
@@ -191,6 +198,7 @@ import {
 } from "../../state/assets";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { usePreparedConnection } from "../../state/session";
+import { useLiveThreadLinkLabels } from "../../state/entities";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { composerDocumentAttachmentRecord } from "../../lib/composerContext";
 import * as Option from "effect/Option";
@@ -237,11 +245,11 @@ function formatMessageTime(input: string): string {
 
 // Fixed heights mirror renderFeedEntry's classNames and are only used while
 // text fits at the current font settings. Larger accessibility text is measured.
-const TURN_FOLD_HEIGHT = 48; // min-h-11 (44) + mb-1 (4), with the mobile 16px rem
-// Tailwind spacing on the mobile 16px rem: px-3.5 on the user bubble, px-1 on
+const TURN_FOLD_HEIGHT = 42; // min-h-11 (38.5) + mb-1 (3.5), with the mobile 14px rem
+// Tailwind spacing on the mobile 14px rem: px-3.5 on the user bubble, px-1 on
 // assistant rows. Images size their frame from these before their own layout.
-const USER_BUBBLE_HORIZONTAL_PADDING = 3.5 * 4;
-const ASSISTANT_ROW_HORIZONTAL_PADDING = 4;
+const USER_BUBBLE_HORIZONTAL_PADDING = 3.5 * 3.5;
+const ASSISTANT_ROW_HORIZONTAL_PADDING = 3.5;
 // Let neighboring rows move out of the new rows' space before showing their text.
 const THREAD_FEED_DISCLOSURE_ENTER_TRANSITION = FadeIn.delay(
   THREAD_DISCLOSURE_TRANSITION_MS,
@@ -365,14 +373,14 @@ function AssistantForkButton(props: {
           })
           .finally(() => setBusy(false));
       }}
-      className="h-9 w-9 items-center justify-center disabled:opacity-40"
+      className="h-7 w-7 items-center justify-center disabled:opacity-40"
     >
       {busy ? (
         <ActivityIndicator size="small" />
       ) : (
         <SymbolView
           name="arrow.triangle.branch"
-          size={17}
+          size={13}
           tintColor={props.iconColor}
           type="monochrome"
         />
@@ -635,7 +643,7 @@ function MessageAttachmentFile(props: {
           </View>
           <SymbolView
             name="chevron.right"
-            size={13}
+            size={12}
             tintColorClassName="accent-foreground-muted"
             type="monochrome"
           />
@@ -722,7 +730,7 @@ interface MarkdownStyleSet {
 }
 
 const failedMarkdownFaviconHosts = new Set<string>();
-const MarkdownLinkLabelContext = createContext(false);
+const MarkdownLinkLabelContext = createContext<"file" | "other" | null>(null);
 const markdownLinkStyles = StyleSheet.create({
   inlineIcon: {
     width: 14,
@@ -814,6 +822,22 @@ function MarkdownInlineCode(props: {
   );
 }
 
+function MarkdownImage(props: {
+  readonly node: MarkdownNode;
+  readonly renderImage: MarkdownImageRenderer;
+}) {
+  const insideLink = useContext(MarkdownLinkLabelContext);
+  if (insideLink === "file")
+    return <NativeText>{props.node.alt ?? props.node.title ?? ""}</NativeText>;
+  return props.node.href
+    ? props.renderImage({
+        href: props.node.href,
+        alt: props.node.alt ?? null,
+        title: props.node.title ?? null,
+      })
+    : null;
+}
+
 const ARTIFACT_TEMPLATE_SYMBOL_BY_KIND: Record<
   CodexArtifactTemplate["artifactKind"],
   AppSymbolName
@@ -839,7 +863,7 @@ function ArtifactTemplateCard(props: {
       <View className="relative h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-subtle">
         <SymbolView
           name={ARTIFACT_TEMPLATE_SYMBOL_BY_KIND[props.template.artifactKind]}
-          size={22}
+          size={20}
           tintColorClassName="accent-foreground-muted"
           type="monochrome"
         />
@@ -883,16 +907,15 @@ interface MarkdownLinkHandlers {
 
 const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
   readonly markdown: string;
+  readonly environmentId: EnvironmentId;
   readonly markdownStyles: MarkdownStyleSet;
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly onUseArtifactTemplate?: ((template: CodexArtifactTemplate) => void) | undefined;
   readonly renderImage: MarkdownImageRenderer;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
-  const segments = useMemo(
-    () => splitCodexArtifactTemplateMarkdown(props.markdown),
-    [props.markdown],
-  );
+  const liveMarkdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
+  const segments = useMemo(() => splitCodexArtifactTemplateMarkdown(liveMarkdown), [liveMarkdown]);
 
   return segments.map((segment) => {
     if (segment.kind === "artifact-template") {
@@ -1184,26 +1207,31 @@ function useMarkdownStyles(
       preserveSoftBreaks: boolean,
       highlightCode: boolean,
     ): CustomRenderers => ({
-      link: ({ children, href = "" }) => {
+      link: ({ children, node, href = "" }) => {
         const presentation = resolveMarkdownLinkPresentation(href);
         if (presentation.kind === "file") {
           return (
-            <NativeText
-              className="font-t3-bold"
-              onPress={() => onLinkPress(href)}
-              style={{ color: inlineTextColor }}
-            >
-              <Image
-                source={markdownFileIconSource(presentation.icon)}
-                style={markdownLinkStyles.inlineIcon}
-              />
-              {presentation.label}
-            </NativeText>
+            <MarkdownLinkLabelContext.Provider value="file">
+              <NativeText onPress={() => onLinkPress(href)} style={{ color: inlineTextColor }}>
+                {!isMarkdownFileLinkLabel(getTextContent(node), href) && <>{children} </>}
+                <NativeText
+                  className="font-t3-bold"
+                  onPress={() => onLinkPress(href)}
+                  style={{ color: inlineTextColor }}
+                >
+                  <Image
+                    source={markdownFileIconSource(presentation.icon)}
+                    style={markdownLinkStyles.inlineIcon}
+                  />
+                  {presentation.label}
+                </NativeText>
+              </NativeText>
+            </MarkdownLinkLabelContext.Provider>
           );
         }
         if (presentation.kind === "external") {
           return (
-            <MarkdownLinkLabelContext.Provider value>
+            <MarkdownLinkLabelContext.Provider value="other">
               <MarkdownExternalLink
                 href={presentation.href}
                 host={presentation.host}
@@ -1216,16 +1244,20 @@ function useMarkdownStyles(
           );
         }
         const linkHref = presentation.href;
+        // A thread link opens the thread in the app, through the feed's link handler.
+        const isThreadLink = parseThreadLinkHref(href) !== null;
         return (
-          <MarkdownLinkLabelContext.Provider value>
+          <MarkdownLinkLabelContext.Provider value="other">
             <NativeText
               className="underline"
               onPress={
-                linkHref
-                  ? () => {
-                      void tryOpenExternalUrl(linkHref, "markdown-link");
-                    }
-                  : undefined
+                isThreadLink
+                  ? () => onLinkPress(href)
+                  : linkHref
+                    ? () => {
+                        void tryOpenExternalUrl(linkHref, "markdown-link");
+                      }
+                    : undefined
               }
               style={{ color: markdownLinkColor }}
             >
@@ -1266,14 +1298,7 @@ function useMarkdownStyles(
           })}
         </View>
       ),
-      image: ({ node }) =>
-        node.href
-          ? (renderImage({
-              href: node.href,
-              alt: node.alt ?? null,
-              title: node.title ?? null,
-            }) ?? undefined)
-          : undefined,
+      image: ({ node }) => <MarkdownImage node={node} renderImage={renderImage} />,
       code_inline: ({ content }) => (
         <MarkdownInlineCode
           content={content ?? ""}
@@ -1521,6 +1546,8 @@ function renderFeedEntry(
     readonly userBubbleMaxWidth: number;
     /** Width assistant markdown lays out in, so images can size their frame before layout. */
     readonly markdownContentWidth: number;
+    /** Width full-bleed rows (HTML renders) lay out in. */
+    readonly contentWidth: number;
     readonly threadTitle: string;
   },
 ) {
@@ -1559,6 +1586,32 @@ function renderFeedEntry(
     return <ThreadThinkingRow rowSizing={props.workRowSizing} iconSubtleColor={iconSubtleColor} />;
   }
 
+  if (entry.type === "html-render") {
+    return (
+      <ThreadHtmlRender
+        environmentId={props.environmentId}
+        threadId={props.threadId}
+        render={entry.render}
+        frameWidth={props.contentWidth}
+        iconColor={iconSubtleColor}
+      />
+    );
+  }
+
+  if (entry.type === "mcp-app") {
+    return (
+      <ThreadMcpApp
+        environmentId={props.environmentId}
+        threadId={entry.sourceThreadId}
+        conversationThreadId={props.threadId}
+        itemId={entry.itemId}
+        revision={entry.revision}
+        app={entry.app}
+        width={props.contentWidth}
+      />
+    );
+  }
+
   if (entry.type === "work-toggle") {
     return (
       <ThreadWorkGroupToggle
@@ -1575,6 +1628,7 @@ function renderFeedEntry(
         summaryToolIcon={entry.summaryToolIcon}
         hasFailure={entry.hasFailure}
         shimmer={entry.shimmer}
+        thought={entry.thought}
         onToggle={() => props.onToggleWorkGroup(entry.groupId, entry.id)}
       />
     );
@@ -1583,6 +1637,16 @@ function renderFeedEntry(
   if (entry.type === "activity-group" && isContextHandoffActivityGroup(entry)) {
     return (
       <ThreadHandoffRow
+        environmentId={props.environmentId}
+        projectedItem={entry.activities[0]!.projectedItem}
+        iconColor={iconSubtleColor}
+      />
+    );
+  }
+
+  if (entry.type === "activity-group" && isSecretRequestActivityGroup(entry)) {
+    return (
+      <SecretRequestCard
         environmentId={props.environmentId}
         projectedItem={entry.activities[0]!.projectedItem}
         iconColor={iconSubtleColor}
@@ -1782,14 +1846,14 @@ function renderFeedEntry(
                 accessibilityRole="button"
                 accessibilityLabel="Edit pending message"
                 hitSlop={8}
-                className="size-9 items-center justify-center"
+                className="size-7 items-center justify-center"
                 onPress={() => {
                   if (entry.pendingMessage && props.onEditPendingMessage) {
                     props.onEditPendingMessage(entry.pendingMessage);
                   }
                 }}
               >
-                <SymbolView name="pencil" size={17} tintColor={iconSubtleColor} />
+                <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
               </Pressable>
             ) : null}
             {presentation.text.trim().length > 0 ? (
@@ -1807,8 +1871,8 @@ function renderFeedEntry(
                     : undefined
                 }
                 tintColor={iconSubtleColor}
-                buttonSize={36}
-                iconSize={17}
+                buttonSize={28}
+                iconSize={13}
               />
             ) : null}
           </View>
@@ -1841,6 +1905,7 @@ function renderFeedEntry(
           <MarkdownImageAvailableWidthContext value={props.markdownContentWidth}>
             <AssistantMarkdownContent
               markdown={renderedText}
+              environmentId={props.environmentId}
               markdownStyles={styles}
               linkHandlers={props.markdownLinkHandlers}
               onUseArtifactTemplate={props.onUseArtifactTemplate}
@@ -1874,6 +1939,13 @@ function renderFeedEntry(
         })}
         {showAssistantMeta ? (
           <View className="mt-1 flex-row items-center gap-1">
+            <CopyTextButton
+              accessibilityLabel="Copy message"
+              text={renderedText}
+              tintColor={iconSubtleColor}
+              buttonSize={28}
+              iconSize={13}
+            />
             {message.projectedItem ? (
               <AssistantForkButton
                 environmentId={props.environmentId}
@@ -1882,13 +1954,6 @@ function renderFeedEntry(
                 sourceTitle={props.threadTitle}
               />
             ) : null}
-            <CopyTextButton
-              accessibilityLabel="Copy message"
-              text={renderedText}
-              tintColor={iconSubtleColor}
-              buttonSize={36}
-              iconSize={17}
-            />
             <Text className="font-t3-medium text-xs tabular-nums text-foreground-secondary">
               {timestampLabel}
             </Text>
@@ -1918,6 +1983,7 @@ function renderFeedEntry(
       onToggleRow={props.onToggleWorkRow}
       renderImage={props.renderViewedImage}
       renderReasoning={props.renderReasoning}
+      onPressPreview={props.onPressPreview}
     />
   );
 }
@@ -1937,7 +2003,8 @@ function UserMessageContent(props: UserMessageContentProps) {
   const [selected, setSelected] = useState<{ contextId: string; label: string } | null>(null);
   const navigation = useNavigation();
   const { selectedThread } = useThreadSelection();
-  const text = replaceComposerContextReferences(props.text, (ref) => {
+  const liveText = useLiveThreadLinkLabels(props.text, props.environmentId);
+  const text = replaceComposerContextReferences(liveText, (ref) => {
     const available = props.context?.records.some((record) => record.contextId === ref.contextId);
     return `[${ref.label}${available ? "" : " (unavailable)"}](t3-context://v1/${ref.kind}/${ref.contextId})`;
   });
@@ -2227,6 +2294,15 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const userBubbleColor = theme["--color-user-bubble"];
   const onMarkdownLinkPress = useCallback(
     (href: string) => {
+      // A thread link names a thread in this feed's environment.
+      const linkedThreadId = parseThreadLinkHref(href);
+      if (linkedThreadId) {
+        navigation.navigate("Thread", {
+          environmentId: String(props.environmentId),
+          threadId: String(linkedThreadId),
+        });
+        return;
+      }
       const presentation = resolveMarkdownLinkPresentation(href);
       if (presentation.kind === "file") {
         const relativePath = resolveWorkspaceRelativeFilePath(
@@ -2431,13 +2507,20 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     (text: string) => (
       <AssistantMarkdownContent
         markdown={text}
+        environmentId={props.environmentId}
         markdownStyles={markdownStyles.assistant}
         linkHandlers={markdownLinkHandlers}
         renderImage={renderMarkdownImage}
         skills={props.skills}
       />
     ),
-    [markdownStyles.assistant, markdownLinkHandlers, renderMarkdownImage, props.skills],
+    [
+      markdownStyles.assistant,
+      markdownLinkHandlers,
+      renderMarkdownImage,
+      props.skills,
+      props.environmentId,
+    ],
   );
   const reviewCommentColors = useReviewCommentColors();
   const unsettledTurnId = threadFeedRunIsUnsettled(props.latestRun) ? props.latestRun.runId : null;
@@ -2518,20 +2601,13 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       userScrollSettleTimerRef.current = null;
     }
   }, []);
-  // Helm fork: pulling the feed down toward earlier messages puts the keyboard away,
-  // so the composer rests as a two-line draft and the agent's text is readable.
-  const dragStartOffsetRef = useRef(0);
-  const handleScrollBeginDrag = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      dragStartOffsetRef.current = event.nativeEvent.contentOffset.y;
-      clearUserScrollSettle();
-      userScrollSessionRef.current = true;
-      // Pause before the first scroll event. Otherwise a stream update can run
-      // maintainScrollAtEnd between touch-down and the drag leaving its threshold.
-      transitionEndFollow({ type: "user-scroll-begin" });
-    },
-    [clearUserScrollSettle, transitionEndFollow],
-  );
+  const handleScrollBeginDrag = useCallback(() => {
+    clearUserScrollSettle();
+    userScrollSessionRef.current = true;
+    // Pause before the first scroll event. Otherwise a stream update can run
+    // maintainScrollAtEnd between touch-down and the drag leaving its threshold.
+    transitionEndFollow({ type: "user-scroll-begin" });
+  }, [clearUserScrollSettle, transitionEndFollow]);
   const finishUserScroll = useCallback(
     (releaseIsAtEnd?: boolean) => {
       clearUserScrollSettle();
@@ -2553,20 +2629,11 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // to announce itself; if it does, onMomentumScrollBegin cancels this fallback
   // and the session survives until the settled momentum-end position. This
   // mirrors the native-event handoff used by the home thread list's scroll gate.
-  const handleScrollEndDrag = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (
-        dragStartOffsetRef.current - event.nativeEvent.contentOffset.y > 40 &&
-        Keyboard.isVisible()
-      ) {
-        Keyboard.dismiss();
-      }
-      clearUserScrollSettle();
-      const releaseIsAtEnd = props.listRef.current?.getState().isAtEnd ?? false;
-      userScrollSettleTimerRef.current = setTimeout(() => finishUserScroll(releaseIsAtEnd), 160);
-    },
-    [clearUserScrollSettle, finishUserScroll, props.listRef],
-  );
+  const handleScrollEndDrag = useCallback(() => {
+    clearUserScrollSettle();
+    const releaseIsAtEnd = props.listRef.current?.getState().isAtEnd ?? false;
+    userScrollSettleTimerRef.current = setTimeout(() => finishUserScroll(releaseIsAtEnd), 160);
+  }, [clearUserScrollSettle, finishUserScroll, props.listRef]);
   const handleMomentumScrollBegin = useCallback(() => {
     if (userScrollSessionRef.current) {
       clearUserScrollSettle();
@@ -2870,6 +2937,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // cards and related-thread links can exceed the compact row height.
   const getFixedItemSize = useCallback(
     (entry: ThreadFeedEntry) => {
+      if (entry.type === "html-render") {
+        return htmlRenderRowHeight(htmlRenderFrameHeight(entry.render, contentWidth));
+      }
+      if (entry.type === "mcp-app") return mcpAppRowHeight();
       if (workRowSizing.fixedRowHeight === undefined) {
         return undefined;
       }
@@ -2877,6 +2948,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         case "run-fold":
           return resolveThreadFeedFixedItemSize(entry.type);
         case "work-toggle":
+          // A live thought wraps up to four lines, so that row measures itself.
+          return entry.thought ? undefined : WORK_GROUP_TOGGLE_HEIGHT;
         case "thinking":
           return WORK_GROUP_TOGGLE_HEIGHT;
         case "activity-group":
@@ -2903,8 +2976,20 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           return undefined;
       }
     },
-    [expandedWorkRows, workRowSizing.fixedRowHeight],
+    [contentWidth, expandedWorkRows, workRowSizing.fixedRowHeight],
   );
+  // HTML render rows' fixed heights follow the width, so a rotation or split
+  // resize drops the cached sizes, as a text-size change does.
+  const hasHtmlRenders = useMemo(
+    () => presentedFeed.some((entry) => entry.type === "html-render"),
+    [presentedFeed],
+  );
+  const previousContentWidth = useRef(contentWidth);
+  useLayoutEffect(() => {
+    if (previousContentWidth.current === contentWidth) return;
+    previousContentWidth.current = contentWidth;
+    if (hasHtmlRenders) props.listRef.current?.clearCaches({ mode: "sizes" });
+  }, [contentWidth, hasHtmlRenders, props.listRef]);
 
   // Disclosures can mount existing offscreen rows as well as new work rows.
   // Fade those in after movement; never retain removed rows over replacements.
@@ -2947,6 +3032,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             themeAppearance,
             userBubbleMaxWidth,
             markdownContentWidth,
+            contentWidth,
             threadTitle: props.threadTitle,
             skills: props.skills,
             workspaceRoot: props.workspaceRoot,
@@ -2983,6 +3069,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       themeAppearance,
       userBubbleMaxWidth,
       markdownContentWidth,
+      contentWidth,
       onCopyWorkRow,
       markdownLinkHandlers,
       onPressPreview,
@@ -3189,7 +3276,7 @@ function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
           {props.loading ? (
             <ActivityIndicator size="small" color={accentColor} />
           ) : (
-            <SymbolView name="chevron.up" size={13} tintColor={accentColor} type="monochrome" />
+            <SymbolView name="chevron.up" size={12} tintColor={accentColor} type="monochrome" />
           )}
           <Text className="text-sm font-medium text-foreground">
             {props.loading ? "Loading earlier activity…" : "Load earlier activity"}
