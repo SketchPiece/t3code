@@ -3,7 +3,8 @@ import { APP_BASE_NAME } from "../branding";
 
 export type DesktopUpdateButtonAction = "download" | "install" | "none";
 
-const DESKTOP_RELEASE_HISTORY_URL = "https://github.com/pingdotgg/t3code/releases";
+// Helm: update notes link to the fork's releases (scripts/helm-release.sh).
+const DESKTOP_RELEASE_HISTORY_URL = "https://github.com/SketchPiece/t3code/releases";
 const DESKTOP_RELEASE_TAG_URL = `${DESKTOP_RELEASE_HISTORY_URL}/tag`;
 
 /**
