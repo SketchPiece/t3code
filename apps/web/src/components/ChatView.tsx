@@ -295,6 +295,7 @@ import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
 import { retainOpenThreadScope } from "../lib/backgroundActivityReporter";
 import { REMOTE_SCROLL_EVENT, type RemoteScrollDetail } from "../helm/RemoteCommandCoordinator";
+import { makeScrollGlide } from "../helm/remoteScrollGlide";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { resolveChatShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
@@ -6508,20 +6509,23 @@ export default function ChatView(props: ChatViewProps) {
   // Helm fork: Helm Mobile's remote. Opening or typing into this thread shows the latest; its
   // trackpad scrolls the timeline like the wheel would (leaving live-follow, as the wheel does).
   useEffect(() => {
+    const glide = makeScrollGlide(() => legendListRef.current?.getScrollableNode());
     const onRemote = (event: Event) => {
       const detail = (event as CustomEvent<RemoteScrollDetail>).detail;
       if (detail.threadKey !== routeThreadKey) return;
       if (detail.by === undefined) {
+        glide.stop();
         scrollToEnd(detail.smooth === true);
         return;
       }
-      const node = legendListRef.current?.getScrollableNode();
-      if (!node) return;
       if (detail.by < 0) cancelTimelineLiveFollowForUserNavigation();
-      node.scrollBy({ top: detail.by, behavior: detail.smooth ? "smooth" : "instant" });
+      glide.add(detail.by, detail.smooth === true);
     };
     window.addEventListener(REMOTE_SCROLL_EVENT, onRemote);
-    return () => window.removeEventListener(REMOTE_SCROLL_EVENT, onRemote);
+    return () => {
+      window.removeEventListener(REMOTE_SCROLL_EVENT, onRemote);
+      glide.stop();
+    };
   }, [cancelTimelineLiveFollowForUserNavigation, routeThreadKey, scrollToEnd]);
   useEffect(() => {
     let removeListeners: (() => void) | null = null;
