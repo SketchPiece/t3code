@@ -7,6 +7,10 @@ import type { ThemeColors } from "./themePalettes.ts";
 // for errors and stop so it never competes with an action.
 
 export const HELM_DARK_THEME_COLORS: ThemeColors = {
+  searchMatchBackground: "#6b4f1f",
+  searchMatchForeground: "#efe7d6",
+  searchMatchActiveBackground: "#e8a33d",
+  searchMatchActiveForeground: "#161310",
   canvas: "#161310",
   chrome: "#161310",
   toolbar: "#161310",
@@ -67,6 +71,10 @@ export const HELM_DARK_THEME_COLORS: ThemeColors = {
 };
 
 export const HELM_LIGHT_THEME_COLORS: ThemeColors = {
+  searchMatchBackground: "#f3cd6c",
+  searchMatchForeground: "#1f1b18",
+  searchMatchActiveBackground: "#d98a1f",
+  searchMatchActiveForeground: "#161310",
   canvas: "#e7e0d2",
   chrome: "#e7e0d2",
   toolbar: "#e7e0d2",
