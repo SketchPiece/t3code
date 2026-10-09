@@ -294,7 +294,7 @@ import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
 import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
 import { retainOpenThreadScope } from "../lib/backgroundActivityReporter";
-import { REMOTE_SCROLL_TO_END_EVENT } from "../helm/RemoteCommandCoordinator";
+import { REMOTE_SCROLL_EVENT, type RemoteScrollDetail } from "../helm/RemoteCommandCoordinator";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { resolveChatShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
@@ -6505,14 +6505,24 @@ export default function ChatView(props: ChatViewProps) {
       void legendListRef.current?.scrollToEnd?.({ animated });
     });
   }, []);
-  // Helm fork: Helm Mobile's remote opened this thread (or typed into it): show the latest.
+  // Helm fork: Helm Mobile's remote. Opening or typing into this thread shows the latest; its
+  // trackpad scrolls the timeline like the wheel would (leaving live-follow, as the wheel does).
   useEffect(() => {
     const onRemote = (event: Event) => {
-      if ((event as CustomEvent<string>).detail === routeThreadKey) scrollToEnd();
+      const detail = (event as CustomEvent<RemoteScrollDetail>).detail;
+      if (detail.threadKey !== routeThreadKey) return;
+      if (detail.by === undefined) {
+        scrollToEnd(detail.smooth === true);
+        return;
+      }
+      const node = legendListRef.current?.getScrollableNode();
+      if (!node) return;
+      if (detail.by < 0) cancelTimelineLiveFollowForUserNavigation();
+      node.scrollBy({ top: detail.by, behavior: detail.smooth ? "smooth" : "instant" });
     };
-    window.addEventListener(REMOTE_SCROLL_TO_END_EVENT, onRemote);
-    return () => window.removeEventListener(REMOTE_SCROLL_TO_END_EVENT, onRemote);
-  }, [routeThreadKey, scrollToEnd]);
+    window.addEventListener(REMOTE_SCROLL_EVENT, onRemote);
+    return () => window.removeEventListener(REMOTE_SCROLL_EVENT, onRemote);
+  }, [cancelTimelineLiveFollowForUserNavigation, routeThreadKey, scrollToEnd]);
   useEffect(() => {
     let removeListeners: (() => void) | null = null;
     let frame: number | null = null;

@@ -18,6 +18,16 @@ export const HelmRemoteCommand = Schema.Union([
     threadId: ThreadId,
     text: Schema.String.check(Schema.isMaxLength(20_000)),
   }),
+  /** Scroll the thread's timeline by `by` pixels (positive: toward newer), or to its end without `by`. */
+  Schema.Struct({
+    type: Schema.Literal("timeline.scroll"),
+    threadId: ThreadId,
+    by: Schema.optional(
+      Schema.Number.check(Schema.isBetween({ minimum: -20_000, maximum: 20_000 })),
+    ),
+    /** Glide there (a fling), instead of moving at once (a drag). */
+    smooth: Schema.optional(Schema.Boolean),
+  }),
 ]);
 export type HelmRemoteCommand = typeof HelmRemoteCommand.Type;
 
