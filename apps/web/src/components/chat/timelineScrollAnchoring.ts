@@ -165,6 +165,12 @@ export function readTimelinePosition(threadKey: string) {
   return rememberedTimelinePositions.get(threadKey);
 }
 
+/** Helm fork: the next time this thread opens it starts at the end, its disclosures kept. */
+export function rememberTimelineAtEnd(threadKey: string) {
+  const existing = rememberedTimelinePositions.get(threadKey);
+  if (existing) rememberTimelinePosition(threadKey, { ...existing, atEnd: true });
+}
+
 export function rememberTimelinePosition(threadKey: string, position: RememberedTimelinePosition) {
   rememberedTimelinePositions.delete(threadKey);
   rememberedTimelinePositions.set(threadKey, position);

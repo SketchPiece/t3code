@@ -294,6 +294,7 @@ import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
 import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
 import { retainOpenThreadScope } from "../lib/backgroundActivityReporter";
+import { REMOTE_SCROLL_TO_END_EVENT } from "../helm/RemoteCommandCoordinator";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { resolveChatShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
@@ -6504,6 +6505,14 @@ export default function ChatView(props: ChatViewProps) {
       void legendListRef.current?.scrollToEnd?.({ animated });
     });
   }, []);
+  // Helm fork: Helm Mobile's remote opened this thread (or typed into it): show the latest.
+  useEffect(() => {
+    const onRemote = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === routeThreadKey) scrollToEnd();
+    };
+    window.addEventListener(REMOTE_SCROLL_TO_END_EVENT, onRemote);
+    return () => window.removeEventListener(REMOTE_SCROLL_TO_END_EVENT, onRemote);
+  }, [routeThreadKey, scrollToEnd]);
   useEffect(() => {
     let removeListeners: (() => void) | null = null;
     let frame: number | null = null;
