@@ -7,7 +7,8 @@ import { buildThreadRouteParams } from "../threadRoutes";
 import { onRemoteCommand } from "./remoteCommands";
 
 // Helm fork: acts on Helm Mobile's remote. "thread.open" shows the thread and brings the window
-// forward; "composer.insert" shows the thread and adds the dictated words to its draft.
+// forward (not when the remote only switches threads); "composer.insert" shows the thread and adds
+// the dictated words to its draft.
 export function RemoteCommandCoordinator() {
   const navigate = useNavigate();
 
@@ -17,7 +18,7 @@ export function RemoteCommandCoordinator() {
         const ref = { environmentId, threadId: command.threadId };
         void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
         if (command.type === "thread.open") {
-          void window.desktopBridge?.revealWindow?.();
+          if (command.reveal !== false) void window.desktopBridge?.revealWindow?.();
           return;
         }
         const text = command.text.trim();
