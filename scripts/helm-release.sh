@@ -12,6 +12,9 @@
 set -euo pipefail
 
 REPO="SketchPiece/t3code"
+# Publish as the repo's owner even when another gh account is the active one.
+GH_TOKEN="${GH_TOKEN:-$(gh auth token --user SketchPiece 2>/dev/null || true)}"
+[[ -n "$GH_TOKEN" ]] && export GH_TOKEN || unset GH_TOKEN
 SIGN_IDENTITY="${HELM_MAC_SIGN_IDENTITY:-Apple Development: Andrew Liubkin (Z6693LCFL6)}"
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
