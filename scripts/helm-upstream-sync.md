@@ -29,7 +29,8 @@ git -C ~/Documents/Projects/t3code log --oneline "$last"..helm
 - New upstream tag: go on with step 2.
 - Upstream up to date, but `helm` has commits since `$last`: skip the merge,
   run step 3 in the main checkout (no worktree needed), then step 4.
-- Neither: stop and reply with one short line. Nothing else.
+- Neither: reply with one short line and settle the thread (step 5). Nothing
+  else.
 
 ## 2. Merge in the sync worktree
 
@@ -103,3 +104,12 @@ files with uncommitted edits there), don't force it: tell the user.
 
 Reply with one short message: the upstream tag, the Helm version, the
 release link, and anything you fixed or translated along the way.
+
+## 5. Settle the thread
+
+When the run needed nothing from the user (nothing new, or released with
+every conflict resolved and every check passing), call `t3_thread_organize`
+with `action: "settle"` and no `threadId` right before the final reply. Helm
+settles the thread when the turn ends, so the run doesn't wait in the inbox.
+Don't settle when you are asking about a hard conflict, a check failed, the
+release or the `helm` fast-forward failed, or anything else needs the user.
