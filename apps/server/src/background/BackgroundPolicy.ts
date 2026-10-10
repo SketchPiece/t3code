@@ -70,6 +70,7 @@ function scopeKey(scope: BackgroundScope): string {
     case "git-refs":
       return `${scope.type}:${scope.cwd}`;
     case "thread":
+    case "draft-thread":
       return `${scope.type}:${scope.threadId}`;
   }
 }

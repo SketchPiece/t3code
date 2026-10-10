@@ -18,6 +18,16 @@ export const HelmRemoteCommand = Schema.Union([
     threadId: ThreadId,
     text: Schema.String.check(Schema.isMaxLength(20_000)),
   }),
+  /**
+   * Add a picture the phone uploaded (an attachment on this server) to the thread's composer
+   * draft, for the user to send with what they write there.
+   */
+  Schema.Struct({
+    type: Schema.Literal("composer.attach"),
+    threadId: ThreadId,
+    attachmentId: Schema.String.check(Schema.isMaxLength(256)),
+    name: Schema.String.check(Schema.isMaxLength(256)),
+  }),
   /** Scroll the thread's timeline by `by` pixels (positive: toward newer), or to its end without `by`. */
   Schema.Struct({
     type: Schema.Literal("timeline.scroll"),

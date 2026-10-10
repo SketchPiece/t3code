@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import {
   AuthSessionId,
   EnvironmentId,
+  ProjectId,
   RpcClientId,
   ThreadId,
   TrimmedNonEmptyString,
@@ -55,6 +56,13 @@ export const BackgroundScope = Schema.Union([
   Schema.Struct({ type: Schema.Literal("git-refs"), cwd: Schema.String }),
   Schema.Struct({ type: Schema.Literal("diagnostics") }),
   Schema.Struct({ type: Schema.Literal("thread"), threadId: ThreadId }),
+  // Helm fork: a new thread open in a desktop window, not sent yet, so the server has no thread
+  // by that id. Helm Mobile's remote offers it to type and add pictures into.
+  Schema.Struct({
+    type: Schema.Literal("draft-thread"),
+    threadId: ThreadId,
+    projectId: ProjectId,
+  }),
 ]);
 export type BackgroundScope = typeof BackgroundScope.Type;
 

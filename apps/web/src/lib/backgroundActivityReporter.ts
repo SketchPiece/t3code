@@ -8,6 +8,7 @@ import {
   type BackgroundScope,
   type ClientActivityReportInput,
   type EnvironmentId,
+  type ProjectId,
   type ThreadId,
   WS_METHODS,
 } from "@t3tools/contracts";
@@ -58,6 +59,7 @@ function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): s
     case "git-refs":
       return JSON.stringify([environmentId, scope.type, scope.cwd]);
     case "thread":
+    case "draft-thread":
       return JSON.stringify([environmentId, scope.type, scope.threadId]);
   }
 }
@@ -152,6 +154,15 @@ export function retainOpenThreadScope(
   threadId: ThreadId,
 ): () => void {
   return retainBackgroundScope(environmentId, { type: "thread", threadId });
+}
+
+/** The same for a new thread not sent yet: the id it will get, and its project. */
+export function retainOpenDraftThreadScope(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  projectId: ProjectId,
+): () => void {
+  return retainBackgroundScope(environmentId, { type: "draft-thread", threadId, projectId });
 }
 
 export function observeBackgroundActivitySubscription(
