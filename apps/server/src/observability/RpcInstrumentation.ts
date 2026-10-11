@@ -205,6 +205,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeBackgroundPolicy]: "server",
   [WS_METHODS.voiceTranscribe]: "server", // Helm fork: helm/voiceTranscription.ts
   [WS_METHODS.helmRemoteSend]: "server", // Helm fork: helm/remoteCommands.ts
+  [WS_METHODS.helmDraftsSet]: "server", // Helm fork: helm/drafts.ts
+  [WS_METHODS.helmDraftsSubscribe]: "server",
   [WS_METHODS.helmRemoteSubscribe]: "server",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 

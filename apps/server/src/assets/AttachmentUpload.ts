@@ -30,6 +30,7 @@ import {
 } from "../auth/utils.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
+import { draftAttachmentIds } from "../helm/drafts.ts";
 import { inferImageExtension } from "../imageMime.ts";
 
 export const ATTACHMENT_UPLOAD_ROUTE_PREFIX = "/api/attachments/upload";
@@ -87,6 +88,7 @@ export const issueAttachmentUploadUrl = Effect.fn("AttachmentUpload.issueUrl")(f
     const swept = sweepStalePendingAttachments({
       attachmentsDir: config.attachmentsDir,
       nowMs,
+      keep: draftAttachmentIds(config.stateDir),
     });
     if (swept.deleted > 0) {
       yield* Effect.logInfo("Removed expired attachment uploads.", { deleted: swept.deleted });
