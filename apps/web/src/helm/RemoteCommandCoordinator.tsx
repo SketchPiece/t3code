@@ -15,6 +15,7 @@ import {
   resolveComposerDraftKey,
   useComposerDraftStore,
 } from "../composerDraftStore";
+import { adoptAttachmentUpload, forgetAttachmentUpload } from "../lib/attachmentUploadQueue";
 import { dispatchSnapShotComposerFocus } from "../lib/desktopSnapShot";
 import { randomUUID } from "../lib/utils";
 import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
@@ -87,16 +88,22 @@ export function RemoteCommandCoordinator() {
       }
       if (!blob.type.startsWith("image/")) return fail();
       const file = new File([blob], command.name, { type: blob.type });
+      const id = randomUUID();
+      // Already uploaded by the phone: sent (and shared as a draft) without uploading it again.
+      adoptAttachmentUpload({ id, environmentId, attachmentId: command.attachmentId });
       const accepted = useComposerDraftStore.getState().addImage(target, {
         type: "image",
-        id: randomUUID(),
+        id,
         name: file.name,
         mimeType: file.type,
         sizeBytes: file.size,
         previewUrl: URL.createObjectURL(file),
         file,
       });
-      if (!accepted) return fail();
+      if (!accepted) {
+        forgetAttachmentUpload(id);
+        return fail();
+      }
       dispatchSnapShotComposerFocus();
     }
 
