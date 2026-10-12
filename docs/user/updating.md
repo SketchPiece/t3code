@@ -24,6 +24,15 @@ The confirmation counts the running threads that the restarts will interrupt,
 and how many can resume afterwards. See **Continue threads after restarts**
 below.
 
+## Automatic desktop updates
+
+**Settings → General → Install updates automatically** is on by default in
+the desktop app. It downloads each update as soon as it appears, then restarts
+into it once no thread on this computer is working, queued, or waiting for
+you, and you have not used the app for three minutes. Threads on remote
+machines do not hold it back. If a download or install fails, the app waits for
+you to retry from the sidebar.
+
 ## Before you update
 
 Server updates restart the connection and can interrupt active agents and

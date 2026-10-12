@@ -564,6 +564,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     releaseChannelOnly: true,
   },
   {
+    id: "auto-install-updates",
+    title: "Install updates automatically",
+    to: "/settings/general",
+    searchTerms: ["auto update upgrade restart idle background download"],
+    desktopOnly: true,
+  },
+  {
     id: "cli-command",
     title: "t3 command",
     to: "/settings/general",

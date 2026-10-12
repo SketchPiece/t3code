@@ -285,6 +285,8 @@ function AboutVersionTitle() {
 
 function AboutVersionSection() {
   const updateState = useDesktopUpdateState();
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
   const [isChangingUpdateChannel, setIsChangingUpdateChannel] = useState(false);
   const [isUpdateActionPending, setIsUpdateActionPending] = useState(false);
 
@@ -515,6 +517,34 @@ function AboutVersionSection() {
           }
         />
       ) : null}
+      {hasDesktopBridge ? (
+        <SettingsRow
+          {...searchableSetting("auto-install-updates")}
+          description="Download updates when they appear and restart into them once no thread on this Mac is working and you have stepped away."
+          resetAction={
+            settings.autoInstallDesktopUpdates !==
+            DEFAULT_UNIFIED_SETTINGS.autoInstallDesktopUpdates ? (
+              <SettingResetButton
+                label="automatic updates"
+                onClick={() =>
+                  updateSettings({
+                    autoInstallDesktopUpdates: DEFAULT_UNIFIED_SETTINGS.autoInstallDesktopUpdates,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.autoInstallDesktopUpdates}
+              onCheckedChange={(checked) =>
+                updateSettings({ autoInstallDesktopUpdates: Boolean(checked) })
+              }
+              aria-label="Install updates automatically"
+            />
+          }
+        />
+      ) : null}
       {showNightlyMobileBeta ? <NightlyMobileBetaRow /> : null}
       {hasDesktopBridge ? <CliCommandSettingsRow /> : null}
     </>
@@ -660,6 +690,9 @@ export function useSettingsRestore(onRestored?: () => void) {
         ? ["Delete confirmation"]
         : []),
       ...(settings.confirmQuit !== DEFAULT_UNIFIED_SETTINGS.confirmQuit ? ["Quit shortcut"] : []),
+      ...(settings.autoInstallDesktopUpdates !== DEFAULT_UNIFIED_SETTINGS.autoInstallDesktopUpdates
+        ? ["Install updates automatically"]
+        : []),
       ...(isTextGenerationModelDirty ? ["Text generation model"] : []),
       ...getChangedBrowserSettingLabels(settings),
       ...(settings.enableAgentBrowserAccess !== DEFAULT_UNIFIED_SETTINGS.enableAgentBrowserAccess
@@ -682,6 +715,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.chatWidth,
       settings.enableAgentBrowserAccess,
       settings.confirmQuit,
+      settings.autoInstallDesktopUpdates,
       settings.confirmThreadArchive,
       settings.confirmThreadDelete,
       settings.confirmThreadUnpin,
@@ -837,6 +871,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
       confirmThreadUnpin: DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin,
       confirmQuit: DEFAULT_UNIFIED_SETTINGS.confirmQuit,
+      autoInstallDesktopUpdates: DEFAULT_UNIFIED_SETTINGS.autoInstallDesktopUpdates,
       textGenerationModelSelection: DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
       fontFamilySans: DEFAULT_UNIFIED_SETTINGS.fontFamilySans,
       fontFamilyComposer: DEFAULT_UNIFIED_SETTINGS.fontFamilyComposer,
