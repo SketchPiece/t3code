@@ -3,8 +3,6 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
-import { EnvironmentRegistry } from "@t3tools/client-runtime/connection";
-import { request, subscribe } from "@t3tools/client-runtime/rpc";
 import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
 import {
@@ -15,20 +13,13 @@ import {
   type HelmDraft,
   type HelmDraftAttachment,
   type HelmDraftEvent,
-  type HelmDraftSetInput,
   type ProjectId,
   type ScopedProjectRef,
   type ThreadId,
-  WS_METHODS,
   helmDraftIsEmpty,
   helmProjectDraftKey,
 } from "@t3tools/contracts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Queue from "effect/Queue";
-import * as Stream from "effect/Stream";
-import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import {
   type ComposerFileAttachment,
@@ -73,6 +64,7 @@ import {
   viewIsEmpty,
   viewIsSettled,
 } from "./draftSyncLogic";
+import { canSendDrafts, handleDraftEvents, sendDraft } from "./draftSyncConnection";
 
 // Helm fork: unsent drafts shared by Helm and Helm Mobile (contracts/helmDrafts.ts). Every
 // environment's `helm.drafts.subscribe` feeds its drafts into the composer draft store, and local
@@ -85,7 +77,6 @@ import {
 //   A draft whose stamp changed was edited here since and wins; otherwise the server's is the truth.
 
 const PUSH_DELAY_MS = 400;
-const SEND_TIMEOUT = "20 seconds";
 const RETRY_DELAY_MS = 5_000;
 const FETCH_TIMEOUT_MS = 60_000;
 const STORAGE_PREFIX = "helm:draft-sync:v1:";
@@ -111,9 +102,6 @@ interface EnvironmentSync {
 }
 
 const environments = new Map<EnvironmentId, EnvironmentSync>();
-let sendDraft:
-  | ((environmentId: EnvironmentId, input: HelmDraftSetInput) => Promise<boolean>)
-  | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 const unsavedEnvironments = new Set<EnvironmentId>();
@@ -378,7 +366,7 @@ function pushIfDirty(
     if (settled) markSynced(environmentId, key, fingerprint);
     return;
   }
-  if (!sendDraft) return;
+  if (!canSendDrafts()) return;
   sync.inFlight.add(key);
   rememberServerDraft(sync, {
     key,
@@ -651,7 +639,7 @@ function receiveChange(environmentId: EnvironmentId, draft: HelmDraft): void {
 }
 
 /** Handles one event of an environment's `helm.drafts.subscribe`, in arrival order. */
-export function receiveDraftEvent(environmentId: EnvironmentId, event: HelmDraftEvent): void {
+function receiveDraftEvent(environmentId: EnvironmentId, event: HelmDraftEvent): void {
   if (event.type === "snapshot") receiveSnapshot(environmentId, event.drafts);
   else receiveChange(environmentId, event.draft);
 }
@@ -692,8 +680,10 @@ export function startDraftSync(): () => void {
     environmentProjects.projectsAtom,
     retryWaitingProjectDrafts,
   );
+  const stopEvents = handleDraftEvents({ follow: followEnvironments, receive: receiveDraftEvent });
   schedulePush();
   return () => {
+    stopEvents();
     stopDrafts();
     stopUploads();
     stopProjects();
@@ -701,62 +691,3 @@ export function startDraftSync(): () => void {
     pushTimer = null;
   };
 }
-
-// ── Connection ──────────────────────────────────────────────────────────────
-
-interface OutgoingDraft {
-  readonly environmentId: EnvironmentId;
-  readonly input: HelmDraftSetInput;
-  readonly done: (sent: boolean) => void;
-}
-
-const sameIds = (left: ReadonlyArray<EnvironmentId>, right: ReadonlyArray<EnvironmentId>) =>
-  left.length === right.length && left.every((id, index) => id === right[index]);
-
-export const layer = Layer.effectDiscard(
-  Effect.gen(function* () {
-    if (typeof window === "undefined") return;
-    const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-    const outbox = yield* Queue.unbounded<OutgoingDraft>();
-    sendDraft = (environmentId, input) =>
-      new Promise((done) => {
-        Queue.offerUnsafe(outbox, { environmentId, input, done });
-      });
-    yield* Stream.fromQueue(outbox).pipe(
-      Stream.mapEffect(
-        ({ environmentId, input, done }) =>
-          registry
-            .run(environmentId, request(WS_METHODS.helmDraftsSet, input))
-            .pipe(
-              Effect.timeout(SEND_TIMEOUT),
-              Effect.match({ onFailure: () => done(false), onSuccess: () => done(true) }),
-            ),
-        { concurrency: "unbounded" },
-      ),
-      Stream.runDrain,
-      Effect.forkScoped,
-    );
-    yield* SubscriptionRef.changes(registry.entries).pipe(
-      Stream.map((entries) => Array.from(entries.keys()).toSorted()),
-      // Only a change in which environments exist restarts the subscriptions.
-      Stream.changesWith(sameIds),
-      Stream.tap((environmentIds) => Effect.sync(() => followEnvironments(environmentIds))),
-      Stream.switchMap((environmentIds) =>
-        Stream.mergeAll(
-          environmentIds.map((environmentId) =>
-            registry.runStream(environmentId, subscribe(WS_METHODS.helmDraftsSubscribe, {})).pipe(
-              Stream.map((event) => [environmentId, event] as const),
-              // Servers without shared drafts end the stream; nothing to sync there.
-              Stream.catchCause(() => Stream.empty),
-            ),
-          ),
-          { concurrency: "unbounded" },
-        ),
-      ),
-      Stream.runForEach(([environmentId, event]) =>
-        Effect.sync(() => receiveDraftEvent(environmentId, event)),
-      ),
-      Effect.forkScoped,
-    );
-  }),
-);
