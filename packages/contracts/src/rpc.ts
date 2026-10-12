@@ -106,6 +106,7 @@ import {
   VoiceTranscribeInput,
   VoiceTranscribeResult,
 } from "./voiceTranscription.ts";
+import { HelmDraft, HelmDraftEvent, HelmDraftSetInput } from "./helmDrafts.ts";
 import { HelmRemoteCommand, HelmRemoteSendResult } from "./helmRemote.ts";
 import {
   PersistChatAttachmentsError,
@@ -404,6 +405,8 @@ export const WS_METHODS = {
   voiceTranscribe: "voice.transcribe",
   // Helm fork: Helm Mobile as a remote (helmRemote.ts).
   helmRemoteSend: "helm.remote.send",
+  // Helm fork: drafts shared by the Mac and the phone (helmDrafts.ts).
+  helmDraftsSet: "helm.drafts.set",
 
   // MCP Apps methods
   mcpAppsCallTool: "mcpApps.callTool",
@@ -594,6 +597,7 @@ export const WS_METHODS = {
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
   helmRemoteSubscribe: "helm.remote.subscribe",
+  helmDraftsSubscribe: "helm.drafts.subscribe",
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -1338,6 +1342,19 @@ const WsHelmRemoteSendRpc = Rpc.make(WS_METHODS.helmRemoteSend, {
   error: EnvironmentAuthorizationError,
 });
 
+const WsHelmDraftsSetRpc = Rpc.make(WS_METHODS.helmDraftsSet, {
+  payload: HelmDraftSetInput,
+  success: HelmDraft,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsHelmDraftsSubscribeRpc = Rpc.make(WS_METHODS.helmDraftsSubscribe, {
+  payload: Schema.Struct({}),
+  success: HelmDraftEvent,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 const WsHelmRemoteSubscribeRpc = Rpc.make(WS_METHODS.helmRemoteSubscribe, {
   payload: Schema.Struct({}),
   success: HelmRemoteCommand,
@@ -2029,6 +2046,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsVoiceTranscribeRpc,
   WsHelmRemoteSendRpc,
   WsHelmRemoteSubscribeRpc,
+  WsHelmDraftsSetRpc,
+  WsHelmDraftsSubscribeRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,

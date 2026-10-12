@@ -527,6 +527,32 @@ function cancelAttachmentUpload(imageId: string): void {
   job.resolveSettled();
 }
 
+/**
+ * Helm fork: links an attachment to an upload another device already made on that server (a
+ * shared draft's picture), so the composer sends it as is instead of uploading it again.
+ */
+export function adoptAttachmentUpload(input: {
+  readonly id: string;
+  readonly environmentId: EnvironmentId;
+  readonly attachmentId: string;
+}): void {
+  if (jobsByImageId.has(input.id)) return;
+  setUploadState(input.id, {
+    status: "ready",
+    environmentId: input.environmentId,
+    attachmentId: input.attachmentId,
+  });
+}
+
+/**
+ * Helm fork: drops what this window knows about an attachment's upload without deleting the
+ * server copy, for a shared draft's attachment another device took out (it may have sent it).
+ */
+export function forgetAttachmentUpload(imageId: string): void {
+  cancelAttachmentUpload(imageId);
+  clearUploadState(imageId);
+}
+
 export function releaseAttachmentUpload(imageId: string): void {
   const upload = readAttachmentUpload(imageId);
   cancelAttachmentUpload(imageId);

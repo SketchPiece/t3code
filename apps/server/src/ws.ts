@@ -189,6 +189,7 @@ import { attachmentRelativePath, createDeterministicAttachmentId } from "./attac
 import { parseBase64DataUrl } from "./imageMime.ts";
 import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/AttachmentUpload.ts";
 import { transcribeVoice } from "./helm/voiceTranscription.ts";
+import { draftEvents, setDraft } from "./helm/drafts.ts";
 import { remoteCommands, sendRemoteCommand } from "./helm/remoteCommands.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
@@ -2739,6 +2740,8 @@ const layerWsRpc = (
           }),
         // Helm fork: helm/remoteCommands.ts
         [WS_METHODS.helmRemoteSend]: (input) => sendRemoteCommand(input),
+        // Helm fork: helm/drafts.ts
+        [WS_METHODS.helmDraftsSet]: (input) => setDraft(config.stateDir, input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -3154,6 +3157,7 @@ const layerWsRpc = (
             ),
           ),
         [WS_METHODS.helmRemoteSubscribe]: (_input) => remoteCommands,
+        [WS_METHODS.helmDraftsSubscribe]: (_input) => draftEvents(config.stateDir),
         [WS_METHODS.subscribeResourceTelemetry]: (_input) =>
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>

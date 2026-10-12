@@ -17,6 +17,7 @@ import type * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 
 import { sweepStalePendingAttachments } from "./attachmentStore.ts";
+import { draftAttachmentIds } from "./helm/drafts.ts";
 import { DEFAULT_SIGNAL_EXPORT, type SignalExport } from "@t3tools/shared/observability";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 
@@ -192,6 +193,7 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
   const swept = sweepStalePendingAttachments({
     attachmentsDir: derivedPaths.attachmentsDir,
     nowMs: yield* Clock.currentTimeMillis,
+    keep: draftAttachmentIds(derivedPaths.stateDir),
   });
   if (swept.deleted > 0) {
     yield* Effect.logInfo("Removed expired attachment uploads.", { deleted: swept.deleted });

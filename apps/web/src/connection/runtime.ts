@@ -10,6 +10,7 @@ import { Atom } from "effect/reactivity";
 
 import * as Runtime from "../lib/runtime";
 import * as BackgroundActivityReporter from "../lib/backgroundActivityReporter";
+import * as HelmDraftSync from "../helm/draftSync";
 import * as HelmRemoteCommands from "../helm/remoteCommands";
 import * as ConnectionPlatform from "./platform";
 
@@ -29,7 +30,8 @@ type ConnectionLayerSource =
   | typeof ConnectionPlatform.layer
   | typeof BackgroundActivityReporter.layerObserver
   | typeof BackgroundActivityReporter.layer
-  | typeof HelmRemoteCommands.layer;
+  | typeof HelmRemoteCommands.layer
+  | typeof HelmDraftSync.layer;
 
 const layerProvidedClientConnection = layerSnapshotLoader.pipe(
   Layer.provideMerge(
@@ -48,9 +50,10 @@ const layerProvidedClientConnection = layerSnapshotLoader.pipe(
   ),
 );
 
-const layerConnection = Layer.merge(
+const layerConnection = Layer.mergeAll(
   BackgroundActivityReporter.layer,
   HelmRemoteCommands.layer, // Helm fork: helm/remoteCommands.ts
+  HelmDraftSync.layer, // Helm fork: helm/draftSync.ts
 ).pipe(Layer.provideMerge(layerProvidedClientConnection));
 
 export const connectionAtomRuntime: Atom.AtomRuntime<

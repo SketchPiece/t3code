@@ -253,6 +253,8 @@ export function planAttachmentClaim(input: {
 export function sweepStalePendingAttachments(input: {
   readonly attachmentsDir: string;
   readonly nowMs: number;
+  /** Pending uploads still in use however old (Helm fork: ones a shared draft holds). */
+  readonly keep?: ReadonlySet<string>;
 }): { readonly deleted: number } {
   let entries: string[];
   try {
@@ -268,7 +270,8 @@ export function sweepStalePendingAttachments(input: {
       const attachmentId = parseAttachmentIdFromRelativePath(entry);
       if (
         !attachmentId ||
-        parseThreadSegmentFromAttachmentId(attachmentId) !== PENDING_ATTACHMENT_THREAD_SEGMENT
+        parseThreadSegmentFromAttachmentId(attachmentId) !== PENDING_ATTACHMENT_THREAD_SEGMENT ||
+        input.keep?.has(attachmentId)
       ) {
         continue;
       }

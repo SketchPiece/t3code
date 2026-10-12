@@ -165,6 +165,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.attachmentsDelete]: AuthOrchestrationOperateScope,
   [WS_METHODS.voiceTranscribe]: AuthOrchestrationOperateScope,
   [WS_METHODS.helmRemoteSend]: AuthOrchestrationOperateScope, // Helm fork
+  [WS_METHODS.helmDraftsSet]: AuthOrchestrationOperateScope, // Helm fork
   [WS_METHODS.providerUploadFeedback]: AuthOrchestrationOperateScope,
   // An app's tool calls can change things on its server, like a user action.
   [WS_METHODS.mcpAppsCallTool]: AuthOrchestrationOperateScope,
@@ -216,6 +217,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeAuthAccess]: AuthAccessReadScope,
   [WS_METHODS.subscribeBackgroundPolicy]: AuthOrchestrationReadScope,
   [WS_METHODS.helmRemoteSubscribe]: AuthOrchestrationReadScope, // Helm fork
+  [WS_METHODS.helmDraftsSubscribe]: AuthOrchestrationReadScope, // Helm fork
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
 
 export function requiredScopeForRpcMethod(method: string): AuthEnvironmentScope {
