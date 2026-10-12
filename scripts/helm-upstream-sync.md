@@ -91,8 +91,14 @@ fix it if it's easy, ask if it's hard.
 scripts/helm-release.sh
 ```
 
-It builds the signed DMG, pushes HEAD to `origin/helm`, and publishes the
-GitHub release that installed Helm apps update from. Then move the main
+It builds the signed DMG, launches the built update twice in a throwaway HOME
+(fresh profile, then a pruned copy of the real Helm data) with
+`scripts/helm-smoke-mac.sh`, and only then pushes HEAD to `origin/helm` and
+publishes the GitHub release that installed Helm apps update from. Installed
+apps restart into a new release on their own once they are idle, so a build
+that fails the launch check must never ship: if it fails, nothing is
+published. Report the failing run and its log path (it stays in
+`/tmp/helm-smoke.*`) and ask; don't retry blindly or skip the check. Then move the main
 checkout's `helm` branch to the released commit:
 
 ```sh

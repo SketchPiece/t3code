@@ -3,7 +3,11 @@
 # release on SketchPiece/t3code, where installed Helm apps look for updates.
 #
 #   scripts/helm-release.sh            build + publish
-#   scripts/helm-release.sh --dry-run  build only, print what would be published
+#   scripts/helm-release.sh --dry-run  build and launch check only, print what would be published
+#
+# Before publishing it runs scripts/helm-smoke-mac.sh, which launches the built
+# update on a fresh profile and on a copy of the real data, and stops the
+# release when either launch fails.
 #
 # Version: <upstream base>-helm.<YYYYMMDD>.<n>, e.g. 0.0.46-helm.20261008.1.
 # The base comes from the newest upstream nightly tag merged into HEAD. The
@@ -51,6 +55,10 @@ assets=("$out"/*.dmg "$out"/*.zip "$out"/*.blockmap "$out"/latest-mac.yml)
 for asset in "${assets[@]}"; do
   [[ -f "$asset" ]] || { echo "helm-release: missing $asset" >&2; exit 1; }
 done
+
+# Never publish a build that can't start: installed apps restart into it on
+# their own.
+scripts/helm-smoke-mac.sh "$out"/*.zip
 
 if ((DRY_RUN)); then
   printf 'helm-release: dry run, would publish %s with:\n' "$tag"
