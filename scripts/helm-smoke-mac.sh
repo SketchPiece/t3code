@@ -9,7 +9,9 @@
 # Each run passes once the window's renderer talks to its own backend over the
 # WebSocket and the app is still alive a few seconds later. Every run uses a
 # throwaway HOME, so the installed Helm, its profile, data and single-instance
-# lock are never touched. Exits non-zero when any run fails.
+# lock are never touched. --use-mock-keychain keeps Electron's safe storage out
+# of the login Keychain, whose access prompt would block an unattended run.
+# Exits non-zero when any run fails.
 #
 #   scripts/helm-smoke-mac.sh <Helm-<version>-arm64.zip>
 set -euo pipefail
@@ -49,7 +51,7 @@ run() {
   local trace="$home/.helm/userdata/logs/server.trace.ndjson"
   echo "helm-smoke: $name: launching"
   env -u ELECTRON_RUN_AS_NODE -u T3CODE_HOME HOME="$home" T3CODE_DISABLE_AUTO_UPDATE=1 \
-    "$binary" >"$log" 2>&1 &
+    "$binary" --use-mock-keychain >"$log" 2>&1 &
   app_pid=$!
 
   local waited=0
