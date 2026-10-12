@@ -149,11 +149,13 @@ function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundSc
 
 // Helm fork: the thread open in this window rides along in the activity report,
 // so Helm Mobile can offer a remote for what the Mac is looking at.
+// Whether its composer holds a draft rides along too, for the remote's Send.
 export function retainOpenThreadScope(
   environmentId: EnvironmentId,
   threadId: ThreadId,
+  composerHasContent: boolean,
 ): () => void {
-  return retainBackgroundScope(environmentId, { type: "thread", threadId });
+  return retainBackgroundScope(environmentId, { type: "thread", threadId, composerHasContent });
 }
 
 /** The same for a new thread not sent yet: the id it will get, and its project. */
@@ -161,8 +163,14 @@ export function retainOpenDraftThreadScope(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   projectId: ProjectId,
+  composerHasContent: boolean,
 ): () => void {
-  return retainBackgroundScope(environmentId, { type: "draft-thread", threadId, projectId });
+  return retainBackgroundScope(environmentId, {
+    type: "draft-thread",
+    threadId,
+    projectId,
+    composerHasContent,
+  });
 }
 
 export function observeBackgroundActivitySubscription(

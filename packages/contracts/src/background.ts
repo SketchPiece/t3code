@@ -55,13 +55,19 @@ export const BackgroundScope = Schema.Union([
   Schema.Struct({ type: Schema.Literal("vcs-status"), cwd: Schema.String }),
   Schema.Struct({ type: Schema.Literal("git-refs"), cwd: Schema.String }),
   Schema.Struct({ type: Schema.Literal("diagnostics") }),
-  Schema.Struct({ type: Schema.Literal("thread"), threadId: ThreadId }),
+  Schema.Struct({
+    type: Schema.Literal("thread"),
+    threadId: ThreadId,
+    // Helm fork: the desktop window's composer holds a draft, so Helm Mobile's remote offers Send.
+    composerHasContent: Schema.optionalKey(Schema.Boolean),
+  }),
   // Helm fork: a new thread open in a desktop window, not sent yet, so the server has no thread
   // by that id. Helm Mobile's remote offers it to type and add pictures into.
   Schema.Struct({
     type: Schema.Literal("draft-thread"),
     threadId: ThreadId,
     projectId: ProjectId,
+    composerHasContent: Schema.optionalKey(Schema.Boolean),
   }),
 ]);
 export type BackgroundScope = typeof BackgroundScope.Type;

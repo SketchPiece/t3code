@@ -301,6 +301,7 @@ import {
   retainOpenThreadScope,
 } from "../lib/backgroundActivityReporter";
 import { REMOTE_SCROLL_EVENT, type RemoteScrollDetail } from "../helm/RemoteCommandCoordinator";
+import { onRemoteSend } from "../helm/remoteComposer";
 import { makeScrollGlide } from "../helm/remoteScrollGlide";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { resolveChatShortcutCommand, shortcutLabelForCommand } from "../keybindings";
@@ -1874,11 +1875,6 @@ export default function ChatView(props: ChatViewProps) {
   // Helm fork: tell the server which thread this window shows (Helm Mobile's remote), a new
   // one not sent yet included.
   const draftThreadProjectId = routeKind === "draft" ? (draftThread?.projectId ?? null) : null;
-  useEffect(() => {
-    if (routeKind === "server") return retainOpenThreadScope(environmentId, threadId);
-    if (draftThreadProjectId === null) return;
-    return retainOpenDraftThreadScope(environmentId, threadId, draftThreadProjectId);
-  }, [draftThreadProjectId, environmentId, routeKind, threadId]);
 
   useEffect(() => {
     const item = expandedImage?.images[expandedImage.index];
@@ -7340,6 +7336,19 @@ export default function ChatView(props: ChatViewProps) {
   const composerHasDraftContent = useComposerDraftStore((store) =>
     composerDraftHasUserContent(store.getComposerDraft(composerDraftTarget)),
   );
+  // Helm fork: whether the draft holds anything rides along, so the remote can offer Send.
+  useEffect(() => {
+    if (routeKind === "server") {
+      return retainOpenThreadScope(environmentId, threadId, composerHasDraftContent);
+    }
+    if (draftThreadProjectId === null) return;
+    return retainOpenDraftThreadScope(
+      environmentId,
+      threadId,
+      draftThreadProjectId,
+      composerHasDraftContent,
+    );
+  }, [composerHasDraftContent, draftThreadProjectId, environmentId, routeKind, threadId]);
   const nowMinute = useNowMinute();
   const activeBranchMismatchKey = branchMismatchKey(
     activeThread?.id ?? null,
@@ -10953,6 +10962,8 @@ export default function ChatView(props: ChatViewProps) {
   }, [cancelWorktreeSetup, draftId, setupTarget.environmentId, worktreeSetup]);
   const onSendRef = useRef(onSend);
   onSendRef.current = onSend;
+  // Helm fork: Send pressed on Helm Mobile's remote.
+  useEffect(() => onRemoteSend(routeThreadKey, () => void onSendRef.current()), [routeThreadKey]);
   const onResumeRef = useRef(onResume);
   onResumeRef.current = onResume;
   const onCompactContextRef = useRef(onCompactContext);

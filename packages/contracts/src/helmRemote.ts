@@ -28,6 +28,21 @@ export const HelmRemoteCommand = Schema.Union([
     attachmentId: Schema.String.check(Schema.isMaxLength(256)),
     name: Schema.String.check(Schema.isMaxLength(256)),
   }),
+  /**
+   * The phone is listening (or transcribing) for this thread's composer: the window shows that in
+   * place of the draft and holds typing until the words arrive. `active` false, or a
+   * "composer.insert", ends it; so does silence for a while, should the phone go away.
+   */
+  Schema.Struct({
+    type: Schema.Literal("composer.dictation"),
+    threadId: ThreadId,
+    active: Schema.Boolean,
+  }),
+  /** Send the thread's composer draft as it stands, as if Send were pressed in the window. */
+  Schema.Struct({
+    type: Schema.Literal("composer.send"),
+    threadId: ThreadId,
+  }),
   /** Scroll the thread's timeline by `by` pixels (positive: toward newer), or to its end without `by`. */
   Schema.Struct({
     type: Schema.Literal("timeline.scroll"),

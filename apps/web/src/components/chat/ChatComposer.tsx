@@ -244,6 +244,7 @@ import {
   threadContextReference,
 } from "~/lib/composerContextRecords";
 import { matchComposerThreadItems } from "@t3tools/client-runtime/composerThreadItems";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { THREAD_CONTEXT_DROP_EVENT, threadContextDropTargetProps } from "./threadContextDrag";
 import { readThreadShell, useThreadShells } from "~/state/entities";
 import { requestConfirmDialog } from "~/confirmDialog";
@@ -272,6 +273,8 @@ import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import { ComposerImageThumbnail } from "./ComposerImageThumbnail";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 import { ComposerDictationBar, ComposerDictationButton } from "./ComposerDictation";
+import { ComposerRemoteDictation } from "./ComposerRemoteDictation";
+import { useRemoteDictation } from "../../helm/remoteComposer";
 import { useComposerVoiceInput } from "./useComposerVoiceInput";
 import { isBrowserVoiceRecordingSupported } from "~/lib/browserVoiceRecorder";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
@@ -4003,6 +4006,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       });
     },
   });
+  // Helm fork: Helm Mobile's remote is listening for this thread's draft.
+  const remoteDictating = useRemoteDictation(scopedThreadKey(routeThreadRef));
   const showVoiceInputAction =
     supportsVoiceTranscription &&
     isBrowserVoiceRecordingSupported() &&
@@ -7548,7 +7553,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     buildContextClipboardFragment={buildContextClipboardFragment}
                     importContextFragment={importContextFragment}
                     skills={selectedProviderSkills}
-                    containerClassName={cn(isComposerResting && "min-w-0 flex-1")}
+                    containerClassName={cn(
+                      isComposerResting && "min-w-0 flex-1",
+                      remoteDictating && "hidden",
+                    )}
                     className={cn(
                       showMobilePendingAnswerActions && "max-sm:pb-12",
                       isComposerResting &&
@@ -7591,10 +7599,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       isChoiceOnlyPendingQuestion ||
                       activePendingIsResponding ||
                       // The transcript lands in the draft as it was when dictation started.
-                      voiceInput.blocksSubmission
+                      voiceInput.blocksSubmission ||
+                      remoteDictating
                     }
                   />
                 </ComposerContextActionsContext>
+                {remoteDictating ? <ComposerRemoteDictation compact={isComposerResting} /> : null}
                 {isComposerResting ? collapsedComposerImagePreviews : null}
                 {showMobilePendingAnswerActions ? (
                   <div

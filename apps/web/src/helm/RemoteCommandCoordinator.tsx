@@ -19,6 +19,7 @@ import { dispatchSnapShotComposerFocus } from "../lib/desktopSnapShot";
 import { randomUUID } from "../lib/utils";
 import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
 import { onRemoteCommand } from "./remoteCommands";
+import { requestRemoteSend, setRemoteDictation } from "./remoteComposer";
 
 // Helm fork: acts on Helm Mobile's remote.
 // - "thread.open" shows the thread at its latest messages and brings the window forward (not when
@@ -26,6 +27,8 @@ import { onRemoteCommand } from "./remoteCommands";
 // - "composer.insert" does the same and adds the dictated words to the thread's draft.
 // - "composer.attach" does the same and adds a picture the phone uploaded to the draft.
 // A new thread not sent yet is opened and typed into as its draft.
+// - "composer.dictation" shows that the phone is listening for the thread's composer.
+// - "composer.send" sends the thread's draft as if Send were pressed.
 // - "timeline.scroll" moves the shown thread's timeline, the remote being a trackpad for it.
 
 /** Asks the open ChatView to scroll: `by` pixels, or to the end when `by` is missing. */
@@ -111,6 +114,16 @@ export function RemoteCommandCoordinator() {
         });
         return;
       }
+      // Both act on the thread the window already shows.
+      if (command.type === "composer.dictation") {
+        setRemoteDictation(threadKey, command.active);
+        return;
+      }
+      if (command.type === "composer.send") {
+        setRemoteDictation(threadKey, false);
+        requestRemoteSend(threadKey);
+        return;
+      }
       const draftId = unsentDraft(ref);
       const target: ComposerThreadTarget = draftId ?? ref;
       if (draftId) {
@@ -129,6 +142,7 @@ export function RemoteCommandCoordinator() {
         void attach(environmentId, target, command);
         return;
       }
+      setRemoteDictation(threadKey, false);
       const text = command.text.trim();
       if (text.length === 0) return;
       const store = useComposerDraftStore.getState();
@@ -136,7 +150,11 @@ export function RemoteCommandCoordinator() {
       const current = (key ? store.draftsByThreadKey[key]?.prompt : undefined) ?? "";
       const head = current.replace(/\s+$/, "");
       store.setPrompt(target, head.length > 0 ? `${head} ${text}` : text);
-      dispatchSnapShotComposerFocus();
+      // The caret goes after the words once the editor shows them; focused any sooner it lands at
+      // the end of the old draft, and what is typed or said next goes in ahead of the new words.
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(dispatchSnapShotComposerFocus),
+      );
     });
   }, [createAssetUrl, navigate]);
 
