@@ -1,6 +1,6 @@
 // Helm fork: the desktop app's own identity, so Helm installs next to T3 Code
 // without sharing its app bundle, data, deep links or update feed. Keep the
-// schemes in sync with DESKTOP_RENDERER_ORIGINS in apps/server/src/http.ts.
+// schemes in sync with DESKTOP_RENDERER_ORIGINS in apps/server/src/httpCors.ts.
 export const HELM_DESKTOP_IDENTITY = {
   appId: "com.sketchpiece.helm",
   productName: "Helm",

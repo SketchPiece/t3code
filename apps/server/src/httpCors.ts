@@ -9,3 +9,12 @@ export const browserApiCorsAllowedHeaders = [
   "dpop",
   ORCHESTRATION_PROTOCOL_HEADER,
 ] as const;
+
+/** Origins of the Electron renderer, packaged and dev. */
+// Helm fork: Helm's renderer origins (apps/desktop/src/helm/identity.ts).
+export const DESKTOP_RENDERER_ORIGINS = [
+  "t3code://app",
+  "t3code-dev://app",
+  "helm://app",
+  "helm-dev://app",
+] as const;

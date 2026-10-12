@@ -168,12 +168,19 @@ export function readTimelinePosition(threadKey: string) {
 /** Helm fork: the next time this thread opens it starts at the end, its disclosures kept. */
 export function rememberTimelineAtEnd(threadKey: string) {
   const existing = rememberedTimelinePositions.get(threadKey);
-  if (existing) rememberTimelinePosition(threadKey, { ...existing, atEnd: true });
+  if (existing) rememberTimelinePosition(threadKey, { ...existing, atEnd: true }, false);
 }
 
-export function rememberTimelinePosition(threadKey: string, position: RememberedTimelinePosition) {
+export function rememberTimelinePosition(
+  threadKey: string,
+  position: RememberedTimelinePosition,
+  liveFollowEnabled: boolean,
+) {
   rememberedTimelinePositions.delete(threadKey);
-  rememberedTimelinePositions.set(threadKey, position);
+  rememberedTimelinePositions.set(threadKey, {
+    ...position,
+    atEnd: liveFollowEnabled || position.atEnd,
+  });
   if (rememberedTimelinePositions.size > 100) {
     const oldest = rememberedTimelinePositions.keys().next().value;
     if (oldest !== undefined) rememberedTimelinePositions.delete(oldest);
