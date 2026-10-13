@@ -2399,6 +2399,44 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
   if (input.platform !== "win") {
     yield* fs.chmod(destinationPath, 0o755);
   }
+
+  // Helm fork: the screen remote's Swift helper (native/helm-screen) rides along in the same
+  // folder; the server finds it next to the resource monitor.
+  if (input.platform === "mac") {
+    const archs =
+      input.arch === "universal"
+        ? ["arm64", "x86_64"]
+        : [input.arch === "x64" ? "x86_64" : "arm64"];
+    const slices: string[] = [];
+    for (const arch of archs) {
+      const slice = path.join(input.repoRoot, "native/helm-screen/build", `helm-screen-${arch}`);
+      yield* fs.makeDirectory(path.dirname(slice), { recursive: true });
+      yield* runCommand(
+        ChildProcess.make("xcrun", [
+          "swiftc",
+          "-O",
+          "-swift-version",
+          "5",
+          "-target",
+          `${arch}-apple-macos14.0`,
+          path.join(input.repoRoot, "native/helm-screen/main.swift"),
+          "-o",
+          slice,
+        ]),
+        { label: `swiftc helm-screen (${arch})`, verbose: input.verbose },
+      );
+      slices.push(slice);
+    }
+    const helmScreenPath = path.join(destinationDirectory, "helm-screen");
+    yield* runCommand(
+      ChildProcess.make("lipo", ["-create", ...slices, "-output", helmScreenPath]),
+      {
+        label: "lipo helm-screen",
+        verbose: input.verbose,
+      },
+    );
+    yield* fs.chmod(helmScreenPath, 0o755);
+  }
 });
 
 export const stageBrowserSecret = Effect.fn("stageBrowserSecret")(function* (input: {

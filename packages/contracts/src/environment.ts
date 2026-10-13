@@ -102,6 +102,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   attachmentUploads: Schema.optionalKey(Schema.Boolean),
   /** Helm fork: voice.transcribe works (the server has a transcription backend). */
   voiceTranscription: Schema.optionalKey(Schema.Boolean),
+  /** Helm fork: `/api/helm/screen` streams this Mac's screen and takes mouse and keys (experimental). */
+  screenRemote: Schema.optionalKey(Schema.Boolean),
   /** Uploaded files may accompany question answers. */
   questionAttachments: Schema.optionalKey(Schema.Boolean),
   /** Missing on servers that only accept image attachments. */
