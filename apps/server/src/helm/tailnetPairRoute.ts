@@ -19,6 +19,12 @@ import { deriveAuthClientMetadata } from "../auth/utils.ts";
 // credential leaves the server until someone signed in to Helm with
 // access:write answers "Allow". The phone then pairs with that one-time
 // credential the usual way. Requests live in memory for five minutes.
+//
+// A device on the local network (no Tailscale) may ask too, the way AirPlay
+// pairs: after "Allow" the Mac shows a four-digit code, and the credential
+// goes only to a request that sends that code back. Whoever reads the code is
+// at the Mac, so a stranger on the same Wi-Fi gets nothing from a misplaced
+// "Allow"; five wrong codes end the request.
 export const HELM_TAILNET_PAIR_PATH = "/api/helm/tailnet-pair";
 export const HELM_TAILNET_PAIR_REQUESTS_PATH = "/api/helm/tailnet-pair-requests";
 
@@ -40,6 +46,30 @@ const Whois = Schema.Struct({
 });
 const AskBody = Schema.Struct({ label: Schema.optional(Schema.String) });
 const AnswerBody = Schema.Struct({ id: Schema.String, approve: Schema.Boolean });
+const ConfirmBody = Schema.Struct({ id: Schema.String, code: Schema.String });
+export const HELM_TAILNET_PAIR_CONFIRM_PATH = "/api/helm/tailnet-pair/confirm";
+const CODE_ATTEMPTS = 5;
+
+/** Four random digits for the Mac to show. */
+const randomCode = () =>
+  String((globalThis.crypto.getRandomValues(new Uint32Array(1))[0] ?? 0) % 10_000).padStart(4, "0");
+
+/** A private address on the local network: 10/8, 172.16/12, 192.168/16, link-local, IPv6 ULA. */
+export function isLocalNetworkAddress(address: string | undefined): boolean {
+  if (!address) return false;
+  const ip = address.toLowerCase().replace(/^::ffff:/, "");
+  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    );
+  }
+  return /^fe[89ab][0-9a-f]:/.test(ip) || /^f[cd][0-9a-f]{2}:/.test(ip);
+}
 
 /** Why a pairing request is refused, or null when its node belongs to this Mac's user. */
 export function tailnetPairRefusal(input: {
@@ -58,10 +88,18 @@ interface PairRequest {
   /** What the phone calls itself, then its tailnet name. */
   readonly label: string;
   readonly nodeName: string;
+  /** Asked from the local network: the credential waits for the code the Mac shows. */
+  readonly needsCode: boolean;
   readonly createdAt: number;
   status: "pending" | "approved" | "denied";
-  credential?: string;
+  credential?: string | undefined;
+  code?: string | undefined;
+  attempts: number;
 }
+
+type CheckResult =
+  | { status: "pending" | "denied" | "expired" | "enterCode" | "wrongCode" }
+  | { status: "approved"; credential: string };
 
 /** Pending requests and the change counter the Mac's prompt long-polls on. */
 export class TailnetPairRequests {
@@ -79,25 +117,35 @@ export class TailnetPairRequests {
   }
 
   /** One open request per address; asking again keeps the first. */
-  ask(input: { id: string; address: string; label: string; nodeName: string }): PairRequest {
+  ask(input: {
+    id: string;
+    address: string;
+    label: string;
+    nodeName: string;
+    needsCode?: boolean;
+  }): PairRequest {
     this.#expire();
     for (const request of this.#requests.values()) {
       if (request.address === input.address && request.status === "pending") return request;
     }
-    const request: PairRequest = { ...input, createdAt: this.#now(), status: "pending" };
+    const request: PairRequest = {
+      ...input,
+      needsCode: input.needsCode ?? false,
+      createdAt: this.#now(),
+      status: "pending",
+      attempts: 0,
+    };
     this.#requests.set(request.id, request);
     this.#changed();
     return request;
   }
 
   /** The asker's view. A granted credential is handed out once, then forgotten. */
-  check(
-    id: string,
-    address: string,
-  ): { status: "pending" | "denied" | "expired" } | { status: "approved"; credential: string } {
+  check(id: string, address: string): CheckResult {
     this.#expire();
     const request = this.#requests.get(id);
     if (!request || request.address !== address) return { status: "expired" };
+    if (request.status === "approved" && request.code) return { status: "enterCode" };
     if (request.status === "approved" && request.credential) {
       this.#requests.delete(id);
       return { status: "approved", credential: request.credential };
@@ -106,36 +154,86 @@ export class TailnetPairRequests {
     return { status: request.status === "denied" ? "denied" : "pending" };
   }
 
+  /** A local-network request sends back the code the Mac shows; the credential follows a match. */
+  confirm(id: string, address: string, code: string): CheckResult {
+    this.#expire();
+    const request = this.#requests.get(id);
+    if (!request || request.address !== address) return { status: "expired" };
+    if (request.status !== "approved" || !request.code || !request.credential) {
+      return this.check(id, address);
+    }
+    if (code.trim() === request.code) {
+      this.#requests.delete(id);
+      this.#changed();
+      return { status: "approved", credential: request.credential };
+    }
+    request.attempts += 1;
+    if (request.attempts >= CODE_ATTEMPTS) {
+      this.#requests.delete(id);
+      this.#changed();
+      return { status: "expired" };
+    }
+    return { status: "wrongCode" };
+  }
+
   pending(): ReadonlyArray<{
     id: string;
     label: string;
     nodeName: string;
     address: string;
+    needsCode: boolean;
     createdAt: number;
   }> {
     this.#expire();
     return [...this.#requests.values()]
       .filter((request) => request.status === "pending")
-      .map(({ id, label, nodeName, address, createdAt }) => ({
+      .map(({ id, label, nodeName, address, needsCode, createdAt }) => ({
         id,
         label,
         nodeName,
         address,
+        needsCode,
         createdAt,
       }));
   }
 
+  /** Allowed local-network requests whose code the Mac shows until the device sends it back. */
+  awaitingCode(): ReadonlyArray<{ id: string; label: string; address: string; code: string }> {
+    this.#expire();
+    return [...this.#requests.values()].flatMap((request) =>
+      request.status === "approved" && request.code
+        ? [{ id: request.id, label: request.label, address: request.address, code: request.code }]
+        : [],
+    );
+  }
+
+  /**
+   * The owner's answer. Allowing a local-network request returns the code to show; denying
+   * also takes back a code still on screen.
+   */
   answer(
     id: string,
     decision: { approve: false } | { approve: true; credential: string },
-  ): boolean {
+    newCode: () => string = randomCode,
+  ): { ok: boolean; code?: string } {
     this.#expire();
     const request = this.#requests.get(id);
-    if (!request || request.status !== "pending") return false;
-    request.status = decision.approve ? "approved" : "denied";
-    if (decision.approve) request.credential = decision.credential;
+    const awaiting = request?.status === "approved" && request.code !== undefined;
+    if (!request || (request.status !== "pending" && !(awaiting && !decision.approve))) {
+      return { ok: false };
+    }
+    if (!decision.approve) {
+      request.status = "denied";
+      request.code = undefined;
+      request.credential = undefined;
+      this.#changed();
+      return { ok: true };
+    }
+    request.status = "approved";
+    request.credential = decision.credential;
+    if (request.needsCode) request.code = newCode();
     this.#changed();
-    return true;
+    return request.code ? { ok: true, code: request.code } : { ok: true };
   }
 
   /** Resolves once the pending list changes after `version`, or after `timeoutMs`. */
@@ -201,6 +299,16 @@ const runTailscaleJson = <S extends Schema.Top>(schema: S, args: ReadonlyArray<s
     return yield* new TailnetPairRefused({ reason: "tailscale CLI unavailable" });
   });
 
+/** Who may ask: a node of the owner's tailnet, or (with a code to come) a device on the local network. */
+const pairCaller = Effect.gen(function* () {
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  const address = deriveAuthClientMetadata({ request }).ipAddress;
+  if (address && isLocalNetworkAddress(address)) {
+    return { address, nodeName: address, needsCode: true };
+  }
+  return { ...(yield* ownTailnetCaller), needsCode: false };
+});
+
 /** The tailnet caller, checked to be a node of this Mac's own Tailscale user. */
 const ownTailnetCaller = Effect.gen(function* () {
   const request = yield* HttpServerRequest.HttpServerRequest;
@@ -259,7 +367,7 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
     HELM_TAILNET_PAIR_PATH,
     refuse(
       Effect.gen(function* () {
-        const caller = yield* ownTailnetCaller;
+        const caller = yield* pairCaller;
         const request = yield* HttpServerRequest.HttpServerRequest;
         const body = yield* request.json.pipe(
           Effect.flatMap(Schema.decodeUnknownEffect(AskBody)),
@@ -268,7 +376,10 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
         const label = body.label?.trim().slice(0, 80) || caller.nodeName;
         const id = yield* (yield* Crypto.Crypto).randomUUIDv4;
         const asked = requests.ask({ ...caller, id, label });
-        yield* Effect.logInfo("helm tailnet pairing requested", { node: caller.nodeName });
+        yield* Effect.logInfo("helm tailnet pairing requested", {
+          node: caller.nodeName,
+          localNetwork: caller.needsCode,
+        });
         return HttpServerResponse.jsonUnsafe({ requestId: asked.id });
       }),
     ),
@@ -279,10 +390,27 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
     HELM_TAILNET_PAIR_PATH,
     refuse(
       Effect.gen(function* () {
-        const caller = yield* ownTailnetCaller;
+        const caller = yield* pairCaller;
         const request = yield* HttpServerRequest.HttpServerRequest;
         const id = searchParam(request.url, "id") ?? "";
         return HttpServerResponse.jsonUnsafe(requests.check(id, caller.address));
+      }),
+    ),
+  ),
+  // Device on the local network: the code the Mac shows.
+  HttpRouter.add(
+    "POST",
+    HELM_TAILNET_PAIR_CONFIRM_PATH,
+    refuse(
+      Effect.gen(function* () {
+        const caller = yield* pairCaller;
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const body = yield* request.json.pipe(
+          Effect.flatMap(Schema.decodeUnknownEffect(ConfirmBody)),
+        );
+        const result = requests.confirm(body.id, caller.address, body.code);
+        yield* Effect.logInfo("helm local pairing code", { status: result.status });
+        return HttpServerResponse.jsonUnsafe(result);
       }),
     ),
   ),
@@ -301,6 +429,7 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
         return HttpServerResponse.jsonUnsafe({
           version: requests.version,
           requests: requests.pending(),
+          codes: requests.awaitingCode(),
         });
       }),
     ),
@@ -317,15 +446,17 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
           Effect.flatMap(Schema.decodeUnknownEffect(AnswerBody)),
         );
         if (!body.approve) {
-          return HttpServerResponse.jsonUnsafe({
-            ok: requests.answer(body.id, { approve: false }),
-          });
+          return HttpServerResponse.jsonUnsafe(requests.answer(body.id, { approve: false }));
         }
         const auth = yield* EnvironmentAuth.EnvironmentAuth;
         const issued = yield* auth.issuePairingCredential();
-        const ok = requests.answer(body.id, { approve: true, credential: issued.credential });
-        yield* Effect.logInfo("helm tailnet pairing answered", { approved: true, ok });
-        return HttpServerResponse.jsonUnsafe({ ok });
+        const answered = requests.answer(body.id, { approve: true, credential: issued.credential });
+        yield* Effect.logInfo("helm tailnet pairing answered", {
+          approved: true,
+          ok: answered.ok,
+          code: answered.code !== undefined,
+        });
+        return HttpServerResponse.jsonUnsafe(answered);
       }),
     ),
   ),

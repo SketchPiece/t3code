@@ -3,7 +3,11 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 
-import { TailnetPairRequests, tailnetPairRefusal } from "./tailnetPairRoute.ts";
+import {
+  TailnetPairRequests,
+  isLocalNetworkAddress,
+  tailnetPairRefusal,
+} from "./tailnetPairRoute.ts";
 
 describe("tailnetPairRefusal", () => {
   it("pairs only nodes of this Mac's own Tailscale user, reached over the tailnet", () => {
@@ -16,6 +20,33 @@ describe("tailnetPairRefusal", () => {
       "another tailnet user",
     );
     assert.isNull(tailnetPairRefusal({ address: "100.80.0.2", ownerUserId: 1, callerUserId: 1 }));
+  });
+});
+
+describe("isLocalNetworkAddress", () => {
+  it("takes private and link-local addresses, not the internet, loopback or the tailnet", () => {
+    for (const address of [
+      "192.168.1.4",
+      "10.0.0.7",
+      "172.20.1.1",
+      "169.254.3.3",
+      "::ffff:192.168.1.4",
+      "fe80::1",
+      "fd12::3",
+    ]) {
+      assert.isTrue(isLocalNetworkAddress(address), address);
+    }
+    for (const address of [
+      "8.8.8.8",
+      "127.0.0.1",
+      "::1",
+      "100.80.0.2",
+      "172.32.0.1",
+      "2001:db8::1",
+      undefined,
+    ]) {
+      assert.isFalse(isLocalNetworkAddress(address), String(address));
+    }
   });
 });
 
@@ -34,7 +65,9 @@ describe("TailnetPairRequests", () => {
       { status: "expired" },
       "only the asker sees it",
     );
-    assert.isTrue(requests.answer(first.id, { approve: true, credential: "one-time" }));
+    assert.deepStrictEqual(requests.answer(first.id, { approve: true, credential: "one-time" }), {
+      ok: true,
+    });
     assert.deepStrictEqual(requests.pending(), []);
     assert.deepStrictEqual(requests.check(first.id, phone.address), {
       status: "approved",
@@ -47,8 +80,8 @@ describe("TailnetPairRequests", () => {
     let now = 0;
     const requests = new TailnetPairRequests(() => now);
     const denied = ask(requests);
-    assert.isTrue(requests.answer(denied.id, { approve: false }));
-    assert.isFalse(requests.answer(denied.id, { approve: true, credential: "late" }));
+    assert.isTrue(requests.answer(denied.id, { approve: false }).ok);
+    assert.isFalse(requests.answer(denied.id, { approve: true, credential: "late" }).ok);
     assert.deepStrictEqual(requests.check(denied.id, phone.address), { status: "denied" });
     const stale = ask(requests);
     now = 6 * 60_000;
@@ -68,4 +101,67 @@ describe("TailnetPairRequests", () => {
       assert.strictEqual(requests.pending().length, 1);
     }),
   );
+
+  it("gives a local-network device the credential only for the code the Mac shows", () => {
+    const requests = new TailnetPairRequests();
+    const ipad = {
+      address: "192.168.1.9",
+      label: "iPad",
+      nodeName: "192.168.1.9",
+      needsCode: true,
+    };
+    const asked = requests.ask({ ...ipad, id: "local" });
+    assert.isTrue(requests.pending()[0]?.needsCode);
+    assert.deepStrictEqual(
+      requests.answer(asked.id, { approve: true, credential: "secret" }, () => "0427"),
+      { ok: true, code: "0427" },
+    );
+    assert.deepStrictEqual(requests.awaitingCode(), [
+      { id: "local", label: "iPad", address: ipad.address, code: "0427" },
+    ]);
+    assert.deepStrictEqual(requests.check(asked.id, ipad.address), { status: "enterCode" });
+    assert.deepStrictEqual(requests.confirm(asked.id, "192.168.1.66", "0427"), {
+      status: "expired",
+    });
+    assert.deepStrictEqual(requests.confirm(asked.id, ipad.address, "1111"), {
+      status: "wrongCode",
+    });
+    assert.deepStrictEqual(requests.confirm(asked.id, ipad.address, "0427"), {
+      status: "approved",
+      credential: "secret",
+    });
+    assert.deepStrictEqual(requests.awaitingCode(), []);
+    assert.deepStrictEqual(requests.check(asked.id, ipad.address), { status: "expired" });
+  });
+
+  it("ends a local request after five wrong codes, or when the Mac takes the code back", () => {
+    const requests = new TailnetPairRequests();
+    const ipad = {
+      address: "192.168.1.9",
+      label: "iPad",
+      nodeName: "192.168.1.9",
+      needsCode: true,
+    };
+    const guessed = requests.ask({ ...ipad, id: "guessed" });
+    requests.answer(guessed.id, { approve: true, credential: "secret" }, () => "0427");
+    for (let i = 0; i < 4; i++) {
+      assert.deepStrictEqual(requests.confirm(guessed.id, ipad.address, "9999"), {
+        status: "wrongCode",
+      });
+    }
+    assert.deepStrictEqual(requests.confirm(guessed.id, ipad.address, "9999"), {
+      status: "expired",
+    });
+    assert.deepStrictEqual(requests.confirm(guessed.id, ipad.address, "0427"), {
+      status: "expired",
+    });
+
+    const cancelled = requests.ask({ ...ipad, id: "cancelled" });
+    requests.answer(cancelled.id, { approve: true, credential: "secret" }, () => "0427");
+    assert.isTrue(requests.answer(cancelled.id, { approve: false }).ok);
+    assert.deepStrictEqual(requests.awaitingCode(), []);
+    assert.deepStrictEqual(requests.confirm(cancelled.id, ipad.address, "0427"), {
+      status: "denied",
+    });
+  });
 });
