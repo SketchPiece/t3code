@@ -15,7 +15,7 @@
 //   4 format  as 2, for HEVC: VPS, SPS and PPS
 //   5 tick    empty, every 30 ms: keeps the phone's Wi-Fi radio awake, so frames don't wait for it
 //   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"cursorShape"|"clipboard"|"windows"|"windowMoved"|
-//             "error", …}
+//             "lockState"|"unlockResult"|"error", …}
 //
 // The video leaves the cursor out (`showsCursor = false`): the phone draws its own from the
 // "cursor" messages, so it moves with no video lag.
@@ -25,6 +25,7 @@ import AVFAudio
 import CoreImage
 import CoreMedia
 import Foundation
+import IOKit.pwr_mgt
 import ScreenCaptureKit
 import VideoToolbox
 
@@ -1469,6 +1470,133 @@ final class Clipboard {
     }
 }
 
+// MARK: Locked session
+
+/// nil means the session cannot be queried; never infer that it is unlocked.
+func sessionLocked() -> Bool? {
+    guard let session = CGSessionCopyCurrentDictionary() as? [String: Any],
+          session[kCGSessionOnConsoleKey as String] as? Bool == true else { return nil }
+    return session["CGSSessionScreenIsLocked"] as? Bool ?? false
+}
+
+let unlockSettingsIndex = CommandLine.arguments.firstIndex(of: "--unlock-settings")
+let sessionAccess = SessionAccess(settingsPath: unlockSettingsIndex.flatMap { index in
+    index + 1 < CommandLine.arguments.count ? CommandLine.arguments[index + 1] : nil
+})
+
+@MainActor
+final class LockWatch {
+    private var timer: Timer?
+    private var previous: [String: Bool]?
+    private var displayAssertion = IOPMAssertionID(0)
+    private var userAssertion = IOPMAssertionID(0)
+    private var attempt: UUID?
+
+    func start() {
+        if displayAssertion == 0 {
+            _ = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn), "Helm screen remote" as CFString, &displayAssertion)
+            _ = IOPMAssertionDeclareUserActivity("Helm screen remote" as CFString,
+                kIOPMUserActiveLocal, &userAssertion)
+        }
+        report(force: true)
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.report() }
+        }
+    }
+
+    func stop() {
+        attempt = nil
+        timer?.invalidate()
+        timer = nil
+        if displayAssertion != 0 { IOPMAssertionRelease(displayAssertion); displayAssertion = 0 }
+        if userAssertion != 0 { IOPMAssertionRelease(userAssertion); userAssertion = 0 }
+    }
+
+    func report(force: Bool = false) {
+        let locked = sessionLocked()
+        let state = ["locked": locked ?? true, "available": locked != nil,
+                     "unlockEnabled": sessionAccess.unlockEnabled]
+        if force || state != previous {
+            previous = state
+            var message: [String: Any] = state
+            message["t"] = "lockState"
+            emitJSON(message)
+        }
+        if attempt != nil {
+            if locked == false { finish("unlocked") }
+            else if !sessionAccess.unlockEnabled { finish("disabled") }
+            else if locked == nil { finish("unavailable") }
+        }
+    }
+
+    private func finish(_ status: String) {
+        attempt = nil
+        emitJSON(["t": "unlockResult", "status": status])
+    }
+
+    /// Restrict password events to loginwindow's focused secure field, even if the desktop
+    /// becomes unlocked between checking it and posting the event.
+    private func passwordTarget() -> (pid_t, AXUIElement)? {
+        guard sessionLocked() == true,
+              let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.loginwindow").first else {
+            return nil
+        }
+        var value: CFTypeRef?
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let field = value as! AXUIElement
+        var subrole: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(field, kAXSubroleAttribute as CFString, &subrole) == .success,
+              subrole as? String == kAXSecureTextFieldSubrole else { return nil }
+        return (app.processIdentifier, field)
+    }
+
+    func unlock(_ password: String) {
+        guard attempt == nil else {
+            emitJSON(["t": "unlockResult", "status": "busy"])
+            return
+        }
+        if let error = sessionAccess.unlockError(locked: sessionLocked(), password: password) {
+            emitJSON(["t": "unlockResult", "status": error])
+            report(force: true)
+            return
+        }
+        guard AXIsProcessTrusted() else { finish("accessibility"); return }
+        guard let (pid, field) = passwordTarget() else { finish("focusPassword"); return }
+        let identifier = UUID()
+        attempt = identifier
+        let source = CGEventSource(stateID: .hidSystemState)
+        func post(_ code: CGKeyCode, flags: CGEventFlags = [], units: [UniChar]? = nil) -> Bool {
+            guard sessionAccess.unlockEnabled, let (currentPID, currentField) = passwordTarget(),
+                  currentPID == pid, CFEqual(field, currentField) else { return false }
+            for down in [true, false] {
+                let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down)
+                event?.flags = flags
+                if let units { event?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units) }
+                event?.postToPid(pid)
+            }
+            return true
+        }
+        // Clear any previous attempt, with no clipboard access and no password in logs or argv.
+        guard post(0, flags: .maskCommand), post(51) else { finish("unavailable"); return }
+        for character in password {
+            guard post(0, units: Array(String(character).utf16)) else { finish("unavailable"); return }
+        }
+        guard post(36) else { finish("unavailable"); return }
+        emitJSON(["t": "unlockResult", "status": "submitted"])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, self.attempt == identifier else { return }
+            self.report()
+            if self.attempt != nil { self.finish("stillLocked") }
+        }
+    }
+}
+
+let lockWatch = MainActor.assumeIsolated { LockWatch() }
+
 // MARK: Main
 
 let screen = Screen()
@@ -1490,6 +1618,7 @@ func quit(_ code: Int32 = 0) {
     guard !quitStarted else { return }
     quitStarted = true
     DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { exit(code) }
+    DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.stop() } }
     onScreen { await screen.stop(); exit(code) }
 }
 let input = Input()
@@ -1512,14 +1641,24 @@ func size(_ value: Any?) -> CGSize? {
 //   clipboard    {text}: the phone's copied text, for the Mac's clipboard
 //   windows      the other displays' windows, answered with "windows"
 //   moveWindow   {id}: that window onto the phone's display, answered with "windowMoved" or an error
+//   unlock       {password}: one attempt in loginwindow's selected password field
 //   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy, phase?}, key {code, mods}, text {s}, stop
 func handle(_ line: String) {
     guard let data = line.data(using: .utf8),
           let command = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let type = command["t"] as? String else { return }
     let x = command["x"] as? Double ?? 0, y = command["y"] as? Double ?? 0
+    if ["move", "button", "scroll", "key", "text", "clipboard", "moveWindow"].contains(type),
+       !sessionAccess.permitsInput(locked: sessionLocked()) {
+        DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.report(force: true) } }
+        return
+    }
     switch type {
+    case "unlock":
+        guard let password = command["password"] as? String else { return }
+        DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.unlock(password) } }
     case "start":
+        DispatchQueue.main.sync { MainActor.assumeIsolated { lockWatch.start() } }
         var settings = StreamSettings()
         settings.maxWidth = command["maxWidth"] as? Int ?? 3024
         settings.fps = min(120, max(24, command["fps"] as? Int ?? 30))
@@ -1555,22 +1694,37 @@ func handle(_ line: String) {
     case "clipboard":
         guard let text = command["text"] as? String else { return }
         DispatchQueue.main.async { MainActor.assumeIsolated { clipboard.set(text) } }
-    case "move": DispatchQueue.main.async { input.move(x: x, y: y) }
+    case "move": DispatchQueue.main.async {
+            guard sessionAccess.permitsInput(locked: sessionLocked()) else { return }
+            input.move(x: x, y: y)
+        }
     case "button":
         let down = command["down"] as? Bool ?? false
         let button = command["b"] as? String
-        DispatchQueue.main.async { input.button(button, down: down, x: x, y: y) }
+        DispatchQueue.main.async {
+            guard sessionAccess.permitsInput(locked: sessionLocked()) else { return }
+            input.button(button, down: down, x: x, y: y)
+        }
     case "scroll":
         let dx = command["dx"] as? Double ?? 0, dy = command["dy"] as? Double ?? 0
         let phase = command["phase"] as? String
-        DispatchQueue.main.async { input.scroll(dx: dx, dy: dy, phase: phase) }
+        DispatchQueue.main.async {
+            guard sessionAccess.permitsInput(locked: sessionLocked()) else { return }
+            input.scroll(dx: dx, dy: dy, phase: phase)
+        }
     case "key":
         let code = command["code"] as? Int ?? 0
         let mods = command["mods"] as? [String] ?? []
-        DispatchQueue.main.async { input.key(code: code, mods: mods) }
+        DispatchQueue.main.async {
+            guard sessionAccess.permitsInput(locked: sessionLocked()) else { return }
+            input.key(code: code, mods: mods)
+        }
     case "text":
         let text = command["s"] as? String ?? ""
-        DispatchQueue.main.async { input.text(text) }
+        DispatchQueue.main.async {
+            guard sessionAccess.permitsInput(locked: sessionLocked()) else { return }
+            input.text(text)
+        }
     case "stop":
         quit()
     default: break

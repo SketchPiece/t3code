@@ -1136,6 +1136,9 @@ export interface DesktopBridge {
   // The primary backend is identified by id === PRIMARY_LOCAL_ENVIRONMENT_ID.
   getLocalEnvironmentBootstraps: () => readonly DesktopEnvironmentBootstrap[];
   getLocalEnvironmentEnabled?: () => boolean;
+  /** Helm: local Mac consent, unavailable to remote clients. */
+  getScreenUnlockEnabled?: () => boolean;
+  setScreenUnlockEnabled?: (enabled: boolean) => Promise<void>;
   setLocalEnvironmentEnabled?: (enabled: boolean) => Promise<void>;
   getLocalEnvironmentBearerToken: () => Promise<string>;
   getClientSettings: () => Promise<ClientSettings | null>;

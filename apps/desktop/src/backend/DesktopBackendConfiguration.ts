@@ -601,6 +601,8 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       env: {
         ...backendChildEnvPatch(),
         ELECTRON_RUN_AS_NODE: "1",
+        HELM_SCREEN_UNLOCK_SETTINGS_PATH:
+          environment.platform === "darwin" ? environment.desktopSettingsPath : undefined,
         // The server names this launcher in commands it asks a person to run.
         T3CODE_CLI_PATH: Option.getOrUndefined(input.cliPath),
       },

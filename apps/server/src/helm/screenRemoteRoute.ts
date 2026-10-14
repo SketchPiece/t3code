@@ -1,5 +1,6 @@
 import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import { AuthTerminalOperateScope } from "@t3tools/contracts";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -33,11 +34,12 @@ const textDecoder = new TextDecoder();
 export const resolveHelmScreenPath = Effect.fn("helm.screenRemote.resolvePath")(function* (
   config: ServerConfig.ServerConfig["Service"],
 ) {
-  if (process.platform !== "darwin") return undefined;
+  if ((yield* HostProcess.Platform) !== "darwin") return undefined;
+  const environment = yield* HostProcess.Environment;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const candidates = [
-    process.env.HELM_SCREEN_PATH,
+    environment.HELM_SCREEN_PATH,
     config.resourceMonitorPath &&
       path.join(path.dirname(config.resourceMonitorPath), "helm-screen"),
     path.resolve(import.meta.dirname, "../../../../native/helm-screen/build/helm-screen"),
@@ -58,6 +60,7 @@ type Out =
 const makeHandler = (
   helperPath: string | undefined,
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
+  consentPath: string | undefined,
 ) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
@@ -74,7 +77,10 @@ const makeHandler = (
       Effect.gen(function* () {
         const output = yield* Queue.unbounded<Out>();
         const commands = yield* Queue.unbounded<string>();
-        const helper = yield* spawner.spawn(ChildProcess.make(helperPath, []));
+        // Only the desktop launcher supplies this path; the phone cannot choose consent.
+        const helper = yield* spawner.spawn(
+          ChildProcess.make(helperPath, consentPath ? ["--unlock-settings", consentPath] : []),
+        );
         yield* Stream.fromQueue(commands).pipe(
           Stream.map((line) => `${line}\n`),
           Stream.encodeText,
@@ -187,6 +193,11 @@ export const screenRemoteRouteLayer = HttpRouter.use((router) =>
     const config = yield* ServerConfig.ServerConfig;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const helperPath = yield* resolveHelmScreenPath(config);
-    yield* router.add("GET", HELM_SCREEN_PATH, makeHandler(helperPath, spawner));
+    const environment = yield* HostProcess.Environment;
+    yield* router.add(
+      "GET",
+      HELM_SCREEN_PATH,
+      makeHandler(helperPath, spawner, environment.HELM_SCREEN_UNLOCK_SETTINGS_PATH),
+    );
   }),
 );

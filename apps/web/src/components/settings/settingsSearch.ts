@@ -924,6 +924,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     desktopOnly: true,
   },
   {
+    id: "screen-unlock",
+    title: "Unlock Mac from your phone",
+    to: "/settings/connections",
+    searchTerms: ["password lock screen remote phone ipad unlock"],
+    desktopOnly: true,
+    macOnly: true,
+  },
+  {
     id: "network-access",
     title: "Network access",
     to: "/settings/connections",

@@ -2420,6 +2420,7 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
           "-target",
           `${arch}-apple-macos14.0`,
           path.join(input.repoRoot, "native/helm-screen/main.swift"),
+          path.join(input.repoRoot, "native/helm-screen/SessionAccess.swift"),
           "-o",
           slice,
         ]),

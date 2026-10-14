@@ -83,6 +83,8 @@ import {
   uninstallCliCommand,
 } from "./methods/cliCommand.ts";
 
+import { getScreenUnlockEnabled, setScreenUnlockEnabled } from "./methods/screenUnlock.ts";
+
 export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers")(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
   yield* installNotificationBadge();
@@ -100,6 +102,8 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handleSync(getLocalEnvironmentBootstraps);
   yield* ipc.handleSync(getLocalEnvironmentEnabled);
   yield* ipc.handle(setLocalEnvironmentEnabled);
+  yield* ipc.handleSync(getScreenUnlockEnabled);
+  yield* ipc.handle(setScreenUnlockEnabled);
   yield* ipc.handle(getLocalEnvironmentBearerToken);
 
   yield* ipc.handle(getClientSettings);

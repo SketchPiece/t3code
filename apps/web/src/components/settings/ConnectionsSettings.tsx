@@ -79,6 +79,7 @@ import {
   SettingsSection,
   useRelativeTimeTick,
 } from "./settingsLayout";
+import { ScreenUnlockSetting } from "./ScreenUnlockSetting";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { searchableSetting } from "./settingsSearch";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
@@ -3652,6 +3653,7 @@ export function ConnectionsSettings() {
             }
           >
             <LocalEnvironmentSetting />
+            <ScreenUnlockSetting />
             {canManageLocalBackend ? (
               <SettingsRow
                 title="Version"
@@ -4053,6 +4055,7 @@ export function ConnectionsSettings() {
           />
           {/* A turned-off local environment leaves no primary environment, so its switch lives here too. */}
           <LocalEnvironmentSetting />
+          <ScreenUnlockSetting />
           {canReadRelay || canManageRelay ? (
             <CloudLinkRow canReadRelay={canReadRelay} canManageRelay={canManageRelay} />
           ) : null}
