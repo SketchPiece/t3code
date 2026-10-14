@@ -2,19 +2,22 @@
 //
 // Captures a display (or all of them, side by side as they're arranged) with ScreenCaptureKit,
 // encodes it to H.264 with VideoToolbox and posts mouse and keyboard events the phone sends. It can
-// also add a virtual display the size of the phone's screen, which lives as long as the helper
-// does. The server spawns one per phone connection and relays between it and the phone's WebSocket.
+// also add a virtual display the size of the phone's screen (kept by `--keep-display`, see
+// Keeper), send the Mac's sound and share its clipboard. The server spawns one per phone
+// connection and relays between it and the phone's WebSocket.
 //
 // stdin:  one JSON command per line (see `handle(_:)`).
 // stdout: frames of [u8 kind][u32 big-endian length][payload]:
 //   1 video   [u8 flags (1 = keyframe)][u64 big-endian pts µs][AVCC sample: 4-byte NAL lengths]
 //   2 format  [u8 count][u16 length + parameter set]…  (SPS then PPS; sent before every keyframe)
-//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"error", …}
+//   3 audio   [u8 channels][u32 big-endian sample rate][Int16 little-endian samples, interleaved]
+//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"clipboard"|"error", …}
 //
 // The video leaves the cursor out (`showsCursor = false`): the phone draws its own from the
 // "cursor" messages, so it moves with no video lag.
 
 import AppKit
+import AVFAudio
 import CoreImage
 import CoreMedia
 import Foundation
@@ -148,6 +151,8 @@ final class Encoder: @unchecked Sendable {
 
 struct StreamSettings {
     var maxWidth = 3024, fps = 30, bitrate = 8_000_000
+    /// The Mac's sound goes along.
+    var audio = false
 }
 
 /// What the video shows, in global points with a top-left origin: the input and the cursor
@@ -173,7 +178,9 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     let displayIDs: [CGDirectDisplayID]
     var stopped: ((Session, Error) -> Void)?
     private let fps: Int
+    private let audio: Bool
     private let queue = DispatchQueue(label: "helm-screen.capture")
+    private let audioQueue = DispatchQueue(label: "helm-screen.audio")
     private var running: [SCStream] = []
     private var isStopping = false
     // Several displays: each one's latest picture, drawn together at the frame rate (on `queue`).
@@ -193,6 +200,7 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         frame = union
         composite = displays.count > 1
         fps = settings.fps
+        audio = settings.audio
         // Full pixels up to `maxWidth`: zooming in on the phone should stay sharp.
         let pixelScale = displayIDs.map { id in
             guard let mode = CGDisplayCopyDisplayMode(id) else { return 1 }
@@ -234,9 +242,19 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             config.queueDepth = composite ? 5 : 4
             config.colorSpaceName = CGColorSpace.sRGB
 
+            // The sound is the whole Mac's, whichever display: once is enough.
+            let withAudio = audio && running.isEmpty
+            if withAudio {
+                config.capturesAudio = true
+                config.sampleRate = 24_000
+                config.channelCount = 2
+                config.excludesCurrentProcessAudio = true
+            }
+
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let stream = SCStream(filter: filter, configuration: config, delegate: self)
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+            if withAudio { try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue) }
             queue.sync { sources[ObjectIdentifier(stream)] = display.displayID }
             try await stream.startCapture()
             running.append(stream)
@@ -250,6 +268,10 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sample: CMSampleBuffer, of type: SCStreamOutputType) {
+        if type == .audio {
+            Self.sendAudio(sample)
+            return
+        }
         guard type == .screen, sample.isValid,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
               let rawStatus = attachments.first?[.status] as? Int,
@@ -263,6 +285,33 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
         guard let id = sources[ObjectIdentifier(stream)] else { return }
         latest[id] = buffer
         dirty = true
+    }
+
+    /// 16-bit stereo, a quarter of the floats' size: about 100 KB a second.
+    private static func sendAudio(_ sample: CMSampleBuffer) {
+        guard sample.isValid, let description = sample.formatDescription else { return }
+        let format = AVAudioFormat(cmAudioFormatDescription: description)
+        try? sample.withAudioBufferList { list, _ in
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: list.unsafePointer),
+                  let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return }
+            let frames = Int(buffer.frameLength), count = Int(format.channelCount)
+            var payload = Data(capacity: 5 + frames * 4)
+            payload.append(2)
+            var rate = UInt32(format.sampleRate).bigEndian
+            withUnsafeBytes(of: &rate) { payload.append(contentsOf: $0) }
+            var samples = [Int16](repeating: 0, count: frames * 2)
+            for frame in 0..<frames {
+                for channel in 0..<2 {
+                    let source = min(channel, count - 1)
+                    let value = format.isInterleaved
+                        ? channels[0][frame * buffer.stride + source]
+                        : channels[source][frame]
+                    samples[frame * 2 + channel] = Int16(max(-1, min(1, value)) * 32767).littleEndian
+                }
+            }
+            samples.withUnsafeBytes { payload.append(contentsOf: $0) }
+            emit(3, payload)
+        }
     }
 
     /// The displays' latest pictures in one, black where none is; only when one of them changed.
@@ -411,6 +460,248 @@ final class VirtualDisplay {
     }
 }
 
+// MARK: Keeper
+
+// The separate display outlives one connection for a while (the phone's choice), so an iPad that
+// locks or switches apps comes back to its windows where it left them. A detached
+// `helm-screen --keep-display` owns it; each connection's helper asks it over a Unix socket:
+//   helper → keeper: {"name", "width", "height", "linger": seconds} per size, one JSON a line
+//   keeper → helper: {"id": displayID} or {"error": "…"}
+// With no helper connected the keeper waits `linger` seconds, then quits and the display goes.
+
+let keeperSocketPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("helm-screen-display.sock")
+
+func keeperAddress() -> sockaddr_un {
+    var address = sockaddr_un()
+    address.sun_family = sa_family_t(AF_UNIX)
+    withUnsafeMutableBytes(of: &address.sun_path) { raw in
+        raw.copyBytes(from: Array(keeperSocketPath.utf8.prefix(raw.count - 1)))
+    }
+    return address
+}
+
+/// A connection to a running keeper, or -1.
+func connectToKeeper() -> Int32 {
+    let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+    guard socket >= 0 else { return -1 }
+    var address = keeperAddress()
+    let connected = withUnsafePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            Darwin.connect(socket, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+        }
+    }
+    guard connected == 0 else {
+        close(socket)
+        return -1
+    }
+    var on: Int32 = 1
+    setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+    return socket
+}
+
+func writeLine(_ socket: Int32, _ object: [String: Any]) -> Bool {
+    guard var data = try? JSONSerialization.data(withJSONObject: object) else { return false }
+    data.append(10)
+    return data.withUnsafeBytes { raw in
+        var offset = 0
+        while offset < raw.count {
+            let written = write(socket, raw.baseAddress! + offset, raw.count - offset)
+            if written <= 0 { return false }
+            offset += written
+        }
+        return true
+    }
+}
+
+/// This helper's line to the keeper, which it starts if none runs.
+final class KeeperLink: @unchecked Sendable {
+    private var socket: Int32 = -1
+    private let queue = DispatchQueue(label: "helm-screen.keeper")
+
+    /// The display at `size` points, made or resized; nil if the keeper couldn't.
+    func request(name: String, size: CGSize, linger: Int) async -> CGDirectDisplayID? {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: self.send(["name": name, "width": Double(size.width),
+                                                          "height": Double(size.height), "linger": linger]))
+            }
+        }
+    }
+
+    private func send(_ request: [String: Any]) -> CGDirectDisplayID? {
+        for attempt in 0..<2 {
+            if socket < 0 { socket = connectOrStart() }
+            guard socket >= 0 else { return nil }
+            if writeLine(socket, request), let reply = readReply() {
+                guard let id = reply["id"] as? Int else {
+                    log("keeper: \(reply["error"] as? String ?? "no display")")
+                    return nil
+                }
+                return CGDirectDisplayID(id)
+            }
+            // The keeper quit between connections: start another.
+            Darwin.close(socket)
+            socket = -1
+            if attempt == 1 { return nil }
+        }
+        return nil
+    }
+
+    private func readReply() -> [String: Any]? {
+        var line = Data()
+        var byte: UInt8 = 0
+        while read(socket, &byte, 1) == 1 {
+            if byte == 10 { return (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] }
+            line.append(byte)
+        }
+        return nil
+    }
+
+    private func connectOrStart() -> Int32 {
+        let existing = connectToKeeper()
+        if existing >= 0 { return existing }
+        guard let path = Bundle.main.executablePath else { return -1 }
+        // Its own session, so it outlives this helper; no inherited pipes, so the server sees
+        // this helper's output end when it does.
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        for descriptor: Int32 in 0...2 {
+            posix_spawn_file_actions_addopen(&actions, descriptor, "/dev/null", descriptor == 0 ? O_RDONLY : O_WRONLY, 0)
+        }
+        let arguments = [path, "--keep-display"].map { strdup($0) } + [nil]
+        var pid: pid_t = 0
+        let status = posix_spawn(&pid, path, &actions, &attributes, arguments, environ)
+        arguments.forEach { free($0) }
+        posix_spawn_file_actions_destroy(&actions)
+        posix_spawnattr_destroy(&attributes)
+        guard status == 0 else {
+            log("keeper: couldn't start (\(status))")
+            return -1
+        }
+        for _ in 0..<40 {
+            usleep(50_000)
+            let socket = connectToKeeper()
+            if socket >= 0 { return socket }
+        }
+        return -1
+    }
+
+    func close() {
+        queue.sync {
+            if socket >= 0 { Darwin.close(socket) }
+            socket = -1
+        }
+    }
+}
+
+/// The keeper's side: owns the display and quits once no helper has wanted it for a while.
+@MainActor
+final class Keeper {
+    private let server: Int32
+    private var accepting: DispatchSourceRead?
+    private var clients: [Int32: DispatchSourceRead] = [:]
+    private var buffers: [Int32: Data] = [:]
+    private var display: VirtualDisplay?
+    private var linger = 0
+    private var quitting: DispatchWorkItem?
+
+    init(server: Int32) {
+        self.server = server
+        let source = DispatchSource.makeReadSource(fileDescriptor: server, queue: .main)
+        source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.accept() } }
+        source.resume()
+        accepting = source
+        // Started for a helper that connects right away; if none does, nothing to keep.
+        quit(after: 15)
+    }
+
+    private func accept() {
+        let client = Darwin.accept(server, nil, nil)
+        guard client >= 0 else { return }
+        var on: Int32 = 1
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        quitting?.cancel()
+        quitting = nil
+        let source = DispatchSource.makeReadSource(fileDescriptor: client, queue: .main)
+        source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.receive(client) } }
+        source.resume()
+        clients[client] = source
+    }
+
+    private func receive(_ client: Int32) {
+        var chunk = [UInt8](repeating: 0, count: 4096)
+        let count = read(client, &chunk, chunk.count)
+        guard count > 0 else {
+            clients.removeValue(forKey: client)?.cancel()
+            buffers[client] = nil
+            close(client)
+            if clients.isEmpty { quit(after: linger) }
+            return
+        }
+        var buffer = buffers[client, default: Data()]
+        buffer.append(contentsOf: chunk[0..<count])
+        while let newline = buffer.firstIndex(of: 10) {
+            let line = buffer[buffer.startIndex..<newline]
+            buffer = Data(buffer[(newline + 1)...])
+            if let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] {
+                Task { await self.answer(client, request) }
+            }
+        }
+        buffers[client] = buffer
+    }
+
+    private func answer(_ client: Int32, _ request: [String: Any]) async {
+        guard let width = request["width"] as? Double, let height = request["height"] as? Double else { return }
+        linger = max(0, min(3600, request["linger"] as? Int ?? 0))
+        let size = CGSize(width: width, height: height)
+        if display == nil { display = VirtualDisplay(name: request["name"] as? String ?? "Helm", size: size) }
+        guard let display else {
+            _ = writeLine(client, ["error": "This Mac can't add a virtual display."])
+            return
+        }
+        if await display.use(size) {
+            _ = writeLine(client, ["id": Int(display.id)])
+        } else {
+            _ = writeLine(client, ["error": "The display couldn't take that size."])
+        }
+    }
+
+    private func quit(after seconds: Int) {
+        quitting?.cancel()
+        let work = DispatchWorkItem {
+            unlink(keeperSocketPath)
+            exit(0)
+        }
+        quitting = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds), execute: work)
+    }
+}
+
+/// `helm-screen --keep-display`: one per Mac user; a second one finds the first and leaves.
+func runKeeper() -> Never {
+    signal(SIGPIPE, SIG_IGN)
+    let existing = connectToKeeper()
+    if existing >= 0 { exit(0) }
+    unlink(keeperSocketPath)
+    let server = socket(AF_UNIX, SOCK_STREAM, 0)
+    var address = keeperAddress()
+    let bound = withUnsafePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            bind(server, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+        }
+    }
+    guard server >= 0, bound == 0, listen(server, 4) == 0 else { exit(1) }
+    let keeper = MainActor.assumeIsolated { Keeper(server: server) }
+    withExtendedLifetime(keeper) {
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        NSApp.run()
+    }
+    exit(0)
+}
+
 // MARK: Screen
 
 /// What the phone asked to see.
@@ -453,10 +744,13 @@ actor Screen {
     private var settings = StreamSettings()
     private var shown = Shown.main
     private var session: Session?
-    private var virtual: VirtualDisplay?
+    private let keeper = KeeperLink()
+    private var virtualID: CGDirectDisplayID?
     private var virtualName = "Helm"
+    /// How long the separate display stays once the phone has gone.
+    private var linger = 0
 
-    func start(_ settings: StreamSettings, show wanted: Shown, virtualSize: CGSize?, name: String?) async {
+    func start(_ settings: StreamSettings, show wanted: Shown, virtualSize: CGSize?, name: String?, linger: Int) async {
         guard CGPreflightScreenCaptureAccess() else {
             CGRequestScreenCaptureAccess()
             emitJSON(["t": "error", "code": "screenRecording",
@@ -465,6 +759,7 @@ actor Screen {
         }
         self.settings = settings
         if let name, !name.isEmpty { virtualName = name }
+        self.linger = linger
         await show(wanted, virtualSize: virtualSize)
     }
 
@@ -476,8 +771,8 @@ actor Screen {
 
     /// The phone turned or resized: the virtual display follows it.
     func resizeVirtual(_ size: CGSize) async {
-        guard let virtual else { return }
-        guard await virtual.use(size) else {
+        guard virtualID != nil else { return }
+        guard await keeper.request(name: virtualName, size: size, linger: linger) != nil else {
             emitJSON(["t": "error", "code": "virtualDisplay", "message": "The display for the phone couldn't change its size."])
             return
         }
@@ -489,7 +784,7 @@ actor Screen {
     func stop() async {
         await session?.stop()
         session = nil
-        virtual = nil
+        keeper.close()
     }
 
     /// Displays came, went or changed size: the phone's list follows, and so does the picture.
@@ -517,21 +812,15 @@ actor Screen {
     }
 
     private func makeVirtual(_ size: CGSize) async {
-        if let virtual {
-            _ = await virtual.use(size)
-            return
-        }
-        let name = virtualName
-        guard let display = await VirtualDisplay(name: name, size: size) else {
+        guard let id = await keeper.request(name: virtualName, size: size, linger: linger) else {
             emitJSON(["t": "error", "code": "virtualDisplay", "message": "This Mac couldn't add a display for the phone."])
             return
         }
-        virtual = display
-        _ = await display.use(size)
+        virtualID = id
         // It can be captured a moment after it appears.
         for _ in 0..<30 {
             if let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
-               content.displays.contains(where: { $0.displayID == display.id }) { return }
+               content.displays.contains(where: { $0.displayID == id }) { return }
             try? await Task.sleep(for: .milliseconds(100))
         }
     }
@@ -542,7 +831,7 @@ actor Screen {
         switch shown {
         case .main: return fallback
         case .display(let id): return displays.first { $0.displayID == id }.map { [$0] } ?? fallback
-        case .virtual: return displays.first { $0.displayID == virtual?.id }.map { [$0] } ?? fallback
+        case .virtual: return displays.first { $0.displayID == virtualID }.map { [$0] } ?? fallback
         case .all:
             let own = displays.filter { CGDisplayMirrorsDisplay($0.displayID) == kCGNullDirectDisplay }
             return own.isEmpty ? fallback : own
@@ -571,7 +860,7 @@ actor Screen {
                 "accessibility": AXIsProcessTrusted(),
                 "display": displays.count > 1 ? "all" as Any : Int(displays[0].displayID) as Any,
             ]
-            if let virtual { info["virtual"] = Int(virtual.id) }
+            if let virtualID { info["virtual"] = Int(virtualID) }
             emitJSON(info)
         } catch {
             await session?.stop()
@@ -581,7 +870,7 @@ actor Screen {
     }
 
     private func emitDisplays() async {
-        let virtualID = virtual?.id, name = virtualName
+        let virtualID = virtualID, name = virtualName
         let list = await MainActor.run { displayList(virtual: virtualID, name: name) }
         emitJSON(["t": "displays", "displays": list])
     }
@@ -734,6 +1023,39 @@ final class Input: @unchecked Sendable {
     }
 }
 
+// MARK: Clipboard
+
+/// The Mac's copied text goes to the phone as it's copied; the phone's comes in to be pasted.
+@MainActor
+final class Clipboard {
+    private var seen = NSPasteboard.general.changeCount
+    private var timer: Timer?
+
+    func start() {
+        guard timer == nil else { return }
+        seen = NSPasteboard.general.changeCount
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.check() }
+        }
+    }
+
+    private func check() {
+        let pasteboard = NSPasteboard.general
+        guard pasteboard.changeCount != seen else { return }
+        seen = pasteboard.changeCount
+        guard let text = pasteboard.string(forType: .string), !text.isEmpty, text.utf8.count <= 1_000_000 else { return }
+        emitJSON(["t": "clipboard", "text": text])
+    }
+
+    /// The phone's text, ready for ⌘V; not echoed back.
+    func set(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        seen = pasteboard.changeCount
+    }
+}
+
 // MARK: Main
 
 let screen = Screen()
@@ -745,6 +1067,7 @@ func onScreen(_ work: @escaping @Sendable () async -> Void) {
 }
 let input = Input()
 let cursor = CursorWatch()
+let clipboard = MainActor.assumeIsolated { Clipboard() }
 
 /// `{"width", "height"}` in points, within what a display can be.
 func size(_ value: Any?) -> CGSize? {
@@ -755,9 +1078,11 @@ func size(_ value: Any?) -> CGSize? {
 }
 
 // Commands:
-//   start        {maxWidth, fps, bitrate, display?, virtual?: {width, height}, name?}
+//   start        {maxWidth, fps, bitrate, audio?, clipboard?, display?, virtual?: {width, height},
+//                 name?, keepDisplay?: seconds the separate display stays after this connection}
 //   show         {display: "main" | "all" | "virtual" | id, virtual?: {width, height}}
 //   virtualSize  {width, height}: the phone turned or its window changed
+//   clipboard    {text}: the phone's copied text, for the Mac's clipboard
 //   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy}, key {code, mods}, text {s}, stop
 func handle(_ line: String) {
     guard let data = line.data(using: .utf8),
@@ -768,13 +1093,19 @@ func handle(_ line: String) {
     case "start":
         let settings = StreamSettings(maxWidth: command["maxWidth"] as? Int ?? 3024,
                                       fps: command["fps"] as? Int ?? 30,
-                                      bitrate: command["bitrate"] as? Int ?? 8_000_000)
+                                      bitrate: command["bitrate"] as? Int ?? 8_000_000,
+                                      audio: command["audio"] as? Bool ?? false)
         let shown = Shown(command["display"])
         let virtualSize = size(command["virtual"])
         let name = command["name"] as? String
+        let linger = command["keepDisplay"] as? Int ?? 0
+        let sharesClipboard = command["clipboard"] as? Bool ?? false
         onScreen {
-            await screen.start(settings, show: shown, virtualSize: virtualSize, name: name)
-            DispatchQueue.main.async { cursor.start() }
+            await screen.start(settings, show: shown, virtualSize: virtualSize, name: name, linger: linger)
+            DispatchQueue.main.async {
+                cursor.start()
+                if sharesClipboard { MainActor.assumeIsolated { clipboard.start() } }
+            }
         }
     case "show":
         let shown = Shown(command["display"])
@@ -784,6 +1115,9 @@ func handle(_ line: String) {
         guard let size = size(command) else { return }
         onScreen { await screen.resizeVirtual(size) }
     case "keyframe": Task { await screen.keyframe() }
+    case "clipboard":
+        guard let text = command["text"] as? String else { return }
+        DispatchQueue.main.async { MainActor.assumeIsolated { clipboard.set(text) } }
     case "move": DispatchQueue.main.async { input.move(x: x, y: y) }
     case "button":
         let down = command["down"] as? Bool ?? false
@@ -811,6 +1145,8 @@ if CommandLine.arguments.contains("--check") {
     print(String(data: try! JSONSerialization.data(withJSONObject: result), encoding: .utf8)!)
     exit(0)
 }
+
+if CommandLine.arguments.contains("--keep-display") { runKeeper() }
 
 signal(SIGPIPE, SIG_IGN)
 // Displays plugged in, removed or resized; one look once they settle.
