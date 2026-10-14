@@ -35,6 +35,7 @@ cd "$(git rev-parse --show-toplevel)"
 if [[ "${1:-}" == "--upload" ]]; then
   tag="$2"
   shift 2
+  echo $$ >"$(dirname "$1")/upload.pid"
   uploaded=$(gh release view "$tag" -R "$REPO" --json assets \
     -q '.assets[] | select(.state == "uploaded") | .name')
   for asset in "$@"; do
@@ -117,11 +118,14 @@ log="$out/upload.log"
 if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
   echo "helm-release: an upload is already running, waiting for it"
 else
-  # setsid detaches the upload from this process group, so it survives the
-  # caller being killed.
-  perl -MPOSIX=setsid -e 'setsid(); exec @ARGV or die' \
-    "$self" --upload "$tag" "${assets[@]}" >"$log" 2>&1 </dev/null &
-  echo $! >"$pid_file"
+  # Helm stops its agents' process trees when it restarts. The subshell exits
+  # at once, so the upload is reparented to launchd, and setsid gives it its
+  # own session; the uploader writes its own pid (perl may run as a child).
+  rm -f "$pid_file"
+  (perl -MPOSIX=setsid -e 'setsid(); exec @ARGV or die' \
+    "$self" --upload "$tag" "${assets[@]}" >"$log" 2>&1 </dev/null &)
+  for _ in {1..60}; do [[ -s "$pid_file" ]] && break; sleep 0.5; done
+  [[ -s "$pid_file" ]] || { cat "$log"; echo "helm-release: the upload did not start" >&2; exit 1; }
 fi
 echo "helm-release: uploading in the background (log: $log)"
 while kill -0 "$(cat "$pid_file")" 2>/dev/null; do sleep 5; done
