@@ -98,8 +98,14 @@ publishes the GitHub release that installed Helm apps update from. Installed
 apps restart into a new release on their own once they are idle, so a build
 that fails the launch check must never ship: if it fails, nothing is
 published. Report the failing run and its log path (it stays in
-`/tmp/helm-smoke.*`) and ask; don't retry blindly or skip the check. Then move the main
-checkout's `helm` branch to the released commit:
+`/tmp/helm-smoke.*`) and ask; don't retry blindly or skip the check.
+
+The upload is slow on this connection (about an hour at worst), so run the
+script with a long background timeout. The upload itself runs detached and
+survives a Helm restart or a killed script: if the run is cut off, run the
+script again in the same worktree; it finds the draft for HEAD, reuses the
+build and waits for or resumes the upload. Then move the main checkout's
+`helm` branch to the released commit:
 
 ```sh
 git -C ~/Documents/Projects/t3code merge --ff-only <released sha>
