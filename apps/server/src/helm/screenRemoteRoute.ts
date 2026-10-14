@@ -19,8 +19,13 @@ import * as ServerConfig from "../config.ts";
 // Driving the computer is as strong as a terminal, so it takes terminal:operate.
 export const HELM_SCREEN_PATH = "/api/helm/screen";
 
-/** Above this much unsent video the phone is falling behind: frames wait for a keyframe. */
-const MAX_BUFFERED_BYTES = 2 * 1024 * 1024;
+/**
+ * Unsent video past a keyframe's worth plus this much means the phone is falling behind:
+ * frames wait for a keyframe. A couple of frames at most, so what's on screen stays current.
+ */
+const BEHIND_SLACK_BYTES = 384 * 1024;
+/** The keyframe is asked for once the queue has drained to this, so it leads the queue. */
+const KEYFRAME_ASK_BYTES = 16 * 1024;
 const MAX_COMMAND_BYTES = 64 * 1024;
 const textDecoder = new TextDecoder();
 
@@ -112,27 +117,46 @@ const makeHandler = (
         const incoming = NodeHttpServerRequest.toIncomingMessage(request);
         delete incoming.headers["sec-websocket-extensions"];
         const transport = incoming.socket;
+        // Frames go out as they're written, not batched.
+        transport.setNoDelay(true);
         const socket = yield* request.upgrade;
         const reader = yield* socket.reader;
         const writer = yield* socket.writer;
 
-        // A phone that falls behind skips video until the next keyframe, which it gets at once.
+        // A phone that falls behind skips video until the next keyframe, asked for once the
+        // queue has drained (Sill's pacing): the newest picture rather than a backlog.
         let skipping = false;
+        let keyframeAsked = false;
+        let lastKeyframeBytes = 0;
         const send = Queue.take(output).pipe(
           Effect.flatMap((out) => {
             if (out._tag === "text") return writer.write(out.data);
             const kind = out.data[0];
             if (kind === 1) {
               const keyframe = (out.data[1]! & 1) === 1;
-              if (transport.writableLength > MAX_BUFFERED_BYTES) {
-                if (!skipping) {
-                  skipping = true;
+              if (keyframe) lastKeyframeBytes = out.data.length;
+              const buffered = transport.writableLength;
+              if (!keyframe && buffered > lastKeyframeBytes + BEHIND_SLACK_BYTES) skipping = true;
+              if (skipping && !keyframe) {
+                if (!keyframeAsked && buffered <= KEYFRAME_ASK_BYTES) {
+                  keyframeAsked = true;
                   return command(JSON.stringify({ t: "keyframe" }));
                 }
                 return Effect.void;
               }
-              if (skipping && !keyframe) return Effect.void;
-              skipping = false;
+              if (keyframe) {
+                skipping = false;
+                keyframeAsked = false;
+              }
+            } else if (kind === 5) {
+              const buffered = transport.writableLength;
+              // A still screen sends no frames: the tick is when a skipping phone asks.
+              if (skipping && !keyframeAsked && buffered <= KEYFRAME_ASK_BYTES) {
+                keyframeAsked = true;
+                return command(JSON.stringify({ t: "keyframe" }));
+              }
+              // The keep-awake tick only matters on an idle link.
+              if (buffered > KEYFRAME_ASK_BYTES) return Effect.void;
             }
             return writer.write(out.data);
           }),

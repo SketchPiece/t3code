@@ -11,7 +11,9 @@
 //   1 video   [u8 flags (1 = keyframe)][u64 big-endian pts µs][AVCC sample: 4-byte NAL lengths]
 //   2 format  [u8 count][u16 length + parameter set]…  (SPS then PPS; sent before every keyframe)
 //   3 audio   [u8 channels][u32 big-endian sample rate][Int16 little-endian samples, interleaved]
-//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"clipboard"|"error", …}
+//   4 format  as 2, for HEVC: VPS, SPS and PPS
+//   5 tick    empty, every 30 ms: keeps the phone's Wi-Fi radio awake, so frames don't wait for it
+//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"cursorShape"|"clipboard"|"error", …}
 //
 // The video leaves the cursor out (`showsCursor = false`): the phone draws its own from the
 // "cursor" messages, so it moves with no video lag.
@@ -51,29 +53,56 @@ func log(_ message: String) {
 
 // MARK: Encoder
 
+/// HEVC (or H.264 for an older phone) for one capture. At most one frame is inside VideoToolbox,
+/// with one more waiting; a newer capture replaces the waiting one, so the picture stays current
+/// instead of queueing when the encoder falls behind (as Sill does).
 final class Encoder: @unchecked Sendable {
     private var session: VTCompressionSession?
+    private let hevc: Bool
     private var forceKeyframe = true
+    private var inFlight = false
+    private var waiting: (buffer: CVPixelBuffer, pts: CMTime)?
+    /// The last captured picture: a still screen sends no frames, so a keyframe asked for while
+    /// it's still is this one encoded again.
+    private var lastFrame: CVPixelBuffer?
+    private var lastPTS = CMTime.zero
+    private var stopped = false
     private let lock = NSLock()
+    private let queue = DispatchQueue(label: "helm-screen.encode", qos: .userInteractive)
 
-    init(width: Int32, height: Int32, fps: Int, bitrate: Int) {
+    init(width: Int32, height: Int32, fps: Int, bitrate: Int, hevc wantsHEVC: Bool) {
         var session: VTCompressionSession?
-        let status = VTCompressionSessionCreate(
-            allocator: nil, width: width, height: height, codecType: kCMVideoCodecType_H264,
-            encoderSpecification: [kVTVideoEncoderSpecification_EnableLowLatencyRateControl: true] as CFDictionary,
-            imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: nil, refcon: nil,
-            compressionSessionOut: &session)
-        guard status == noErr, let session else {
-            log("VTCompressionSessionCreate failed: \(status)")
-            return
+        var hevc = wantsHEVC
+        if hevc {
+            let status = VTCompressionSessionCreate(
+                allocator: nil, width: width, height: height, codecType: kCMVideoCodecType_HEVC,
+                encoderSpecification: nil, imageBufferAttributes: nil, compressedDataAllocator: nil,
+                outputCallback: nil, refcon: nil, compressionSessionOut: &session)
+            if status != noErr {
+                log("HEVC encoder unavailable (\(status)), using H.264")
+                hevc = false
+            }
         }
+        if !hevc {
+            let status = VTCompressionSessionCreate(
+                allocator: nil, width: width, height: height, codecType: kCMVideoCodecType_H264,
+                encoderSpecification: [kVTVideoEncoderSpecification_EnableLowLatencyRateControl: true] as CFDictionary,
+                imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: nil, refcon: nil,
+                compressionSessionOut: &session)
+            if status != noErr { log("VTCompressionSessionCreate failed: \(status)") }
+        }
+        self.hevc = hevc
+        guard let session else { return }
         let properties: [CFString: Any] = [
             kVTCompressionPropertyKey_RealTime: true,
             kVTCompressionPropertyKey_AllowFrameReordering: false,
-            kVTCompressionPropertyKey_ProfileLevel: kVTProfileLevel_H264_High_AutoLevel,
+            kVTCompressionPropertyKey_ProfileLevel: hevc ? kVTProfileLevel_HEVC_Main_AutoLevel : kVTProfileLevel_H264_High_AutoLevel,
             kVTCompressionPropertyKey_AverageBitRate: bitrate,
+            // No more than a second's worth in any second: a burst would sit in the network.
+            kVTCompressionPropertyKey_DataRateLimits: [bitrate / 8, 1] as CFArray,
             kVTCompressionPropertyKey_ExpectedFrameRate: fps,
-            // A screen is mostly still: keyframes come on request (a new viewer, a lost frame).
+            // A screen is mostly still: keyframes come on request (a new viewer, a lost frame);
+            // a regular one at 2 MB would hitch the picture for nothing.
             kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration: 10,
         ]
         for (key, value) in properties { VTSessionSetProperty(session, key: key, value: value as CFTypeRef) }
@@ -82,30 +111,71 @@ final class Encoder: @unchecked Sendable {
     }
 
     func requestKeyframe() {
-        lock.lock(); forceKeyframe = true; lock.unlock()
+        lock.lock()
+        forceKeyframe = true
+        let still = inFlight ? nil : lastFrame
+        if still != nil { inFlight = true }
+        lock.unlock()
+        if let still { queue.async { self.submit(still, pts: CMClockGetTime(CMClockGetHostTimeClock())) } }
     }
 
     func encode(_ buffer: CVPixelBuffer, pts: CMTime) {
-        guard let session else { return }
+        lock.lock()
+        lastFrame = buffer
+        if inFlight {
+            waiting = (buffer, pts)
+            lock.unlock()
+            return
+        }
+        inFlight = true
+        lock.unlock()
+        queue.async { self.submit(buffer, pts: pts) }
+    }
+
+    private func submit(_ buffer: CVPixelBuffer, pts: CMTime) {
         lock.lock()
         let key = forceKeyframe
         forceKeyframe = false
+        // Times only go forward (a still frame encoded again is stamped now).
+        let time = CMTimeCompare(pts, lastPTS) > 0 ? pts : CMTimeAdd(lastPTS, CMTime(value: 1, timescale: 1000))
+        lastPTS = time
+        let session = stopped ? nil : session
         lock.unlock()
+        guard let session else { return finished() }
         let options = key ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil
-        VTCompressionSessionEncodeFrame(
-            session, imageBuffer: buffer, presentationTimeStamp: pts, duration: .invalid,
+        let hevc = hevc
+        let status = VTCompressionSessionEncodeFrame(
+            session, imageBuffer: buffer, presentationTimeStamp: time, duration: .invalid,
             frameProperties: options, infoFlagsOut: nil
-        ) { status, _, sample in
-            guard status == noErr, let sample else { return }
-            Self.send(sample)
+        ) { [weak self] status, _, sample in
+            if status == noErr, let sample { Self.send(sample, hevc: hevc) }
+            self?.finished()
+        }
+        if status != noErr {
+            if key { lock.lock(); forceKeyframe = true; lock.unlock() }
+            finished()
         }
     }
 
-    private static func send(_ sample: CMSampleBuffer) {
+    /// The frame left VideoToolbox: the waiting one goes in.
+    private func finished() {
+        lock.lock()
+        guard let next = waiting, !stopped else {
+            waiting = nil
+            inFlight = false
+            lock.unlock()
+            return
+        }
+        waiting = nil
+        lock.unlock()
+        queue.async { self.submit(next.buffer, pts: next.pts) }
+    }
+
+    private static func send(_ sample: CMSampleBuffer, hevc: Bool) {
         guard let block = CMSampleBufferGetDataBuffer(sample) else { return }
         let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[CFString: Any]]
         let keyframe = !(attachments?.first?[kCMSampleAttachmentKey_NotSync] as? Bool ?? false)
-        if keyframe, let format = CMSampleBufferGetFormatDescription(sample) { sendFormat(format) }
+        if keyframe, let format = CMSampleBufferGetFormatDescription(sample) { sendFormat(format, hevc: hevc) }
 
         var length = 0
         var pointer: UnsafeMutablePointer<CChar>?
@@ -120,30 +190,43 @@ final class Encoder: @unchecked Sendable {
         emit(1, payload)
     }
 
-    private static func sendFormat(_ format: CMFormatDescription) {
-        var count = 0
-        CMVideoFormatDescriptionGetH264ParameterSetAtIndex(format, parameterSetIndex: 0, parameterSetPointerOut: nil,
-                                                           parameterSetSizeOut: nil, parameterSetCountOut: &count,
-                                                           nalUnitHeaderLengthOut: nil)
+    /// Kind 2 for H.264's SPS and PPS, kind 4 for HEVC's VPS, SPS and PPS.
+    private static func sendFormat(_ format: CMFormatDescription, hevc: Bool) {
+        func parameterSet(_ index: Int, _ pointer: inout UnsafePointer<UInt8>?, _ size: inout Int, _ count: inout Int) -> OSStatus {
+            hevc
+                ? CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(
+                    format, parameterSetIndex: index, parameterSetPointerOut: &pointer, parameterSetSizeOut: &size,
+                    parameterSetCountOut: &count, nalUnitHeaderLengthOut: nil)
+                : CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
+                    format, parameterSetIndex: index, parameterSetPointerOut: &pointer, parameterSetSizeOut: &size,
+                    parameterSetCountOut: &count, nalUnitHeaderLengthOut: nil)
+        }
+        var pointer: UnsafePointer<UInt8>?
+        var size = 0, count = 0
+        guard parameterSet(0, &pointer, &size, &count) == noErr else { return }
         var payload = Data([UInt8(count)])
         for index in 0..<count {
-            var pointer: UnsafePointer<UInt8>?
-            var size = 0
-            guard CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
-                format, parameterSetIndex: index, parameterSetPointerOut: &pointer, parameterSetSizeOut: &size,
-                parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil) == noErr, let pointer else { return }
+            var unused = 0
+            guard parameterSet(index, &pointer, &size, &unused) == noErr, let pointer else { return }
             var length = UInt16(size).bigEndian
             withUnsafeBytes(of: &length) { payload.append(contentsOf: $0) }
             payload.append(pointer, count: size)
         }
-        emit(2, payload)
+        emit(hevc ? 4 : 2, payload)
     }
 
     func stop() {
+        lock.lock()
+        stopped = true
+        waiting = nil
+        lastFrame = nil
+        let session = session
+        self.session = nil
+        lock.unlock()
+        queue.sync {}
         guard let session else { return }
         VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid)
         VTCompressionSessionInvalidate(session)
-        self.session = nil
     }
 }
 
@@ -151,6 +234,10 @@ final class Encoder: @unchecked Sendable {
 
 struct StreamSettings {
     var maxWidth = 3024, fps = 30, bitrate = 8_000_000
+    /// HEVC: half H.264's bits for the same picture. An older phone asks for H.264.
+    var hevc = false
+    /// 2 captures Retina displays at their pixels, 1 at their points.
+    var maxScale = 2
     /// The Mac's sound goes along.
     var audio = false
 }
@@ -207,11 +294,12 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             return max(1, mode.pixelWidth / max(1, mode.width))
         }.max() ?? 1
         let limit = CGFloat(settings.maxWidth)
-        let scale = min(CGFloat(pixelScale), limit / union.width, limit / union.height)
+        let scale = min(CGFloat(min(pixelScale, max(1, settings.maxScale))), limit / union.width, limit / union.height)
         let width = Int(union.width * scale) & ~1
         let height = Int(union.height * scale) & ~1
         videoSize = CGSize(width: width, height: height)
-        encoder = Encoder(width: Int32(width), height: Int32(height), fps: settings.fps, bitrate: settings.bitrate)
+        encoder = Encoder(width: Int32(width), height: Int32(height), fps: settings.fps, bitrate: settings.bitrate,
+                          hevc: settings.hevc)
         super.init()
         if composite {
             // Core Image's origin is at the bottom.
@@ -237,9 +325,10 @@ final class Session: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
             config.height = composite ? Int((bounds.height * scale).rounded()) : Int(videoSize.height)
             config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(fps))
             // One display goes to the encoder as it comes; several are drawn together first.
-            config.pixelFormat = composite ? kCVPixelFormatType_32BGRA : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            config.pixelFormat = composite ? kCVPixelFormatType_32BGRA : kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
             config.showsCursor = false
-            config.queueDepth = composite ? 5 : 4
+            // The encoder holds the last picture, one in flight and one waiting.
+            config.queueDepth = 6
             config.colorSpaceName = CGColorSpace.sRGB
 
             // The sound is the whole Mac's, whichever display: once is enough.
@@ -883,8 +972,25 @@ final class CursorWatch: @unchecked Sendable {
     private var timer: DispatchSourceTimer?
     private var last = CGPoint(x: -1, y: -1)
 
+    private var tick: DispatchSourceTimer?
+    private var shapeTimer: DispatchSourceTimer?
+    private var lastShape = Data()
+
     func start() {
         guard timer == nil else { return }
+        // An empty frame every 30 ms: an idle Wi-Fi radio on the phone dozes, and the next real
+        // frame waits for it to wake (Sill measured 100–300 ms).
+        let tick = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "helm-screen.tick"))
+        tick.schedule(deadline: .now(), repeating: .milliseconds(30))
+        tick.setEventHandler { emit(5, Data()) }
+        tick.resume()
+        self.tick = tick
+        // The arrow's shape (I-beam over text, a hand over links), for the phone to draw.
+        let shapeTimer = DispatchSource.makeTimerSource(queue: .main)
+        shapeTimer.schedule(deadline: .now(), repeating: .milliseconds(50))
+        shapeTimer.setEventHandler { [weak self] in self?.checkShape() }
+        shapeTimer.resume()
+        self.shapeTimer = shapeTimer
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now(), repeating: .milliseconds(16))
         timer.setEventHandler { [weak self] in
@@ -899,6 +1005,18 @@ final class CursorWatch: @unchecked Sendable {
         }
         timer.resume()
         self.timer = timer
+    }
+
+    private func checkShape() {
+        guard let cursor = NSCursor.currentSystem else { return }
+        let image = cursor.image, hotSpot = cursor.hotSpot
+        // A new image object every time: compared by its pixels.
+        guard let tiff = image.tiffRepresentation, tiff != lastShape else { return }
+        lastShape = tiff
+        guard let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else { return }
+        emitJSON(["t": "cursorShape", "png": png.base64EncodedString(),
+                  "width": image.size.width, "height": image.size.height, "hotX": hotSpot.x, "hotY": hotSpot.y])
     }
 }
 
@@ -975,12 +1093,37 @@ final class Input: @unchecked Sendable {
         held = down ? button : nil
     }
 
-    func scroll(dx: Double, dy: Double) {
+    /// Fractions of a pixel carried to the next scroll, so slow scrolls still move.
+    private var scrollRest = (x: 0.0, y: 0.0)
+
+    /// A scroll by `dx`, `dy` pixels. With a phase it's a trackpad's: `began`, `changed`, `ended`
+    /// for the fingers, then `momentumBegan`, `momentum`, `momentumEnded` for the glide the phone
+    /// works out (macOS adds momentum below where posted events enter), so apps rubber-band and
+    /// glide as with a real trackpad. Without one, a mouse wheel's.
+    func scroll(dx: Double, dy: Double, phase: String?) {
         guard checkTrusted() else { return }
-        let event = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
-                            wheel1: Int32(dy.rounded()), wheel2: Int32(dx.rounded()), wheel3: 0)
-        event?.flags = flags
-        event?.post(tap: .cghidEventTap)
+        let x = dx + scrollRest.x, y = dy + scrollRest.y
+        let wheelX = x.rounded(.towardZero), wheelY = y.rounded(.towardZero)
+        scrollRest = (x - wheelX, y - wheelY)
+        if phase == "began" || phase == "momentumBegan" { scrollRest = (0, 0) }
+        guard let event = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
+                                  wheel1: Int32(wheelY), wheel2: Int32(wheelX), wheel3: 0) else { return }
+        if let phase {
+            let (scroll, momentum): (Int64, Int64) = switch phase {
+            case "began": (1, 0)
+            case "changed": (2, 0)
+            case "ended": (4, 0)
+            case "momentumBegan": (0, 1)
+            case "momentum": (0, 2)
+            case "momentumEnded": (0, 3)
+            default: (2, 0)
+            }
+            event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+            event.setIntegerValueField(.scrollWheelEventScrollPhase, value: scroll)
+            event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentum)
+        }
+        event.flags = flags
+        event.post(tap: .cghidEventTap)
     }
 
     private static func flags(_ names: [String]) -> CGEventFlags {
@@ -1078,12 +1221,12 @@ func size(_ value: Any?) -> CGSize? {
 }
 
 // Commands:
-//   start        {maxWidth, fps, bitrate, audio?, clipboard?, display?, virtual?: {width, height},
+//   start        {maxWidth, fps, bitrate, hevc?, maxScale?, audio?, clipboard?, display?, virtual?: {width, height},
 //                 name?, keepDisplay?: seconds the separate display stays after this connection}
 //   show         {display: "main" | "all" | "virtual" | id, virtual?: {width, height}}
 //   virtualSize  {width, height}: the phone turned or its window changed
 //   clipboard    {text}: the phone's copied text, for the Mac's clipboard
-//   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy}, key {code, mods}, text {s}, stop
+//   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy, phase?}, key {code, mods}, text {s}, stop
 func handle(_ line: String) {
     guard let data = line.data(using: .utf8),
           let command = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1091,17 +1234,21 @@ func handle(_ line: String) {
     let x = command["x"] as? Double ?? 0, y = command["y"] as? Double ?? 0
     switch type {
     case "start":
-        let settings = StreamSettings(maxWidth: command["maxWidth"] as? Int ?? 3024,
-                                      fps: command["fps"] as? Int ?? 30,
-                                      bitrate: command["bitrate"] as? Int ?? 8_000_000,
-                                      audio: command["audio"] as? Bool ?? false)
+        var settings = StreamSettings()
+        settings.maxWidth = command["maxWidth"] as? Int ?? 3024
+        settings.fps = min(120, max(24, command["fps"] as? Int ?? 30))
+        settings.bitrate = command["bitrate"] as? Int ?? 8_000_000
+        settings.audio = command["audio"] as? Bool ?? false
+        settings.hevc = command["hevc"] as? Bool ?? false
+        settings.maxScale = command["maxScale"] as? Int ?? 2
+        let chosen = settings
         let shown = Shown(command["display"])
         let virtualSize = size(command["virtual"])
         let name = command["name"] as? String
         let linger = command["keepDisplay"] as? Int ?? 0
         let sharesClipboard = command["clipboard"] as? Bool ?? false
         onScreen {
-            await screen.start(settings, show: shown, virtualSize: virtualSize, name: name, linger: linger)
+            await screen.start(chosen, show: shown, virtualSize: virtualSize, name: name, linger: linger)
             DispatchQueue.main.async {
                 cursor.start()
                 if sharesClipboard { MainActor.assumeIsolated { clipboard.start() } }
@@ -1125,7 +1272,8 @@ func handle(_ line: String) {
         DispatchQueue.main.async { input.button(button, down: down, x: x, y: y) }
     case "scroll":
         let dx = command["dx"] as? Double ?? 0, dy = command["dy"] as? Double ?? 0
-        DispatchQueue.main.async { input.scroll(dx: dx, dy: dy) }
+        let phase = command["phase"] as? String
+        DispatchQueue.main.async { input.scroll(dx: dx, dy: dy, phase: phase) }
     case "key":
         let code = command["code"] as? Int ?? 0
         let mods = command["mods"] as? [String] ?? []
