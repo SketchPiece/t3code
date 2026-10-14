@@ -1554,6 +1554,8 @@ final class LockWatch {
             previous = state
             var message: [String: Any] = state
             message["t"] = "lockState"
+            // For the phone's login card, as on the Mac's own.
+            message["user"] = NSFullUserName()
             emitJSON(message)
         }
         if attempt != nil {
