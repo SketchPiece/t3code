@@ -106,8 +106,10 @@ if ((DRY_RUN)); then
   exit 0
 fi
 
-# The release tag must point at a commit GitHub has.
-git push origin HEAD:helm
+# The release tag must point at a commit GitHub has. helm may already be ahead
+# of it (pushed from the main checkout), which is fine.
+git fetch -q origin helm
+git merge-base --is-ancestor HEAD FETCH_HEAD || git push origin HEAD:helm
 gh release view "$tag" -R "$REPO" >/dev/null 2>&1 ||
   gh release create "$tag" -R "$REPO" --draft --target "$head" \
     --title "Helm $version" --notes "Helm on upstream T3 Code $base_tag."
