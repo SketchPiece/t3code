@@ -3,8 +3,9 @@
 // Captures a display (or all of them, side by side as they're arranged) with ScreenCaptureKit,
 // encodes it to H.264 with VideoToolbox and posts mouse and keyboard events the phone sends. It can
 // also add a virtual display the size of the phone's screen (kept by `--keep-display`, see
-// Keeper), send the Mac's sound and share its clipboard. The server spawns one per phone
-// connection and relays between it and the phone's WebSocket.
+// Keeper), move other displays' windows onto it (see Windows), send the Mac's sound and share
+// its clipboard. The server spawns one per phone connection and relays between it and the
+// phone's WebSocket.
 //
 // stdin:  one JSON command per line (see `handle(_:)`).
 // stdout: frames of [u8 kind][u32 big-endian length][payload]:
@@ -13,7 +14,8 @@
 //   3 audio   [u8 channels][u32 big-endian sample rate][Int16 little-endian samples, interleaved]
 //   4 format  as 2, for HEVC: VPS, SPS and PPS
 //   5 tick    empty, every 30 ms: keeps the phone's Wi-Fi radio awake, so frames don't wait for it
-//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"cursorShape"|"clipboard"|"error", …}
+//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"cursorShape"|"clipboard"|"windows"|"windowThumb"|
+//             "windowMoved"|"error", …}
 //
 // The video leaves the cursor out (`showsCursor = false`): the phone draws its own from the
 // "cursor" messages, so it moves with no video lag.
@@ -556,7 +558,10 @@ final class VirtualDisplay {
 // `helm-screen --keep-display` owns it; each connection's helper asks it over a Unix socket:
 //   helper → keeper: {"name", "width", "height", "linger": seconds} per size, one JSON a line
 //   keeper → helper: {"id": displayID} or {"error": "…"}
-// With no helper connected the keeper waits `linger` seconds, then quits and the display goes.
+//   helper → keeper: {"remember": {"window", "pid", "x", "y", "width", "height"}}, no answer: a
+//                    window moved onto the display and where it was before
+// With no helper connected the keeper waits `linger` seconds, puts the remembered windows still on
+// the display back where they were, then quits and the display goes.
 
 let keeperSocketPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("helm-screen-display.sock")
 
@@ -614,6 +619,18 @@ final class KeeperLink: @unchecked Sendable {
                 continuation.resume(returning: self.send(["name": name, "width": Double(size.width),
                                                           "height": Double(size.height), "linger": linger]))
             }
+        }
+    }
+
+    /// Tells the keeper a window moved onto its display from `frame`, to go back there later.
+    func remember(window: CGWindowID, pid: pid_t, frame: CGRect) {
+        queue.async {
+            if self.socket < 0 { self.socket = connectToKeeper() }
+            guard self.socket >= 0 else { return }
+            _ = writeLine(self.socket, ["remember": [
+                "window": Int(window), "pid": Int(pid), "x": Double(frame.minX), "y": Double(frame.minY),
+                "width": Double(frame.width), "height": Double(frame.height),
+            ]])
         }
     }
 
@@ -720,6 +737,33 @@ final class Keeper {
         clients[client] = source
     }
 
+    /// Windows brought onto the display, and where each was before.
+    private var remembered: [CGWindowID: (pid: pid_t, frame: CGRect)] = [:]
+
+    private func remember(_ item: [String: Any]) {
+        guard let window = item["window"] as? Int, let pid = item["pid"] as? Int,
+              let x = item["x"] as? Double, let y = item["y"] as? Double,
+              let width = item["width"] as? Double, let height = item["height"] as? Double else { return }
+        remembered[CGWindowID(window)] = (pid_t(pid), CGRect(x: x, y: y, width: width, height: height))
+    }
+
+    /// The remembered windows still on the display go back, while it's still here to find them on.
+    /// One moved off it since stays where it was put; one whose old display has gone is left for
+    /// macOS to place.
+    private func restoreWindows() {
+        guard let display, !remembered.isEmpty, AXIsProcessTrusted() else { return }
+        let here = CGDisplayBounds(display.id)
+        let others = activeDisplayIDs().filter { $0 != display.id }.map { CGDisplayBounds($0) }
+        for (id, saved) in remembered {
+            guard let window = Windows.element(pid: saved.pid, id: id), let now = Windows.frame(window),
+                  here.contains(CGPoint(x: now.midX, y: now.midY)),
+                  others.contains(where: { $0.contains(CGPoint(x: saved.frame.midX, y: saved.frame.midY)) })
+            else { continue }
+            Windows.setFrame(window, saved.frame)
+        }
+        remembered = [:]
+    }
+
     private func receive(_ client: Int32) {
         var chunk = [UInt8](repeating: 0, count: 4096)
         let count = read(client, &chunk, chunk.count)
@@ -735,7 +779,10 @@ final class Keeper {
         while let newline = buffer.firstIndex(of: 10) {
             let line = buffer[buffer.startIndex..<newline]
             buffer = Data(buffer[(newline + 1)...])
-            if let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] {
+            guard let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] else { continue }
+            if let window = request["remember"] as? [String: Any] {
+                remember(window)
+            } else {
                 Task { await self.answer(client, request) }
             }
         }
@@ -760,7 +807,8 @@ final class Keeper {
 
     private func quit(after seconds: Int) {
         quitting?.cancel()
-        let work = DispatchWorkItem {
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.restoreWindows() }
             unlink(keeperSocketPath)
             exit(0)
         }
@@ -807,15 +855,19 @@ enum Shown: Equatable {
     }
 }
 
-/// The displays the phone can pick from, in global points.
-@MainActor
-func displayList(virtual: CGDirectDisplayID?, name virtualName: String) -> [[String: Any]] {
+/// The active displays, leaving out any mirroring another: it shows the same picture, it isn't
+/// one of its own.
+func activeDisplayIDs() -> [CGDirectDisplayID] {
     var ids = [CGDirectDisplayID](repeating: 0, count: 16)
     var count: UInt32 = 0
     CGGetActiveDisplayList(16, &ids, &count)
-    return ids.prefix(Int(count)).compactMap { id in
-        // A display mirroring another shows the same picture; it isn't one of its own.
-        guard CGDisplayMirrorsDisplay(id) == kCGNullDirectDisplay else { return nil }
+    return ids.prefix(Int(count)).filter { CGDisplayMirrorsDisplay($0) == kCGNullDirectDisplay }
+}
+
+/// The displays the phone can pick from, in global points.
+@MainActor
+func displayList(virtual: CGDirectDisplayID?, name virtualName: String) -> [[String: Any]] {
+    activeDisplayIDs().map { id in
         let bounds = CGDisplayBounds(id)
         let screen = NSScreen.screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
@@ -869,6 +921,13 @@ actor Screen {
     }
 
     func keyframe() { session?.encoder.requestKeyframe() }
+
+    /// The display added for the phone, if this connection has one.
+    func virtualDisplayID() -> CGDirectDisplayID? { virtualID }
+
+    func remember(window: CGWindowID, pid: pid_t, frame: CGRect) {
+        keeper.remember(window: window, pid: pid, frame: frame)
+    }
 
     func stop() async {
         await session?.stop()
@@ -963,6 +1022,222 @@ actor Screen {
         let virtualID = virtualID, name = virtualName
         let list = await MainActor.run { displayList(virtual: virtualID, name: name) }
         emitJSON(["t": "displays", "displays": list])
+    }
+}
+
+// MARK: Windows
+
+// "Bring a window here": the other displays' windows go to the phone as a list (an icon per app,
+// then a small picture of each), and the one it picks moves onto the phone's display through
+// Accessibility, filling it. The keeper remembers where it was and puts it back when the display goes.
+
+/// The window server's ID of an Accessibility window: private, as window managers use it, but the
+/// only sure way to match the two.
+@_silgen_name("_AXUIElementGetWindow")
+func axWindowID(_ element: AXUIElement, _ id: UnsafeMutablePointer<CGWindowID>) -> AXError
+
+enum Windows {
+    struct Window {
+        let id: CGWindowID
+        let pid: pid_t
+        let app: String
+        let title: String
+        /// In global points with a top-left origin.
+        let frame: CGRect
+    }
+
+    /// Apps' ordinary windows on screen, front to back.
+    static func onScreen() -> [Window] {
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return info.compactMap { item in
+            guard item[kCGWindowLayer as String] as? Int == 0,
+                  (item[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let id = item[kCGWindowNumber as String] as? Int,
+                  let pid = (item[kCGWindowOwnerPID as String] as? Int).map(pid_t.init),
+                  let bounds = item[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds),
+                  frame.width >= 80, frame.height >= 60,
+                  let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular
+            else { return nil }
+            return Window(id: CGWindowID(id), pid: pid,
+                          app: app.localizedName ?? item[kCGWindowOwnerName as String] as? String ?? "",
+                          title: item[kCGWindowName as String] as? String ?? "", frame: frame)
+        }
+    }
+
+    /// The display showing most of `frame`.
+    static func display(of frame: CGRect, among ids: [CGDirectDisplayID]) -> CGDirectDisplayID? {
+        func area(_ id: CGDirectDisplayID) -> CGFloat {
+            let shared = frame.intersection(CGDisplayBounds(id))
+            return shared.isNull ? 0 : shared.width * shared.height
+        }
+        return ids.filter { area($0) > 0 }.max { area($0) < area($1) }
+    }
+
+    /// `{"t": "windows", windows: [{id, pid, app, title, display}], icons: {pid: png}}` for the
+    /// windows not already on the phone's display, then a `windowThumb` for each.
+    static func send(virtual: CGDirectDisplayID?) async {
+        let displays = activeDisplayIDs()
+        let windows = onScreen().compactMap { window -> (Window, CGDirectDisplayID)? in
+            guard let on = display(of: window.frame, among: displays), on != virtual else { return nil }
+            return (window, on)
+        }
+        let icons = await MainActor.run {
+            var icons: [String: String] = [:]
+            for pid in Set(windows.map(\.0.pid)) {
+                if let png = NSRunningApplication(processIdentifier: pid)?.icon.flatMap({ png($0, side: 64) }) {
+                    icons[String(pid)] = png
+                }
+            }
+            return icons
+        }
+        emitJSON(["t": "windows", "icons": icons, "windows": windows.map { window, on in
+            ["id": Int(window.id), "pid": Int(window.pid), "app": window.app, "title": window.title, "display": Int(on)]
+        }])
+        await sendThumbnails(windows.prefix(30).map(\.0.id))
+    }
+
+    private static func png(_ image: NSImage, side: CGFloat) -> String? {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(side), pixelsHigh: Int(side), bitsPerSample: 8,
+                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                   bytesPerRow: 0, bitsPerPixel: 0)
+        guard let rep, let context = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+        NSGraphicsContext.restoreGraphicsState()
+        return rep.representation(using: .png, properties: [:])?.base64EncodedString()
+    }
+
+    /// A picture of each window, about 360 pixels wide, as it comes.
+    private static func sendThumbnails(_ ids: [CGWindowID]) async {
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        else { return }
+        let windows = content.windows.filter { ids.contains($0.windowID) }
+        await withTaskGroup(of: Void.self) { group in
+            for window in windows {
+                group.addTask {
+                    let config = SCStreamConfiguration()
+                    let scale = min(1, 360 / max(1, window.frame.width))
+                    config.width = max(2, Int(window.frame.width * scale))
+                    config.height = max(2, Int(window.frame.height * scale))
+                    config.showsCursor = false
+                    config.ignoreShadowsSingleWindow = true
+                    let filter = SCContentFilter(desktopIndependentWindow: window)
+                    guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config),
+                          let jpeg = NSBitmapImageRep(cgImage: image)
+                              .representation(using: .jpeg, properties: [.compressionFactor: 0.6])
+                    else { return }
+                    emitJSON(["t": "windowThumb", "id": Int(window.windowID), "jpeg": jpeg.base64EncodedString()])
+                }
+            }
+        }
+    }
+
+    /// Moves window `id` onto the phone's display; the keeper remembers where it came from.
+    static func bring(_ id: CGWindowID) async {
+        func fail(_ message: String) { emitJSON(["t": "error", "code": "moveWindow", "message": message]) }
+        guard AXIsProcessTrusted() else {
+            return emitJSON(["t": "error", "code": "accessibility",
+                             "message": "Allow Helm to control the computer in System Settings → Privacy & Security → Accessibility."])
+        }
+        guard let target = await screen.virtualDisplayID() else { return fail("There's no display for the iPad to move it to.") }
+        guard let window = onScreen().first(where: { $0.id == id }) else { return fail("That window has closed.") }
+        let area = await MainActor.run { visibleFrame(target) }
+        // An app that's busy keeps Accessibility waiting: off the main thread.
+        let result = await Task.detached { move(window, into: area) }.value
+        switch result {
+        case .success(let original):
+            await screen.remember(window: id, pid: window.pid, frame: original)
+            emitJSON(["t": "windowMoved", "id": Int(id)])
+        case .failure(let error):
+            fail(error.message)
+        }
+    }
+
+    struct MoveError: Error { let message: String }
+
+    /// Fills `area` with the window (centred if it won't grow that big) and brings it to the front.
+    /// Answers where it was before.
+    private static func move(_ window: Window, into area: CGRect) -> Result<CGRect, MoveError> {
+        guard let element = element(pid: window.pid, id: window.id) else {
+            return .failure(MoveError(message: "\(window.app) doesn't let Helm move its window."))
+        }
+        // A full-screen window has a Space of its own: out of it first, which animates.
+        var fullScreen: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXFullScreen" as CFString, &fullScreen) == .success,
+           fullScreen as? Bool == true {
+            AXUIElementSetAttributeValue(element, "AXFullScreen" as CFString, kCFBooleanFalse)
+            for _ in 0..<30 {
+                usleep(100_000)
+                if AXUIElementCopyAttributeValue(element, "AXFullScreen" as CFString, &fullScreen) == .success,
+                   fullScreen as? Bool == false { break }
+            }
+            usleep(400_000)
+        }
+        guard let original = frame(element) else {
+            return .failure(MoveError(message: "\(window.app) doesn't let Helm move its window."))
+        }
+        setFrame(element, area)
+        if let now = frame(element), now.width < area.width - 1 || now.height < area.height - 1 {
+            setFrame(element, CGRect(x: area.midX - now.width / 2, y: max(area.minY, area.midY - now.height / 2),
+                                     width: now.width, height: now.height))
+        }
+        guard let now = frame(element), area.insetBy(dx: -40, dy: -40).contains(CGPoint(x: now.midX, y: now.minY + 10))
+        else { return .failure(MoveError(message: "\(window.app) wouldn't move its window.")) }
+        let app = AXUIElementCreateApplication(window.pid)
+        AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        return .success(original)
+    }
+
+    /// The Accessibility window for a window server one.
+    static func element(pid: pid_t, id: CGWindowID) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 1)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return nil }
+        return windows.first { element in
+            var found: CGWindowID = 0
+            return axWindowID(element, &found) == .success && found == id
+        }
+    }
+
+    /// In global points with a top-left origin, like the window server's.
+    static func frame(_ element: AXUIElement) -> CGRect? {
+        var position: CFTypeRef?, size: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
+              let position, let size, CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
+        else { return nil }
+        var origin = CGPoint.zero, extent = CGSize.zero
+        AXValueGetValue(position as! AXValue, .cgPoint, &origin)
+        AXValueGetValue(size as! AXValue, .cgSize, &extent)
+        return CGRect(origin: origin, size: extent)
+    }
+
+    static func setFrame(_ element: AXUIElement, _ frame: CGRect) {
+        var origin = frame.origin, size = frame.size
+        guard let position = AXValueCreate(.cgPoint, &origin), let extent = AXValueCreate(.cgSize, &size) else { return }
+        // Moved first, so the new size isn't held to the old display's; again in case resizing pushed it.
+        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, position)
+        AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, extent)
+        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, position)
+    }
+
+    /// A display's room for windows (below its menu bar, beside the Dock), top-left origin.
+    @MainActor
+    static func visibleFrame(_ id: CGDirectDisplayID) -> CGRect {
+        let bounds = CGDisplayBounds(id)
+        guard let screen = NSScreen.screens.first(where: {
+                  ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
+              }),
+              let primary = NSScreen.screens.first else { return bounds }
+        let visible = screen.visibleFrame
+        return CGRect(x: visible.minX, y: primary.frame.maxY - visible.maxY, width: visible.width, height: visible.height)
     }
 }
 
@@ -1241,6 +1516,8 @@ func size(_ value: Any?) -> CGSize? {
 //   show         {display: "main" | "all" | "virtual" | id, virtual?: {width, height}}
 //   virtualSize  {width, height}: the phone turned or its window changed
 //   clipboard    {text}: the phone's copied text, for the Mac's clipboard
+//   windows      the other displays' windows, answered with "windows" then a "windowThumb" each
+//   moveWindow   {id}: that window onto the phone's display, answered with "windowMoved" or an error
 //   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy, phase?}, key {code, mods}, text {s}, stop
 func handle(_ line: String) {
     guard let data = line.data(using: .utf8),
@@ -1277,6 +1554,10 @@ func handle(_ line: String) {
         guard let size = size(command) else { return }
         onScreen { await screen.resizeVirtual(size) }
     case "keyframe": Task { await screen.keyframe() }
+    case "windows": Task { await Windows.send(virtual: await screen.virtualDisplayID()) }
+    case "moveWindow":
+        guard let id = command["id"] as? Int else { return }
+        Task { await Windows.bring(CGWindowID(id)) }
     case "clipboard":
         guard let text = command["text"] as? String else { return }
         DispatchQueue.main.async { MainActor.assumeIsolated { clipboard.set(text) } }
