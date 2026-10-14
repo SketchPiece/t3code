@@ -39,7 +39,7 @@ func emit(_ kind: UInt8, _ payload: Data) {
     frame.append(payload)
     outputLock.lock()
     defer { outputLock.unlock() }
-    do { try output.write(contentsOf: frame) } catch { exit(0) }  // the server went away
+    do { try output.write(contentsOf: frame) } catch { quit() }  // the server went away
 }
 
 func emitJSON(_ object: [String: Any]) {
@@ -896,6 +896,7 @@ actor Screen {
             await restart()
         } else {
             emitJSON(["t": "error", "code": "capture", "message": error.localizedDescription])
+            await stop()
             exit(1)
         }
     }
@@ -1208,6 +1209,20 @@ Task { for await work in screenWork { await work() } }
 func onScreen(_ work: @escaping @Sendable () async -> Void) {
     screenQueue.yield(work)
 }
+
+/// Every way out goes through here. A capture still running when the process ends can outlive
+/// it in replayd, leaving the Mac's "sharing" indicator on with nothing to stop, so the streams
+/// are stopped first. The server waits a second after SIGTERM; a stop that hangs gives up sooner.
+let quitting = NSLock()
+var quitStarted = false
+func quit(_ code: Int32 = 0) {
+    quitting.lock()
+    defer { quitting.unlock() }
+    guard !quitStarted else { return }
+    quitStarted = true
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { exit(code) }
+    onScreen { await screen.stop(); exit(code) }
+}
 let input = Input()
 let cursor = CursorWatch()
 let clipboard = MainActor.assumeIsolated { Clipboard() }
@@ -1282,7 +1297,7 @@ func handle(_ line: String) {
         let text = command["s"] as? String ?? ""
         DispatchQueue.main.async { input.text(text) }
     case "stop":
-        onScreen { await screen.stop(); exit(0) }
+        quit()
     default: break
     }
 }
@@ -1297,6 +1312,14 @@ if CommandLine.arguments.contains("--check") {
 if CommandLine.arguments.contains("--keep-display") { runKeeper() }
 
 signal(SIGPIPE, SIG_IGN)
+// The server ends a session with SIGTERM.
+let quitSignals = [SIGTERM, SIGINT, SIGHUP].map { number in
+    signal(number, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
+    source.setEventHandler { quit() }
+    source.resume()
+    return source
+}
 // Displays plugged in, removed or resized; one look once they settle.
 var reconfiguration = 0
 CGDisplayRegisterReconfigurationCallback({ _, flags, _ in
@@ -1311,7 +1334,7 @@ CGDisplayRegisterReconfigurationCallback({ _, flags, _ in
 Thread.detachNewThread {
     while let line = readLine() { handle(line) }
     // stdin closed: the server let go of us.
-    exit(0)
+    quit()
 }
 NSApplication.shared.setActivationPolicy(.prohibited)
 // The app's own event loop, not just the run loop: display changes (a virtual display's modes,
