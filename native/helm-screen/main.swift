@@ -14,8 +14,8 @@
 //   3 audio   [u8 channels][u32 big-endian sample rate][Int16 little-endian samples, interleaved]
 //   4 format  as 2, for HEVC: VPS, SPS and PPS
 //   5 tick    empty, every 30 ms: keeps the phone's Wi-Fi radio awake, so frames don't wait for it
-//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"cursorShape"|"clipboard"|"windows"|"windowThumb"|
-//             "windowMoved"|"error", …}
+//   10 json   UTF-8 JSON: {"t":"info"|"displays"|"cursor"|"cursorShape"|"clipboard"|"windows"|"windowMoved"|
+//             "error", …}
 //
 // The video leaves the cursor out (`showsCursor = false`): the phone draws its own from the
 // "cursor" messages, so it moves with no video lag.
@@ -1047,8 +1047,8 @@ actor Screen {
 
 // MARK: Windows
 
-// "Bring a window here": the other displays' windows go to the phone as a list (an icon per app,
-// then a small picture of each), and the one it picks moves onto the phone's display through
+// "Bring a window here": the other displays' windows go to the phone as a list (titles and an icon
+// per app), and the one it picks moves onto the phone's display through
 // Accessibility, filling it. The keeper remembers where it was and puts it back when the display goes.
 
 /// The window server's ID of an Accessibility window: private, as window managers use it, but the
@@ -1096,7 +1096,7 @@ enum Windows {
     }
 
     /// `{"t": "windows", windows: [{id, pid, app, title, display}], icons: {pid: png}}` for the
-    /// windows not already on the phone's display, then a `windowThumb` for each.
+    /// windows not already on the phone's display.
     static func send(virtual: CGDirectDisplayID?) async {
         let displays = activeDisplayIDs()
         let windows = onScreen().compactMap { window -> (Window, CGDirectDisplayID)? in
@@ -1115,7 +1115,6 @@ enum Windows {
         emitJSON(["t": "windows", "icons": icons, "windows": windows.map { window, on in
             ["id": Int(window.id), "pid": Int(window.pid), "app": window.app, "title": window.title, "display": Int(on)]
         }])
-        await sendThumbnails(windows.prefix(30).map(\.0.id))
     }
 
     private static func png(_ image: NSImage, side: CGFloat) -> String? {
@@ -1128,31 +1127,6 @@ enum Windows {
         image.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
         NSGraphicsContext.restoreGraphicsState()
         return rep.representation(using: .png, properties: [:])?.base64EncodedString()
-    }
-
-    /// A picture of each window, about 360 pixels wide, as it comes.
-    private static func sendThumbnails(_ ids: [CGWindowID]) async {
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-        else { return }
-        let windows = content.windows.filter { ids.contains($0.windowID) }
-        await withTaskGroup(of: Void.self) { group in
-            for window in windows {
-                group.addTask {
-                    let config = SCStreamConfiguration()
-                    let scale = min(1, 360 / max(1, window.frame.width))
-                    config.width = max(2, Int(window.frame.width * scale))
-                    config.height = max(2, Int(window.frame.height * scale))
-                    config.showsCursor = false
-                    config.ignoreShadowsSingleWindow = true
-                    let filter = SCContentFilter(desktopIndependentWindow: window)
-                    guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config),
-                          let jpeg = NSBitmapImageRep(cgImage: image)
-                              .representation(using: .jpeg, properties: [.compressionFactor: 0.6])
-                    else { return }
-                    emitJSON(["t": "windowThumb", "id": Int(window.windowID), "jpeg": jpeg.base64EncodedString()])
-                }
-            }
-        }
     }
 
     /// Moves window `id` onto the phone's display; the keeper remembers where it came from.
@@ -1536,7 +1510,7 @@ func size(_ value: Any?) -> CGSize? {
 //   show         {display: "main" | "all" | "virtual" | id, virtual?: {width, height}}
 //   virtualSize  {width, height}: the phone turned or its window changed
 //   clipboard    {text}: the phone's copied text, for the Mac's clipboard
-//   windows      the other displays' windows, answered with "windows" then a "windowThumb" each
+//   windows      the other displays' windows, answered with "windows"
 //   moveWindow   {id}: that window onto the phone's display, answered with "windowMoved" or an error
 //   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy, phase?}, key {code, mods}, text {s}, stop
 func handle(_ line: String) {
