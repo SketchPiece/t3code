@@ -1270,6 +1270,34 @@ enum Windows {
 
 // MARK: Cursor
 
+typealias CGSConnectionID = Int32
+@_silgen_name("_CGSDefaultConnection") func _CGSDefaultConnection() -> CGSConnectionID
+@_silgen_name("CGSSetConnectionProperty")
+func CGSSetConnectionProperty(_ connection: CGSConnectionID, _ target: CGSConnectionID, _ key: CFString, _ value: CFTypeRef) -> Int32
+
+/// The Mac's own arrow is hidden while the phone is connected: the phone draws the cursor itself,
+/// and a virtual display bakes the real one into its picture regardless of `showsCursor`, so there
+/// were two. A background process may only hide it with "SetsCursorInBackground"; macOS shows it
+/// again when this process ends, however it ends.
+@MainActor
+enum SystemCursor {
+    private static var hidden = false
+
+    static func hide() {
+        guard !hidden else { return }
+        let connection = _CGSDefaultConnection()
+        _ = CGSSetConnectionProperty(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
+        hidden = CGDisplayHideCursor(CGMainDisplayID()) == .success
+    }
+
+    static func show() {
+        guard hidden else { return }
+        hidden = false
+        CGDisplayShowCursor(CGMainDisplayID())
+    }
+}
+
+
 /// Reports where the cursor is, in the shown frame's points from its top-left, whenever it moves.
 final class CursorWatch: @unchecked Sendable {
     private var timer: DispatchSourceTimer?
@@ -1652,7 +1680,7 @@ func quit(_ code: Int32 = 0) {
     guard !quitStarted else { return }
     quitStarted = true
     DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { exit(code) }
-    DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.stop() } }
+    DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.stop(); SystemCursor.show() } }
     onScreen { await screen.stop(); exit(code) }
 }
 let input = Input()
@@ -1692,7 +1720,7 @@ func handle(_ line: String) {
         guard let password = command["password"] as? String else { return }
         DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.unlock(password) } }
     case "start":
-        DispatchQueue.main.sync { MainActor.assumeIsolated { lockWatch.start() } }
+        DispatchQueue.main.sync { MainActor.assumeIsolated { lockWatch.start(); SystemCursor.hide() } }
         var settings = StreamSettings()
         settings.maxWidth = command["maxWidth"] as? Int ?? 3024
         settings.fps = min(120, max(24, command["fps"] as? Int ?? 30))
