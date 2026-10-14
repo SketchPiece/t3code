@@ -561,8 +561,9 @@ final class VirtualDisplay {
 //   keeper → helper: {"id": displayID} or {"error": "…"}
 //   helper → keeper: {"remember": {"window", "pid", "x", "y", "width", "height"}}, no answer: a
 //                    window moved onto the display and where it was before
-// With no helper connected the keeper waits `linger` seconds, puts the remembered windows still on
-// the display back where they were, then quits and the display goes.
+// Once no helper is connected the keeper puts the remembered windows still on the display back where
+// they were; one that connects again within `linger` seconds brings them back onto it. After that
+// the keeper quits and the display goes.
 
 let keeperSocketPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("helm-screen-display.sock")
 
@@ -740,6 +741,9 @@ final class Keeper {
 
     /// Windows brought onto the display, and where each was before.
     private var remembered: [CGWindowID: (pid: pid_t, frame: CGRect)] = [:]
+    /// Windows put back when the last helper went: where each was on the display and where it went
+    /// back to, so a helper that comes back can have them again.
+    private var putBack: [CGWindowID: (pid: pid_t, onDisplay: CGRect, frame: CGRect)] = [:]
 
     private func remember(_ item: [String: Any]) {
         guard let window = item["window"] as? Int, let pid = item["pid"] as? Int,
@@ -753,6 +757,7 @@ final class Keeper {
     /// One moved off it since stays where it was put; one whose old display has gone is left for
     /// macOS to place.
     private func restoreWindows() {
+        putBack = [:]
         guard let display, !remembered.isEmpty else { return }
         guard AXIsProcessTrusted() else {
             log("keeper: no Accessibility access, \(remembered.count) windows stay")
@@ -774,9 +779,27 @@ final class Keeper {
                 continue
             }
             Windows.setFrame(window, saved.frame)
-            log("keeper: window \(id) back at \(Windows.frame(window).map { "\($0)" } ?? "?")")
+            let back = Windows.frame(window)
+            log("keeper: window \(id) back at \(back.map { "\($0)" } ?? "?")")
+            putBack[id] = (saved.pid, now, back ?? saved.frame)
         }
         remembered = [:]
+    }
+
+    /// A helper is back while the display still is: the windows put back when it went return to it,
+    /// unless they've been moved or closed since.
+    private func bringBackWindows() {
+        guard let display, !putBack.isEmpty, AXIsProcessTrusted() else { return }
+        let here = CGDisplayBounds(display.id)
+        for (id, saved) in putBack {
+            guard let window = Windows.element(pid: saved.pid, id: id), let now = Windows.frame(window),
+                  abs(now.minX - saved.frame.minX) < 2, abs(now.minY - saved.frame.minY) < 2,
+                  here.intersects(saved.onDisplay) else { continue }
+            Windows.setFrame(window, saved.onDisplay)
+            remembered[id] = (saved.pid, now)
+            log("keeper: window \(id) onto the display again")
+        }
+        putBack = [:]
     }
 
     private func receive(_ client: Int32) {
@@ -786,7 +809,11 @@ final class Keeper {
             clients.removeValue(forKey: client)?.cancel()
             buffers[client] = nil
             close(client)
-            if clients.isEmpty { quit(after: linger) }
+            if clients.isEmpty {
+                // The windows go home with the phone, not minutes later with the display.
+                restoreWindows()
+                quit(after: linger)
+            }
             return
         }
         var buffer = buffers[client, default: Data()]
@@ -814,6 +841,7 @@ final class Keeper {
             return
         }
         if await display.use(size) {
+            bringBackWindows()
             _ = writeLine(client, ["id": Int(display.id)])
         } else {
             _ = writeLine(client, ["error": "The display couldn't take that size."])
@@ -1221,6 +1249,10 @@ enum Windows {
         AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, position)
         AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, extent)
         AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, position)
+        // Some apps still hold the size to the display they were leaving: once more, now settled.
+        if let now = Self.frame(element), abs(now.height - size.height) > 1 || abs(now.width - size.width) > 1 {
+            AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, extent)
+        }
     }
 
     /// A display's room for windows (below its menu bar, beside the Dock), top-left origin.
