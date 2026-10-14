@@ -745,21 +745,35 @@ final class Keeper {
               let x = item["x"] as? Double, let y = item["y"] as? Double,
               let width = item["width"] as? Double, let height = item["height"] as? Double else { return }
         remembered[CGWindowID(window)] = (pid_t(pid), CGRect(x: x, y: y, width: width, height: height))
+        log("keeper: remembered window \(window) of \(pid) at \(x),\(y) \(width)×\(height)")
     }
 
     /// The remembered windows still on the display go back, while it's still here to find them on.
     /// One moved off it since stays where it was put; one whose old display has gone is left for
     /// macOS to place.
     private func restoreWindows() {
-        guard let display, !remembered.isEmpty, AXIsProcessTrusted() else { return }
+        guard let display, !remembered.isEmpty else { return }
+        guard AXIsProcessTrusted() else {
+            log("keeper: no Accessibility access, \(remembered.count) windows stay")
+            return
+        }
         let here = CGDisplayBounds(display.id)
         let others = activeDisplayIDs().filter { $0 != display.id }.map { CGDisplayBounds($0) }
         for (id, saved) in remembered {
-            guard let window = Windows.element(pid: saved.pid, id: id), let now = Windows.frame(window),
-                  here.contains(CGPoint(x: now.midX, y: now.midY)),
-                  others.contains(where: { $0.contains(CGPoint(x: saved.frame.midX, y: saved.frame.midY)) })
-            else { continue }
+            guard let window = Windows.element(pid: saved.pid, id: id), let now = Windows.frame(window) else {
+                log("keeper: window \(id) is gone")
+                continue
+            }
+            guard here.contains(CGPoint(x: now.midX, y: now.midY)) else {
+                log("keeper: window \(id) has left the display (\(now)), stays")
+                continue
+            }
+            guard others.contains(where: { $0.contains(CGPoint(x: saved.frame.midX, y: saved.frame.midY)) }) else {
+                log("keeper: window \(id)'s old place \(saved.frame) is on no display, left to macOS")
+                continue
+            }
             Windows.setFrame(window, saved.frame)
+            log("keeper: window \(id) back at \(Windows.frame(window).map { "\($0)" } ?? "?")")
         }
         remembered = [:]
     }
@@ -808,6 +822,7 @@ final class Keeper {
     private func quit(after seconds: Int) {
         quitting?.cancel()
         let work = DispatchWorkItem { [weak self] in
+            log("keeper: quitting \(Date())")
             MainActor.assumeIsolated { self?.restoreWindows() }
             unlink(keeperSocketPath)
             exit(0)
@@ -822,6 +837,11 @@ func runKeeper() -> Never {
     signal(SIGPIPE, SIG_IGN)
     let existing = connectToKeeper()
     if existing >= 0 { exit(0) }
+    // Its own log: started detached, it has nowhere else to say what it did.
+    let logs = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Logs/Helm")
+    try? FileManager.default.createDirectory(atPath: logs, withIntermediateDirectories: true)
+    freopen((logs as NSString).appendingPathComponent("helm-screen-keeper.log"), "a", stderr)
+    log("keeper: started \(Date()), Accessibility \(AXIsProcessTrusted() ? "allowed" : "not allowed")")
     unlink(keeperSocketPath)
     let server = socket(AF_UNIX, SOCK_STREAM, 0)
     var address = keeperAddress()
