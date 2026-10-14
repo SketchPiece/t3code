@@ -374,7 +374,7 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
           Effect.orElseSucceed(() => ({ label: undefined })),
         );
         const label = body.label?.trim().slice(0, 80) || caller.nodeName;
-        const id = yield* (yield* Crypto.Crypto).randomUUIDv4;
+        const id = yield* (yield* Crypto.Crypto).randomUUIDv4().pipe(Effect.orDie);
         const asked = requests.ask({ ...caller, id, label });
         yield* Effect.logInfo("helm tailnet pairing requested", {
           node: caller.nodeName,
