@@ -234,7 +234,9 @@ export const make = Effect.gen(function* () {
       storageCleanupRun: true,
       otlpEndpointCheck: true,
       projectWorktreeCleanup: true,
+      settledWorktreeCleanup: true,
       worktreesDirectory: true,
+      threadAutoSettlementScope: true,
       // Helm fork: helm/screenRemoteRoute.ts
       screenRemote: helmScreenPath !== undefined,
       threadRestartContinuation: true,
