@@ -40,8 +40,14 @@ if [[ "${1:-}" == "--upload" ]]; then
     -q '.assets[] | select(.state == "uploaded") | .name')
   for asset in "$@"; do
     if ! grep -qxF "$(basename "$asset")" <<<"$uploaded"; then
-      echo "helm-release: uploading $(basename "$asset")"
-      gh release upload "$tag" "$asset" -R "$REPO" --clobber
+      # The uplink stalls now and then and GitHub drops the body (HTTP 408):
+      # try again rather than leave the draft unpublished.
+      for attempt in 1 2 3 4 5; do
+        echo "helm-release: uploading $(basename "$asset") (attempt $attempt)"
+        gh release upload "$tag" "$asset" -R "$REPO" --clobber && break
+        ((attempt == 5)) && exit 1
+        sleep 60
+      done
     fi
   done
   gh release edit "$tag" -R "$REPO" --draft=false --latest
