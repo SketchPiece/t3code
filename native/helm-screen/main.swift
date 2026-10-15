@@ -1429,6 +1429,27 @@ final class Input: @unchecked Sendable {
         event.post(tap: .cghidEventTap)
     }
 
+    /// A modifier held down across keys until it's let go: ⌘ through the app switcher, while the
+    /// phone holds its stand-in (⌥, as iPadOS keeps ⌘Tab for itself).
+    func modifier(_ name: String, down: Bool) {
+        guard checkTrusted(), let (code, flag) = Self.modifierKeys[name] else { return }
+        guard flags.contains(flag) != down else { return }
+        if down { flags.insert(flag) } else { flags.remove(flag) }
+        let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down)
+        event?.type = .flagsChanged
+        event?.flags = flags
+        event?.post(tap: .cghidEventTap)
+    }
+
+    /// Lets go of every held modifier, so none stays down on the Mac once the phone is gone.
+    func releaseModifiers() {
+        for name in Self.modifierKeys.keys { modifier(name, down: false) }
+    }
+
+    private static let modifierKeys: [String: (CGKeyCode, CGEventFlags)] = [
+        "cmd": (55, .maskCommand), "shift": (56, .maskShift), "alt": (58, .maskAlternate), "ctrl": (59, .maskControl),
+    ]
+
     private static func flags(_ names: [String]) -> CGEventFlags {
         var flags: CGEventFlags = []
         for name in names {
@@ -1446,7 +1467,7 @@ final class Input: @unchecked Sendable {
     /// A virtual key press (with modifiers held for it), e.g. ⌘C as code 8 with ["cmd"].
     func key(code: Int, mods: [String]) {
         guard checkTrusted() else { return }
-        let flags = Self.flags(mods)
+        let flags = Self.flags(mods).union(self.flags)
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(code), keyDown: down)
             event?.flags = flags
@@ -1653,6 +1674,7 @@ func quit(_ code: Int32 = 0) {
     quitStarted = true
     DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { exit(code) }
     DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.stop() } }
+    DispatchQueue.main.async { input.releaseModifiers() }
     onScreen { await screen.stop(); exit(code) }
 }
 let input = Input()
@@ -1676,7 +1698,8 @@ func size(_ value: Any?) -> CGSize? {
 //   windows      the other displays' windows, answered with "windows"
 //   moveWindow   {id}: that window onto the phone's display, answered with "windowMoved" or an error
 //   unlock       {password}: one attempt in loginwindow's selected password field
-//   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy, phase?}, key {code, mods}, text {s}, stop
+//   keyframe, move {x, y}, button {b, down, x, y}, scroll {dx, dy, phase?}, key {code, mods},
+//                modifier {key: "cmd"|"alt"|"ctrl"|"shift", down}: held across keys until let go, text {s}, stop
 func handle(_ line: String) {
     guard let data = line.data(using: .utf8),
           let command = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1745,6 +1768,14 @@ func handle(_ line: String) {
         DispatchQueue.main.async {
             guard sessionAccess.permitsInput(locked: sessionLocked()) else { return }
             input.scroll(dx: dx, dy: dy, phase: phase)
+        }
+    case "modifier":
+        guard let name = command["key"] as? String else { return }
+        let down = command["down"] as? Bool ?? false
+        DispatchQueue.main.async {
+            // Letting go is always allowed, so nothing stays held.
+            guard !down || sessionAccess.permitsInput(locked: sessionLocked()) else { return }
+            input.modifier(name, down: down)
         }
     case "key":
         let code = command["code"] as? Int ?? 0
