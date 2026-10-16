@@ -175,7 +175,7 @@ describe("DesktopPreReadyPlatform", () => {
         const identity = yield* Effect.promise(() => portalIdentity);
         assert.equal(identity.desktopName, "com.t3tools.T3Code.desktop");
         assert.include(identity.desktopEntry ?? "", 'Exec="/Applications/current.AppImage" %U');
-        assert.include(identity.desktopEntry ?? "", "Name=Helm (Alpha)");
+        assert.include(identity.desktopEntry ?? "", "Name=Helm (Beta)");
         assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/helm;");
         assert.include(
           identity.desktopEntry ?? "",

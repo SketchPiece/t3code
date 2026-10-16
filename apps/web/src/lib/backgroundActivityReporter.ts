@@ -42,9 +42,7 @@ function notifyRetainedScopesChanged(): void {
   for (const listener of retainedScopeListeners) {
     try {
       listener();
-    } catch {
-      // A failing observer must not corrupt retained-scope lifetime.
-    }
+    } catch {}
   }
 }
 
