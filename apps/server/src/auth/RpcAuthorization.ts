@@ -159,6 +159,9 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.voiceTranscribe]: AuthOrchestrationOperateScope,
   [WS_METHODS.helmRemoteSend]: AuthOrchestrationOperateScope, // Helm fork
   [WS_METHODS.helmDraftsSet]: AuthOrchestrationOperateScope, // Helm fork
+  // Helm fork: approving sudo or typing a password on the Mac is as much as a terminal.
+  [WS_METHODS.helmAuthRespond]: AuthTerminalOperateScope,
+  [WS_METHODS.helmAuthRegisterApprover]: AuthTerminalOperateScope,
   [WS_METHODS.providerUploadFeedback]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsCallTool]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsToolInfo]: AuthOrchestrationReadScope,
@@ -210,6 +213,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeBackgroundPolicy]: AuthOrchestrationReadScope,
   [WS_METHODS.helmRemoteSubscribe]: AuthOrchestrationReadScope, // Helm fork
   [WS_METHODS.helmDraftsSubscribe]: AuthOrchestrationReadScope, // Helm fork
+  [WS_METHODS.helmAuthSubscribe]: AuthTerminalOperateScope, // Helm fork: carries command lines
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
 
 export function requiredScopeForRpcMethod(method: string): AuthEnvironmentScope {

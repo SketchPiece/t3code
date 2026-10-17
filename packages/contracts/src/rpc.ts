@@ -109,6 +109,13 @@ import {
 import { HelmDraft, HelmDraftEvent, HelmDraftSetInput } from "./helmDrafts.ts";
 import { HelmRemoteCommand, HelmRemoteSendResult } from "./helmRemote.ts";
 import {
+  HelmAuthEvent,
+  HelmAuthRegisterApproverInput,
+  HelmAuthRespondInput,
+  HelmAuthRespondResult,
+  HelmAuthSudoSetup,
+} from "./helmAuth.ts";
+import {
   PersistChatAttachmentsError,
   PersistChatAttachmentsInput,
   PersistChatAttachmentsResult,
@@ -406,6 +413,9 @@ export const WS_METHODS = {
   helmRemoteSend: "helm.remote.send",
   // Helm fork: drafts shared by the Mac and the phone (helmDrafts.ts).
   helmDraftsSet: "helm.drafts.set",
+  // Helm fork: Face ID on the phone for sudo and password prompts on the Mac (helmAuth.ts).
+  helmAuthRespond: "helm.auth.respond",
+  helmAuthRegisterApprover: "helm.auth.registerApprover",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -584,6 +594,7 @@ export const WS_METHODS = {
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
   helmRemoteSubscribe: "helm.remote.subscribe",
   helmDraftsSubscribe: "helm.drafts.subscribe",
+  helmAuthSubscribe: "helm.auth.subscribe",
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -1333,6 +1344,25 @@ const WsHelmDraftsSubscribeRpc = Rpc.make(WS_METHODS.helmDraftsSubscribe, {
   stream: true,
 });
 
+const WsHelmAuthRespondRpc = Rpc.make(WS_METHODS.helmAuthRespond, {
+  payload: HelmAuthRespondInput,
+  success: HelmAuthRespondResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsHelmAuthRegisterApproverRpc = Rpc.make(WS_METHODS.helmAuthRegisterApprover, {
+  payload: HelmAuthRegisterApproverInput,
+  success: HelmAuthSudoSetup,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsHelmAuthSubscribeRpc = Rpc.make(WS_METHODS.helmAuthSubscribe, {
+  payload: Schema.Struct({}),
+  success: HelmAuthEvent,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 const WsHelmRemoteSubscribeRpc = Rpc.make(WS_METHODS.helmRemoteSubscribe, {
   payload: Schema.Struct({}),
   success: HelmRemoteCommand,
@@ -2023,6 +2053,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsHelmRemoteSubscribeRpc,
   WsHelmDraftsSetRpc,
   WsHelmDraftsSubscribeRpc,
+  WsHelmAuthRespondRpc,
+  WsHelmAuthRegisterApproverRpc,
+  WsHelmAuthSubscribeRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,

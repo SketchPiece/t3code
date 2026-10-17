@@ -52,6 +52,7 @@ export * from "./assets.ts";
 export * from "./voiceTranscription.ts";
 export * from "./helmRemote.ts";
 export * from "./helmDrafts.ts";
+export * from "./helmAuth.ts";
 export * from "./review.ts";
 export * from "./mcpApps.ts";
 export * from "./browserImport.ts";

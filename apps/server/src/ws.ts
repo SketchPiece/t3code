@@ -197,6 +197,7 @@ import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/Atta
 import { transcribeVoice } from "./helm/voiceTranscription.ts";
 import { draftEvents, setDraft } from "./helm/drafts.ts";
 import { remoteCommands, sendRemoteCommand } from "./helm/remoteCommands.ts";
+import { authEvents, registerApprover, respond as respondAuth } from "./helm/authBridge.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
@@ -2709,6 +2710,9 @@ const layerWsRpc = (
         [WS_METHODS.helmRemoteSend]: (input) => sendRemoteCommand(input),
         // Helm fork: helm/drafts.ts
         [WS_METHODS.helmDraftsSet]: (input) => setDraft(config.stateDir, input),
+        // Helm fork: helm/authBridge.ts
+        [WS_METHODS.helmAuthRespond]: (input) => respondAuth(input),
+        [WS_METHODS.helmAuthRegisterApprover]: (input) => registerApprover(input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -3116,6 +3120,7 @@ const layerWsRpc = (
           ),
         [WS_METHODS.helmRemoteSubscribe]: (_input) => remoteCommands,
         [WS_METHODS.helmDraftsSubscribe]: (_input) => draftEvents(config.stateDir),
+        [WS_METHODS.helmAuthSubscribe]: (_input) => authEvents,
         [WS_METHODS.subscribeResourceTelemetry]: (_input) =>
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>

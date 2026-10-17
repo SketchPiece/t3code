@@ -184,6 +184,7 @@ import { disableTailscaleServe, ensureTailscaleServe } from "@t3tools/tailscale"
 import { nearbyAdvertiserLayer } from "./helm/nearbyAdvertiser.ts";
 import { tailnetPairRouteLayer } from "./helm/tailnetPairRoute.ts";
 import { screenRemoteRouteLayer } from "./helm/screenRemoteRoute.ts";
+import { authBridgeLayer } from "./helm/authBridge.ts";
 import * as ServerActivation from "./serverActivation.ts";
 
 // MCP handoff thread IDs include escaped provenance and can exceed find-my-way's
@@ -684,6 +685,7 @@ const layerMakeRoutes = Layer.mergeAll(
     tailnetPairRouteLayer, // Helm fork: helm/tailnetPairRoute.ts
     nearbyAdvertiserLayer, // Helm fork: helm/nearbyAdvertiser.ts
     screenRemoteRouteLayer, // Helm fork: helm/screenRemoteRoute.ts
+    authBridgeLayer, // Helm fork: helm/authBridge.ts
     ServerHttp.layerAttachmentUploadRoute,
     DeviceHubProxy.layer,
     ServerBrowserStream.routeLayer,
