@@ -210,7 +210,7 @@ function handleSudoConnection(socket: NodeNet.Socket): void {
   socket.on("error", () => undefined);
 }
 
-function listenForSudo(socketPath: string): NodeNet.Server {
+export function listenForSudo(socketPath: string): NodeNet.Server {
   try {
     NodeFS.unlinkSync(socketPath);
   } catch {
