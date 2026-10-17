@@ -196,6 +196,8 @@ function handleSudoConnection(socket: NodeNet.Socket): void {
     };
     state.sudoReplies.set(requestId, reply);
     add(request);
+    // pam_helm tells the terminal to look at the phone only now.
+    socket.write(`${JSON.stringify({ status: "pending" })}\n`);
     const timer = setTimeout(() => {
       state.sudoReplies.delete(requestId);
       remove(requestId, "expired");

@@ -13,8 +13,8 @@ import { authEvents, listenForSudo, respond } from "./authBridge.ts";
 const socketPath = () =>
   NodePath.join(NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "helm-auth-")), "sudo.sock");
 
-/** What pam_helm does: one JSON line up, one back. */
-function askSudo(path: string, command: string): Promise<Record<string, unknown>> {
+/** What pam_helm does: one JSON line up; back maybe "pending", then the answer. Gives every line. */
+function askSudo(path: string, command: string): Promise<Array<Record<string, unknown>>> {
   return new Promise((resolve, reject) => {
     const socket = NodeNet.connect(path, () => {
       const request = {
@@ -30,7 +30,14 @@ function askSudo(path: string, command: string): Promise<Record<string, unknown>
     let buffer = "";
     socket.setEncoding("utf8");
     socket.on("data", (chunk: string) => (buffer += chunk));
-    socket.on("end", () => resolve(JSON.parse(buffer.trim())));
+    socket.on("end", () =>
+      resolve(
+        buffer
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line)),
+      ),
+    );
     socket.on("error", reject);
   });
 }
@@ -48,7 +55,7 @@ describe("helm auth bridge", () => {
       await listening(server);
       const reply = await askSudo(path, "sudo true");
       server.close();
-      assert.deepStrictEqual(reply, { status: "unavailable" });
+      assert.deepStrictEqual(reply, [{ status: "unavailable" }]);
     }),
   );
 
@@ -57,7 +64,7 @@ describe("helm auth bridge", () => {
       const path = socketPath();
       const server = listenForSudo(path);
       yield* Effect.promise(() => listening(server));
-      let reply: Promise<Record<string, unknown>> | undefined;
+      let reply: Promise<Array<Record<string, unknown>>> | undefined;
       const events = yield* authEvents.pipe(
         Stream.tap((event) => {
           if (event.type === "snapshot") {
@@ -80,7 +87,10 @@ describe("helm auth bridge", () => {
         ["brew services restart nginx", "bm9uY2U="],
       );
       assert.deepStrictEqual(removed?.type === "removed" ? removed.outcome : null, "approved");
-      assert.deepStrictEqual(answer, { status: "approved", signature: "c2ln" });
+      assert.deepStrictEqual(answer, [
+        { status: "pending" },
+        { status: "approved", signature: "c2ln" },
+      ]);
     }),
   );
 });

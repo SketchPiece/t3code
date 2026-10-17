@@ -42,7 +42,7 @@
 #define SOCKET_NAME ".helm/sudo.sock"
 #endif
 #define DEFAULT_TIMEOUT 45
-#define MAX_REPLY 8192
+#define MAX_REPLY 4096
 
 static const char b64chars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -158,9 +158,11 @@ static void own_command_line(char *out, size_t cap) {
   free(buf);
 }
 
-static int read_line(int fd, char *buf, size_t cap, int timeout_s) {
+// One line, a byte at a time so nothing of the next line is swallowed (the
+// replies are tiny).
+static int read_line(int fd, char *buf, size_t cap, time_t deadline) {
   size_t n = 0;
-  time_t deadline = time(NULL) + timeout_s;
+  buf[0] = 0;
   while (n + 1 < cap) {
     int left = (int)(deadline - time(NULL));
     if (left <= 0) return 0;
@@ -168,11 +170,11 @@ static int read_line(int fd, char *buf, size_t cap, int timeout_s) {
     int r = poll(&pfd, 1, left * 1000);
     if (r < 0 && errno == EINTR) return 0;  // Ctrl-C: stop waiting
     if (r <= 0) return 0;
-    ssize_t got = read(fd, buf + n, cap - n - 1);
-    if (got <= 0) return 0;
-    n += (size_t)got;
+    char c;
+    if (read(fd, &c, 1) != 1) return 0;
+    if (c == '\n') return 1;
+    buf[n++] = c;
     buf[n] = 0;
-    if (memchr(buf, '\n', n)) return 1;
   }
   return 0;
 }
@@ -283,11 +285,20 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 
   int result = PAM_IGNORE;
   if (write(fd, request, strlen(request)) == (ssize_t)strlen(request)) {
-    info(pamh, "Confirm with Face ID on your phone (Helm)…");
     char reply[MAX_REPLY];
-    if (read_line(fd, reply, sizeof reply, timeout)) {
-      char status[32] = "", sig64[1024] = "";
-      json_get_string(reply, "status", status, sizeof status);
+    char status[32] = "";
+    time_t deadline = time(NULL) + timeout;
+    int got = read_line(fd, reply, sizeof reply, deadline);
+    // Helm says "pending" once a phone has been asked; "unavailable" means no
+    // phone to ask, and sudo goes on to the password without a word.
+    if (got && json_get_string(reply, "status", status, sizeof status) && strcmp(status, "pending") == 0) {
+      info(pamh, "Confirm with Face ID on your phone (Helm)…");
+      got = read_line(fd, reply, sizeof reply, deadline);
+      status[0] = 0;
+      if (got) json_get_string(reply, "status", status, sizeof status);
+    }
+    if (got) {
+      char sig64[1024] = "";
       if (strcmp(status, "approved") == 0 && json_get_string(reply, "signature", sig64, sizeof sig64)) {
         // What the phone signed: the nonce ties it to this sudo call, the
         // rest is what the person saw on the phone.
@@ -302,7 +313,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
         info(pamh, "Helm: declined on the phone.");
         result = PAM_AUTH_ERR;
       }
-    } else {
+    } else if (strcmp(status, "pending") == 0) {
       info(pamh, "Helm: no answer from the phone.");
     }
   }

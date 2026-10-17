@@ -19,6 +19,7 @@ let c = accept(fd, nil, nil)
 var buf = [UInt8](repeating: 0, count: 8192); let n = read(c, &buf, 8192)
 let req = try! JSONSerialization.jsonObject(with: Data(buf[0..<n])) as! [String: Any]
 print("request:", req)
+_ = "{\"status\":\"pending\"}\n".withCString { write(c, $0, strlen($0)) }
 if mode == "silent" { sleep(10); exit(0) }
 let msg = "helm-sudo-v1\n\(req["nonce"]!)\n\(req["user"]!)\n\(req["host"]!)\n\(req["command"]!)" + (mode == "badsig" ? "x" : "")
 let sig = try! key.signature(for: Data(msg.utf8)).derRepresentation.base64EncodedString()
