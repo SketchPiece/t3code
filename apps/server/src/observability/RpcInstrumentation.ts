@@ -210,13 +210,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeAuthAccess]: "auth",
   [WS_METHODS.subscribeBackgroundPolicy]: "server",
   [WS_METHODS.voiceTranscribe]: "server", // Helm fork: helm/voiceTranscription.ts
-  [WS_METHODS.helmRemoteSend]: "server", // Helm fork: helm/remoteCommands.ts
-  [WS_METHODS.helmDraftsSet]: "server", // Helm fork: helm/drafts.ts
-  [WS_METHODS.helmDraftsSubscribe]: "server",
-  [WS_METHODS.helmRemoteSubscribe]: "server",
-  [WS_METHODS.helmAuthRespond]: "server", // Helm fork: Face ID for sudo on the phone
-  [WS_METHODS.helmAuthRegisterApprover]: "server",
-  [WS_METHODS.helmAuthSubscribe]: "server",
+  [WS_METHODS.helmCommand]: "server", // Helm fork: helm/helmRpc.ts
+  [WS_METHODS.helmSubscribe]: "server",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

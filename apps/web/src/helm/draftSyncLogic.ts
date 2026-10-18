@@ -80,7 +80,7 @@ export function viewIsSettled(view: LocalDraftView | null): boolean {
   return view === null || !view.attachments.some((entry) => entry.pending);
 }
 
-/** What `helm.drafts.set` gets for a local draft. Attachments not uploaded yet are left out. */
+/** What `helm.command` ("drafts.set") gets for a local draft. Attachments not uploaded yet are left out. */
 export function outgoingContent(view: LocalDraftView | null): DraftContent {
   if (view === null || viewIsEmpty(view)) return EMPTY_DRAFT_CONTENT;
   const attachments: HelmDraftAttachment[] = [];

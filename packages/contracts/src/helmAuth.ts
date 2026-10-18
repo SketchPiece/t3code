@@ -56,7 +56,7 @@ export type HelmAuthSudoSetup = typeof HelmAuthSudoSetup.Type;
 export const HelmAuthOutcome = Schema.Literals(["approved", "denied", "expired", "gone", "failed"]);
 export type HelmAuthOutcome = typeof HelmAuthOutcome.Type;
 
-/** What `helm.auth.subscribe` streams. */
+/** What `helm.subscribe` streams for the "auth" topic. */
 export const HelmAuthEvent = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("snapshot"),

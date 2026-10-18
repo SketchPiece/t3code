@@ -195,9 +195,7 @@ import {
 import { parseBase64DataUrl } from "./imageMime.ts";
 import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/AttachmentUpload.ts";
 import { transcribeVoice } from "./helm/voiceTranscription.ts";
-import { draftEvents, setDraft } from "./helm/drafts.ts";
-import { remoteCommands, sendRemoteCommand } from "./helm/remoteCommands.ts";
-import { authEvents, registerApprover, respond as respondAuth } from "./helm/authBridge.ts";
+import { helmTopicEvents, runHelmCommand } from "./helm/helmRpc.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as KnownWorkspaces from "./workspace/KnownWorkspaces.ts";
@@ -2709,13 +2707,8 @@ const layerWsRpc = (
                   );
             return yield* transcribeVoice(input, keywords);
           }),
-        // Helm fork: helm/remoteCommands.ts
-        [WS_METHODS.helmRemoteSend]: (input) => sendRemoteCommand(input),
-        // Helm fork: helm/drafts.ts
-        [WS_METHODS.helmDraftsSet]: (input) => setDraft(config.stateDir, input),
-        // Helm fork: helm/authBridge.ts
-        [WS_METHODS.helmAuthRespond]: (input) => respondAuth(input),
-        [WS_METHODS.helmAuthRegisterApprover]: (input) => registerApprover(input),
+        // Helm fork: helm/helmRpc.ts
+        [WS_METHODS.helmCommand]: (input) => runHelmCommand(config.stateDir, input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -3121,9 +3114,7 @@ const layerWsRpc = (
               Stream.concat(Stream.make(latest), changes),
             ),
           ),
-        [WS_METHODS.helmRemoteSubscribe]: (_input) => remoteCommands,
-        [WS_METHODS.helmDraftsSubscribe]: (_input) => draftEvents(config.stateDir),
-        [WS_METHODS.helmAuthSubscribe]: (_input) => authEvents,
+        [WS_METHODS.helmSubscribe]: (input) => helmTopicEvents(config.stateDir, input.topic),
         [WS_METHODS.subscribeResourceTelemetry]: (_input) =>
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>

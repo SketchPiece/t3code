@@ -80,7 +80,7 @@ export const layer = Layer.effectDiscard(
       Stream.mapEffect(
         ({ environmentId, input, done }) =>
           registry
-            .run(environmentId, request(WS_METHODS.helmDraftsSet, input))
+            .run(environmentId, request(WS_METHODS.helmCommand, { command: "drafts.set", input }))
             .pipe(
               Effect.timeout(SEND_TIMEOUT),
               Effect.match({ onFailure: () => done(false), onSuccess: () => done(true) }),
@@ -98,11 +98,14 @@ export const layer = Layer.effectDiscard(
       Stream.switchMap((environmentIds) =>
         Stream.mergeAll(
           environmentIds.map((environmentId) =>
-            registry.runStream(environmentId, subscribe(WS_METHODS.helmDraftsSubscribe, {})).pipe(
-              Stream.map((event) => [environmentId, event] as const),
-              // Servers without shared drafts end the stream; nothing to sync there.
-              Stream.catchCause(() => Stream.empty),
-            ),
+            registry
+              .runStream(environmentId, subscribe(WS_METHODS.helmSubscribe, { topic: "drafts" }))
+              .pipe(
+                Stream.filter((item) => item.topic === "drafts"),
+                Stream.map((item) => [environmentId, item.event] as const),
+                // Servers without shared drafts end the stream; nothing to sync there.
+                Stream.catchCause(() => Stream.empty),
+              ),
           ),
           { concurrency: "unbounded" },
         ),

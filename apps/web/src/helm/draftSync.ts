@@ -67,8 +67,8 @@ import {
 import { canSendDrafts, handleDraftEvents, sendDraft } from "./draftSyncConnection";
 
 // Helm fork: unsent drafts shared by Helm and Helm Mobile (contracts/helmDrafts.ts). Every
-// environment's `helm.drafts.subscribe` feeds its drafts into the composer draft store, and local
-// edits go back with `helm.drafts.set` a moment after typing stops.
+// environment's `helm.subscribe` (topic "drafts") feeds its drafts into the composer draft store, and local
+// edits go back with `helm.command` ("drafts.set") a moment after typing stops.
 // - A server thread's draft is keyed by its thread id; a project's new thread not sent yet (its
 //   newest draft session with something in it) by "project:<projectId>".
 // - Words, pictures and files are shared. Terminal output, review comments, preview annotations,
@@ -638,7 +638,7 @@ function receiveChange(environmentId: EnvironmentId, draft: HelmDraft): void {
   }
 }
 
-/** Handles one event of an environment's `helm.drafts.subscribe`, in arrival order. */
+/** Handles one event of an environment's `helm.subscribe` (topic "drafts"), in arrival order. */
 function receiveDraftEvent(environmentId: EnvironmentId, event: HelmDraftEvent): void {
   if (event.type === "snapshot") receiveSnapshot(environmentId, event.drafts);
   else receiveChange(environmentId, event.draft);

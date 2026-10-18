@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 
-// Helm fork: Helm Mobile as a remote. The desktop app follows `helm.remote.subscribe` on every
+// Helm fork: Helm Mobile as a remote. The desktop app follows `helm.subscribe` (topic "remote") on every
 // connected environment and hands each command to the listeners in the UI (root route).
 export type RemoteCommandListener = (
   environmentId: EnvironmentId,
@@ -40,11 +40,14 @@ export const layer = Layer.effectDiscard(
       Stream.switchMap((environmentIds) =>
         Stream.mergeAll(
           environmentIds.map((environmentId) =>
-            registry.runStream(environmentId, subscribe(WS_METHODS.helmRemoteSubscribe, {})).pipe(
-              Stream.map((command) => [environmentId, command] as const),
-              // Servers without the remote end the stream; nothing to follow there.
-              Stream.catchCause(() => Stream.empty),
-            ),
+            registry
+              .runStream(environmentId, subscribe(WS_METHODS.helmSubscribe, { topic: "remote" }))
+              .pipe(
+                Stream.filter((item) => item.topic === "remote"),
+                Stream.map((item) => [environmentId, item.event] as const),
+                // Servers without the remote end the stream; nothing to follow there.
+                Stream.catchCause(() => Stream.empty),
+              ),
           ),
           { concurrency: "unbounded" },
         ),

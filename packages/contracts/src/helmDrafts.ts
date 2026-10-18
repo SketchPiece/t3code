@@ -43,7 +43,7 @@ export const helmDraftIsEmpty = (draft: {
   readonly attachments: ReadonlyArray<unknown>;
 }): boolean => draft.text.trim().length === 0 && draft.attachments.length === 0;
 
-/** What `helm.drafts.subscribe` streams: every draft kept now, then each change as it lands. */
+/** What `helm.subscribe` streams for the "drafts" topic: every draft kept now, then each change as it lands. */
 export const HelmDraftEvent = Schema.Union([
   Schema.Struct({ type: Schema.Literal("snapshot"), drafts: Schema.Array(HelmDraft) }),
   /** A cleared draft comes as an empty one. */

@@ -23,6 +23,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as RpcTest from "effect/rpc/RpcTest";
+import * as Stream from "effect/Stream";
 
 import {
   RPC_REQUIRED_SCOPES,
@@ -328,6 +329,72 @@ describe("settings mutation authorization", () => {
     }).pipe(Effect.scoped),
   );
 });
+
+// Helm fork: one method carries every Helm command, so the scope depends on the command.
+it.effect("requires terminal operate access only for Helm's sudo and password commands", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (tag): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.helmCommand> =>
+          tag !== WS_METHODS.helmCommand,
+      ),
+    );
+    const handled: Array<string> = [];
+    const client = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          group.toLayerHandler(WS_METHODS.helmCommand, (request) =>
+            Effect.sync(() => {
+              handled.push(request.command);
+              return { command: "remote.send" as const, result: { delivered: 0 } };
+            }),
+          ),
+          RpcAuthorization.layer([AuthOrchestrationOperateScope]),
+        ),
+      ),
+    );
+    yield* client[WS_METHODS.helmCommand]({
+      command: "remote.send",
+      input: { type: "thread.open", threadId: ThreadId.make("thread-1") },
+    });
+    expect(
+      yield* client[WS_METHODS.helmCommand]({
+        command: "auth.respond",
+        input: { id: "request-1", action: "deny" },
+      }).pipe(Effect.flip),
+    ).toMatchObject({ requiredPermission: AuthTerminalOperateScope });
+    expect(handled).toEqual(["remote.send"]);
+  }).pipe(Effect.scoped),
+);
+
+it.effect(
+  "requires terminal operate access to follow Helm's sudo requests but not its drafts",
+  () =>
+    Effect.gen(function* () {
+      const group = WsRpcGroup.omit(
+        ...[...WsRpcGroup.requests.keys()].filter(
+          (
+            tag,
+          ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.helmSubscribe> =>
+            tag !== WS_METHODS.helmSubscribe,
+        ),
+      );
+      const client = yield* RpcTest.makeClient(group).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            group.toLayerHandler(WS_METHODS.helmSubscribe, () => Stream.empty),
+            RpcAuthorization.layer([AuthOrchestrationReadScope]),
+          ),
+        ),
+      );
+      yield* Stream.runDrain(client[WS_METHODS.helmSubscribe]({ topic: "drafts" }));
+      expect(
+        yield* Stream.runDrain(client[WS_METHODS.helmSubscribe]({ topic: "auth" })).pipe(
+          Effect.flip,
+        ),
+      ).toMatchObject({ requiredPermission: AuthTerminalOperateScope });
+    }).pipe(Effect.scoped),
+);
 
 it.effect("requires task permission before attaching a prepared worktree to a thread", () =>
   Effect.gen(function* () {

@@ -106,15 +106,7 @@ import {
   VoiceTranscribeInput,
   VoiceTranscribeResult,
 } from "./voiceTranscription.ts";
-import { HelmDraft, HelmDraftEvent, HelmDraftSetInput } from "./helmDrafts.ts";
-import { HelmRemoteCommand, HelmRemoteSendResult } from "./helmRemote.ts";
-import {
-  HelmAuthEvent,
-  HelmAuthRegisterApproverInput,
-  HelmAuthRespondInput,
-  HelmAuthRespondResult,
-  HelmAuthSudoSetup,
-} from "./helmAuth.ts";
+import { HelmCommand, HelmCommandResult, HelmSubscribeInput, HelmTopicEvent } from "./helmRpc.ts";
 import {
   PersistChatAttachmentsError,
   PersistChatAttachmentsInput,
@@ -409,13 +401,8 @@ export const WS_METHODS = {
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
   attachmentsDelete: "attachments.delete",
   voiceTranscribe: "voice.transcribe",
-  // Helm fork: Helm Mobile as a remote (helmRemote.ts).
-  helmRemoteSend: "helm.remote.send",
-  // Helm fork: drafts shared by the Mac and the phone (helmDrafts.ts).
-  helmDraftsSet: "helm.drafts.set",
-  // Helm fork: Face ID on the phone for sudo and password prompts on the Mac (helmAuth.ts).
-  helmAuthRespond: "helm.auth.respond",
-  helmAuthRegisterApprover: "helm.auth.registerApprover",
+  // Helm fork: every Helm command (helmRpc.ts).
+  helmCommand: "helm.command",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -592,9 +579,8 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
-  helmRemoteSubscribe: "helm.remote.subscribe",
-  helmDraftsSubscribe: "helm.drafts.subscribe",
-  helmAuthSubscribe: "helm.auth.subscribe",
+  // Helm fork: every Helm stream (helmRpc.ts).
+  helmSubscribe: "helm.subscribe",
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -1325,47 +1311,15 @@ const WsVoiceTranscribeRpc = Rpc.make(WS_METHODS.voiceTranscribe, {
   error: Schema.Union([VoiceTranscribeError, EnvironmentAuthorizationError]),
 });
 
-const WsHelmRemoteSendRpc = Rpc.make(WS_METHODS.helmRemoteSend, {
-  payload: HelmRemoteCommand,
-  success: HelmRemoteSendResult,
+const WsHelmCommandRpc = Rpc.make(WS_METHODS.helmCommand, {
+  payload: HelmCommand,
+  success: HelmCommandResult,
   error: EnvironmentAuthorizationError,
 });
 
-const WsHelmDraftsSetRpc = Rpc.make(WS_METHODS.helmDraftsSet, {
-  payload: HelmDraftSetInput,
-  success: HelmDraft,
-  error: EnvironmentAuthorizationError,
-});
-
-const WsHelmDraftsSubscribeRpc = Rpc.make(WS_METHODS.helmDraftsSubscribe, {
-  payload: Schema.Struct({}),
-  success: HelmDraftEvent,
-  error: EnvironmentAuthorizationError,
-  stream: true,
-});
-
-const WsHelmAuthRespondRpc = Rpc.make(WS_METHODS.helmAuthRespond, {
-  payload: HelmAuthRespondInput,
-  success: HelmAuthRespondResult,
-  error: EnvironmentAuthorizationError,
-});
-
-const WsHelmAuthRegisterApproverRpc = Rpc.make(WS_METHODS.helmAuthRegisterApprover, {
-  payload: HelmAuthRegisterApproverInput,
-  success: HelmAuthSudoSetup,
-  error: EnvironmentAuthorizationError,
-});
-
-const WsHelmAuthSubscribeRpc = Rpc.make(WS_METHODS.helmAuthSubscribe, {
-  payload: Schema.Struct({}),
-  success: HelmAuthEvent,
-  error: EnvironmentAuthorizationError,
-  stream: true,
-});
-
-const WsHelmRemoteSubscribeRpc = Rpc.make(WS_METHODS.helmRemoteSubscribe, {
-  payload: Schema.Struct({}),
-  success: HelmRemoteCommand,
+const WsHelmSubscribeRpc = Rpc.make(WS_METHODS.helmSubscribe, {
+  payload: HelmSubscribeInput,
+  success: HelmTopicEvent,
   error: EnvironmentAuthorizationError,
   stream: true,
 });
@@ -2052,13 +2006,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
   WsVoiceTranscribeRpc,
-  WsHelmRemoteSendRpc,
-  WsHelmRemoteSubscribeRpc,
-  WsHelmDraftsSetRpc,
-  WsHelmDraftsSubscribeRpc,
-  WsHelmAuthRespondRpc,
-  WsHelmAuthRegisterApproverRpc,
-  WsHelmAuthSubscribeRpc,
+  WsHelmCommandRpc,
+  WsHelmSubscribeRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,
