@@ -214,6 +214,9 @@ const RPC_AGGREGATES = {
   [WS_METHODS.helmDraftsSet]: "server", // Helm fork: helm/drafts.ts
   [WS_METHODS.helmDraftsSubscribe]: "server",
   [WS_METHODS.helmRemoteSubscribe]: "server",
+  [WS_METHODS.helmAuthRespond]: "server", // Helm fork: Face ID for sudo on the phone
+  [WS_METHODS.helmAuthRegisterApprover]: "server",
+  [WS_METHODS.helmAuthSubscribe]: "server",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";
