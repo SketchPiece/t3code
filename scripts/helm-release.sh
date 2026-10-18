@@ -86,6 +86,7 @@ echo "helm-release: $tag from $(git rev-parse --short HEAD) (upstream $base_tag)
 if [[ -f "$out/latest-mac.yml" ]]; then
   echo "helm-release: reusing the build in $out"
 else
+  scripts/helm-check-deps.sh
   rm -rf "$out"
   PATH="$PWD/node_modules/.bin:$PATH" \
     RUSTUP_TOOLCHAIN=1.95.0 \

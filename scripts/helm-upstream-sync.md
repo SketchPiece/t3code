@@ -91,9 +91,13 @@ fix it if it's easy, ask if it's hard.
 scripts/helm-release.sh
 ```
 
-It builds the signed DMG, launches the built update twice in a throwaway HOME
-(fresh profile, then a pruned copy of the real Helm data) with
-`scripts/helm-smoke-mac.sh`, and only then pushes HEAD to `origin/helm` and
+It refuses to build from node_modules that don't match `pnpm-lock.yaml`
+(`scripts/helm-check-deps.sh`; run `vp i` after a merge), builds the signed
+DMG, launches the built update twice in a throwaway HOME (fresh profile, then
+a pruned copy of the real Helm data and window state) with
+`scripts/helm-smoke-mac.sh`, which also walks the restored screen, a new
+draft, a thread and settings looking for a crash screen or React error
+(`scripts/helm-smoke-renderer.ts`), and only then pushes HEAD to `origin/helm` and
 publishes the GitHub release that installed Helm apps update from. Installed
 apps restart into a new release on their own once they are idle, so a build
 that fails the launch check must never ship: if it fails, nothing is
