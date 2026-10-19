@@ -611,6 +611,27 @@ func writeLine(_ socket: Int32, _ object: [String: Any]) -> Bool {
     }
 }
 
+/// Another `helm-screen` with `arguments`, in its own session so it outlives this helper; no
+/// inherited pipes, so the server sees this helper's output end when it does.
+func spawnDetached(_ arguments: [String]) -> Bool {
+    guard let path = Bundle.main.executablePath else { return false }
+    var attributes: posix_spawnattr_t?
+    posix_spawnattr_init(&attributes)
+    posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
+    var actions: posix_spawn_file_actions_t?
+    posix_spawn_file_actions_init(&actions)
+    for descriptor: Int32 in 0...2 {
+        posix_spawn_file_actions_addopen(&actions, descriptor, "/dev/null", descriptor == 0 ? O_RDONLY : O_WRONLY, 0)
+    }
+    let argv = ([path] + arguments).map { strdup($0) } + [nil]
+    var pid: pid_t = 0
+    let status = posix_spawn(&pid, path, &actions, &attributes, argv, environ)
+    argv.forEach { free($0) }
+    posix_spawn_file_actions_destroy(&actions)
+    posix_spawnattr_destroy(&attributes)
+    return status == 0
+}
+
 /// This helper's line to the keeper, which it starts if none runs.
 final class KeeperLink: @unchecked Sendable {
     private var socket: Int32 = -1
@@ -672,25 +693,8 @@ final class KeeperLink: @unchecked Sendable {
     private func connectOrStart() -> Int32 {
         let existing = connectToKeeper()
         if existing >= 0 { return existing }
-        guard let path = Bundle.main.executablePath else { return -1 }
-        // Its own session, so it outlives this helper; no inherited pipes, so the server sees
-        // this helper's output end when it does.
-        var attributes: posix_spawnattr_t?
-        posix_spawnattr_init(&attributes)
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
-        var actions: posix_spawn_file_actions_t?
-        posix_spawn_file_actions_init(&actions)
-        for descriptor: Int32 in 0...2 {
-            posix_spawn_file_actions_addopen(&actions, descriptor, "/dev/null", descriptor == 0 ? O_RDONLY : O_WRONLY, 0)
-        }
-        let arguments = [path, "--keep-display"].map { strdup($0) } + [nil]
-        var pid: pid_t = 0
-        let status = posix_spawn(&pid, path, &actions, &attributes, arguments, environ)
-        arguments.forEach { free($0) }
-        posix_spawn_file_actions_destroy(&actions)
-        posix_spawnattr_destroy(&attributes)
-        guard status == 0 else {
-            log("keeper: couldn't start (\(status))")
+        guard spawnDetached(["--keep-display"]) else {
+            log("keeper: couldn't start")
             return -1
         }
         for _ in 0..<40 {
@@ -1702,6 +1706,54 @@ final class LockWatch {
 
 let lockWatch = MainActor.assumeIsolated { LockWatch() }
 
+// MARK: Lock after leaving
+
+// The phone can ask for the Mac to lock once it has gone (`start {lockOnLeave: seconds}`). The
+// helper ends with its connection, so a detached `helm-screen --lock-after <seconds>` waits and
+// locks. Every connection holds a shared flock on one file while it lasts and touches the file as
+// it goes: the waiter gives up if a connection holds the file when it wakes (the phone came back),
+// or if it was touched since (a later leave has its own waiter).
+
+let connectionsPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("helm-screen-connections")
+/// Seconds to wait before locking once this connection ends; nil: don't.
+nonisolated(unsafe) var lockOnLeave: Int?
+nonisolated(unsafe) var connectionFile: Int32 = -1
+
+/// This connection counts as one from here on.
+func holdConnection() {
+    guard connectionFile < 0 else { return }
+    connectionFile = open(connectionsPath, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+    if connectionFile >= 0 { flock(connectionFile, LOCK_SH) }
+}
+
+/// The connection is ending: lock later if the phone asked for it.
+func scheduleLockAfterLeaving() {
+    guard let seconds = lockOnLeave, connectionFile >= 0 else { return }
+    futimes(connectionFile, nil)
+    if !spawnDetached(["--lock-after", String(seconds)]) { log("lock after leaving: couldn't start") }
+}
+
+func modified(_ path: String) -> timespec? {
+    var info = stat()
+    return stat(path, &info) == 0 ? info.st_mtimespec : nil
+}
+
+func runLockAfter(_ seconds: Int) -> Never {
+    let touched = modified(connectionsPath)
+    sleep(UInt32(max(1, seconds)))
+    let now = modified(connectionsPath)
+    guard now?.tv_sec == touched?.tv_sec, now?.tv_nsec == touched?.tv_nsec else { exit(0) }
+    let file = open(connectionsPath, O_RDWR | O_CLOEXEC)
+    guard file >= 0, flock(file, LOCK_EX | LOCK_NB) == 0 else { exit(0) }
+    guard sessionLocked() == false else { exit(0) }
+    // login.framework's, as the menu bar's Lock Screen uses: the password is asked for right away.
+    typealias LockScreen = @convention(c) () -> Int32
+    guard let framework = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_NOW),
+          let symbol = dlsym(framework, "SACLockScreenImmediate") else { exit(1) }
+    _ = unsafeBitCast(symbol, to: LockScreen.self)()
+    exit(0)
+}
+
 // MARK: Main
 
 let screen = Screen()
@@ -1722,6 +1774,7 @@ func quit(_ code: Int32 = 0) {
     defer { quitting.unlock() }
     guard !quitStarted else { return }
     quitStarted = true
+    scheduleLockAfterLeaving()
     DispatchQueue.global().asyncAfter(deadline: .now() + 0.8) { exit(code) }
     DispatchQueue.main.async { MainActor.assumeIsolated { lockWatch.stop() } }
     DispatchQueue.main.async { input.releaseModifiers() }
@@ -1742,7 +1795,8 @@ func size(_ value: Any?) -> CGSize? {
 // Commands:
 //   start        {maxWidth, fps, bitrate, hevc?, maxScale?, audio?, clipboard?, display?, virtual?: {width, height},
 //                 name?, keepDisplay?: seconds the separate display stays after this connection,
-//                 mainDisplay?: the separate display becomes the main one (menu bar, Dock, new windows)}
+//                 mainDisplay?: the separate display becomes the main one (menu bar, Dock, new windows),
+//                 lockOnLeave?: seconds after this connection ends to lock the Mac, unless another is open}
 //   show         {display: "main" | "all" | "virtual" | id, virtual?: {width, height}}
 //   virtualSize  {width, height}: the phone turned or its window changed
 //   clipboard    {text}: the phone's copied text, for the Mac's clipboard
@@ -1780,6 +1834,8 @@ func handle(_ line: String) {
         let name = command["name"] as? String
         let linger = command["keepDisplay"] as? Int ?? 0
         let virtualMain = command["mainDisplay"] as? Bool ?? false
+        lockOnLeave = (command["lockOnLeave"] as? Int).map { max(1, min(3600, $0)) }
+        holdConnection()
         let sharesClipboard = command["clipboard"] as? Bool ?? false
         onScreen {
             await screen.start(chosen, show: shown, virtualSize: virtualSize, name: name, linger: linger,
@@ -1857,6 +1913,9 @@ if CommandLine.arguments.contains("--check") {
 }
 
 if CommandLine.arguments.contains("--keep-display") { runKeeper() }
+if let index = CommandLine.arguments.firstIndex(of: "--lock-after"), index + 1 < CommandLine.arguments.count {
+    runLockAfter(Int(CommandLine.arguments[index + 1]) ?? 10)
+}
 
 signal(SIGPIPE, SIG_IGN)
 // The server ends a session with SIGTERM.
