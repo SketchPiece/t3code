@@ -557,12 +557,14 @@ final class VirtualDisplay {
 // The separate display outlives one connection for a while (the phone's choice), so an iPad that
 // locks or switches apps comes back to its windows where it left them. A detached
 // `helm-screen --keep-display` owns it; each connection's helper asks it over a Unix socket:
-//   helper → keeper: {"name", "width", "height", "linger": seconds} per size, one JSON a line
+//   helper → keeper: {"name", "width", "height", "linger": seconds, "main": the display takes the
+//                    main one's place} per size, one JSON a line
 //   keeper → helper: {"id": displayID} or {"error": "…"}
 //   helper → keeper: {"remember": {"window", "pid", "x", "y", "width", "height"}}, no answer: a
 //                    window moved onto the display and where it was before
 // Once no helper is connected the keeper puts the remembered windows still on the display back where
-// they were; one that connects again within `linger` seconds brings them back onto it. After that
+// they were and gives the main display back; one that connects again within `linger` seconds brings
+// them back onto it. After that
 // the keeper quits and the display goes.
 
 let keeperSocketPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("helm-screen-display.sock")
@@ -615,11 +617,13 @@ final class KeeperLink: @unchecked Sendable {
     private let queue = DispatchQueue(label: "helm-screen.keeper")
 
     /// The display at `size` points, made or resized; nil if the keeper couldn't.
-    func request(name: String, size: CGSize, linger: Int) async -> CGDirectDisplayID? {
+    /// `main`: it becomes the main display, with the menu bar, the Dock and new windows.
+    func request(name: String, size: CGSize, linger: Int, main: Bool) async -> CGDirectDisplayID? {
         await withCheckedContinuation { continuation in
             queue.async {
                 continuation.resume(returning: self.send(["name": name, "width": Double(size.width),
-                                                          "height": Double(size.height), "linger": linger]))
+                                                          "height": Double(size.height), "linger": linger,
+                                                          "main": main]))
             }
         }
     }
@@ -745,6 +749,39 @@ final class Keeper {
     /// back to, so a helper that comes back can have them again.
     private var putBack: [CGWindowID: (pid: pid_t, onDisplay: CGRect, frame: CGRect)] = [:]
 
+    /// The main display before ours took its place, while ours has it.
+    private var formerMain: CGDirectDisplayID?
+
+    /// Makes the display the main one, so the menu bar, the Dock and new windows go to the iPad:
+    /// every display moves by the same amount, ours to the origin, the arrangement as it was.
+    private func becomeMain() {
+        guard let display, CGMainDisplayID() != display.id else { return }
+        let former = CGMainDisplayID()
+        guard shiftDisplays(by: CGDisplayBounds(display.id).origin) else { return }
+        formerMain = former
+        log("keeper: main display now \(display.id), was \(former)")
+    }
+
+    /// The main display goes back to the one ours took it from.
+    private func giveBackMain() {
+        guard let former = formerMain else { return }
+        formerMain = nil
+        guard activeDisplayIDs().contains(former), CGMainDisplayID() != former else { return }
+        if shiftDisplays(by: CGDisplayBounds(former).origin) { log("keeper: main display back to \(former)") }
+    }
+
+    private func shiftDisplays(by offset: CGPoint) -> Bool {
+        var config: CGDisplayConfigRef?
+        guard CGBeginDisplayConfiguration(&config) == .success else { return false }
+        for id in activeDisplayIDs() {
+            let bounds = CGDisplayBounds(id)
+            CGConfigureDisplayOrigin(config, id, Int32(bounds.minX - offset.x), Int32(bounds.minY - offset.y))
+        }
+        let result = CGCompleteDisplayConfiguration(config, .forSession)
+        if result != .success { log("keeper: moving the displays failed: \(result.rawValue)") }
+        return result == .success
+    }
+
     private func remember(_ item: [String: Any]) {
         guard let window = item["window"] as? Int, let pid = item["pid"] as? Int,
               let x = item["x"] as? Double, let y = item["y"] as? Double,
@@ -810,8 +847,10 @@ final class Keeper {
             buffers[client] = nil
             close(client)
             if clients.isEmpty {
-                // The windows go home with the phone, not minutes later with the display.
+                // The windows go home with the phone, not minutes later with the display, and so
+                // does the menu bar. The windows first: their places are in today's arrangement.
                 restoreWindows()
+                giveBackMain()
                 quit(after: linger)
             }
             return
@@ -841,6 +880,7 @@ final class Keeper {
             return
         }
         if await display.use(size) {
+            if request["main"] as? Bool == true { becomeMain() } else { giveBackMain() }
             bringBackWindows()
             _ = writeLine(client, ["id": Int(display.id)])
         } else {
@@ -852,7 +892,10 @@ final class Keeper {
         quitting?.cancel()
         let work = DispatchWorkItem { [weak self] in
             log("keeper: quitting \(Date())")
-            MainActor.assumeIsolated { self?.restoreWindows() }
+            MainActor.assumeIsolated {
+                self?.restoreWindows()
+                self?.giveBackMain()
+            }
             unlink(keeperSocketPath)
             exit(0)
         }
@@ -939,8 +982,11 @@ actor Screen {
     private var virtualName = "Helm"
     /// How long the separate display stays once the phone has gone.
     private var linger = 0
+    /// The separate display is the main one while it's here.
+    private var virtualMain = false
 
-    func start(_ settings: StreamSettings, show wanted: Shown, virtualSize: CGSize?, name: String?, linger: Int) async {
+    func start(_ settings: StreamSettings, show wanted: Shown, virtualSize: CGSize?, name: String?, linger: Int,
+               virtualMain: Bool) async {
         guard CGPreflightScreenCaptureAccess() else {
             CGRequestScreenCaptureAccess()
             emitJSON(["t": "error", "code": "screenRecording",
@@ -950,6 +996,7 @@ actor Screen {
         self.settings = settings
         if let name, !name.isEmpty { virtualName = name }
         self.linger = linger
+        self.virtualMain = virtualMain
         await show(wanted, virtualSize: virtualSize)
     }
 
@@ -962,7 +1009,7 @@ actor Screen {
     /// The phone turned or resized: the virtual display follows it.
     func resizeVirtual(_ size: CGSize) async {
         guard virtualID != nil else { return }
-        guard await keeper.request(name: virtualName, size: size, linger: linger) != nil else {
+        guard await keeper.request(name: virtualName, size: size, linger: linger, main: virtualMain) != nil else {
             emitJSON(["t": "error", "code": "virtualDisplay", "message": "The display for the phone couldn't change its size."])
             return
         }
@@ -1010,7 +1057,7 @@ actor Screen {
     }
 
     private func makeVirtual(_ size: CGSize) async {
-        guard let id = await keeper.request(name: virtualName, size: size, linger: linger) else {
+        guard let id = await keeper.request(name: virtualName, size: size, linger: linger, main: virtualMain) else {
             emitJSON(["t": "error", "code": "virtualDisplay", "message": "This Mac couldn't add a display for the phone."])
             return
         }
@@ -1024,7 +1071,10 @@ actor Screen {
     }
 
     private func pick(_ displays: [SCDisplay]) -> [SCDisplay] {
-        let main = displays.first { $0.displayID == CGMainDisplayID() } ?? displays.first
+        // The computer's own: ours may be the main one now.
+        let own = displays.filter { $0.displayID != virtualID }
+        let main = own.first { $0.displayID == CGMainDisplayID() } ?? own.first { CGDisplayIsBuiltin($0.displayID) != 0 }
+            ?? own.first ?? displays.first
         let fallback = main.map { [$0] } ?? []
         switch shown {
         case .main: return fallback
@@ -1691,7 +1741,8 @@ func size(_ value: Any?) -> CGSize? {
 
 // Commands:
 //   start        {maxWidth, fps, bitrate, hevc?, maxScale?, audio?, clipboard?, display?, virtual?: {width, height},
-//                 name?, keepDisplay?: seconds the separate display stays after this connection}
+//                 name?, keepDisplay?: seconds the separate display stays after this connection,
+//                 mainDisplay?: the separate display becomes the main one (menu bar, Dock, new windows)}
 //   show         {display: "main" | "all" | "virtual" | id, virtual?: {width, height}}
 //   virtualSize  {width, height}: the phone turned or its window changed
 //   clipboard    {text}: the phone's copied text, for the Mac's clipboard
@@ -1728,9 +1779,11 @@ func handle(_ line: String) {
         let virtualSize = size(command["virtual"])
         let name = command["name"] as? String
         let linger = command["keepDisplay"] as? Int ?? 0
+        let virtualMain = command["mainDisplay"] as? Bool ?? false
         let sharesClipboard = command["clipboard"] as? Bool ?? false
         onScreen {
-            await screen.start(chosen, show: shown, virtualSize: virtualSize, name: name, linger: linger)
+            await screen.start(chosen, show: shown, virtualSize: virtualSize, name: name, linger: linger,
+                               virtualMain: virtualMain)
             DispatchQueue.main.async {
                 cursor.start()
                 if sharesClipboard { MainActor.assumeIsolated { clipboard.start() } }
