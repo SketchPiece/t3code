@@ -1119,8 +1119,6 @@ export interface DesktopBridge {
   cancelProviderAuthCallback?: (authorizationUrl: string) => Promise<void>;
   openExternal: (url: string) => Promise<boolean>;
   openSystemSettings?: (pane: SystemSettingsPane) => Promise<boolean>;
-  /** Helm fork: bring this window forward (Helm Mobile's "Open on Mac"). Older builds lack it. */
-  revealWindow?: () => Promise<void>;
   checkSystemPermission?: (pane: SystemSettingsPane) => Promise<boolean>;
   /**
    * Optional: older desktop builds lack it; callers fall back to VS Code only.
