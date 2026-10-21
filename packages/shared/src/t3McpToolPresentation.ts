@@ -400,6 +400,7 @@ export function resolveT3McpToolPresentation(
   return definition === null ? null : { displayName: definition.displayName, logo: "t3-code" };
 }
 
+// Helm fork: the Orchestrator completes the worktree handoff call when it detaches a session.
 export function resolveT3McpToolSummaryAction(
   toolName: string | null | undefined,
 ): T3McpToolSummaryAction | null {
