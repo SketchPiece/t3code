@@ -10,7 +10,10 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-if ! cmp -s pnpm-lock.yaml node_modules/.pnpm/lock.yaml; then
+# pnpm 12 opens the lockfile with a document for pnpm itself ("---" ... "---"), which
+# the installed copy leaves out; compare the last document only.
+if ! cmp -s <(awk '/^---$/ { n++; buf = ""; next } { buf = buf $0 "\n" } END { printf "%s", buf }' pnpm-lock.yaml) \
+  <(awk '/^---$/ { n++; buf = ""; next } { buf = buf $0 "\n" } END { printf "%s", buf }' node_modules/.pnpm/lock.yaml); then
   echo "helm: node_modules doesn't match pnpm-lock.yaml in $PWD; run \`vp i\` and build again." >&2
   exit 1
 fi
