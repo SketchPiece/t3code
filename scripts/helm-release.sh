@@ -94,7 +94,7 @@ else
     HELM_MAC_SIGN_IDENTITY="$SIGN_IDENTITY" \
     env -u ELECTRON_RUN_AS_NODE \
     node scripts/build-desktop-artifact.ts \
-    --platform mac --target dmg --arch arm64 \
+    --platform mac --target zip --arch arm64 \
     --build-version "$version" --output-dir "$out"
 fi
 

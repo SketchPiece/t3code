@@ -93,7 +93,7 @@ scripts/helm-release.sh
 
 It installs exactly what `pnpm-lock.yaml` pins first
 (`scripts/helm-check-deps.sh`, a frozen `vp i`), builds the signed
-DMG, launches the built update twice in a throwaway HOME (fresh profile, then
+update zip (no DMG: installed apps update from the zip), launches the built update twice in a throwaway HOME (fresh profile, then
 a pruned copy of the real Helm data and window state) with
 `scripts/helm-smoke-mac.sh`, which also walks the restored screen, a new
 draft, a thread and settings looking for a crash screen or React error
