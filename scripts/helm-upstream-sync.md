@@ -91,8 +91,8 @@ fix it if it's easy, ask if it's hard.
 scripts/helm-release.sh
 ```
 
-It refuses to build from node_modules that don't match `pnpm-lock.yaml`
-(`scripts/helm-check-deps.sh`; run `vp i` after a merge), builds the signed
+It installs exactly what `pnpm-lock.yaml` pins first
+(`scripts/helm-check-deps.sh`, a frozen `vp i`), builds the signed
 DMG, launches the built update twice in a throwaway HOME (fresh profile, then
 a pruned copy of the real Helm data and window state) with
 `scripts/helm-smoke-mac.sh`, which also walks the restored screen, a new

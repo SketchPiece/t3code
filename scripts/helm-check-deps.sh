@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
-# Fails when node_modules wasn't installed from the current pnpm-lock.yaml.
-# An upstream merge changes the lockfile; building Helm before `vp i` bundles
-# the old dependencies with the new code, and the app breaks at runtime
-# (2026-10-17: React error #301 on every draft, GitHub calls failing with
-# "Invalid URL"). pnpm keeps a copy of the lockfile it installed from in
-# node_modules/.pnpm/lock.yaml.
+# Brings node_modules in line with pnpm-lock.yaml before a build. An upstream
+# merge changes the lockfile; building Helm before `vp i` bundles the old
+# dependencies with the new code, and the app breaks at runtime (2026-10-17:
+# React error #301 on every draft, GitHub calls failing with "Invalid URL").
+# Comparing the lockfile with pnpm's installed copy (node_modules/.pnpm/lock.yaml)
+# isn't reliable: pnpm 12 leaves out its own header document and orphaned
+# entries. A frozen install is quick when nothing changed, and fails when the
+# lockfile doesn't match package.json.
 #
 #   scripts/helm-check-deps.sh   (from anywhere in the checkout)
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-# pnpm 12 opens the lockfile with a document for pnpm itself ("---" ... "---"), which
-# the installed copy leaves out; compare the last document only.
-if ! cmp -s <(awk '/^---$/ { n++; buf = ""; next } { buf = buf $0 "\n" } END { printf "%s", buf }' pnpm-lock.yaml) \
-  <(awk '/^---$/ { n++; buf = ""; next } { buf = buf $0 "\n" } END { printf "%s", buf }' node_modules/.pnpm/lock.yaml); then
-  echo "helm: node_modules doesn't match pnpm-lock.yaml in $PWD; run \`vp i\` and build again." >&2
+if ! PATH="$PWD/node_modules/.bin:$PATH" vp i --frozen-lockfile >/tmp/helm-check-deps.log 2>&1; then
+  echo "helm: \`vp i --frozen-lockfile\` failed in $PWD (log: /tmp/helm-check-deps.log)." >&2
   exit 1
 fi
