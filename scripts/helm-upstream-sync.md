@@ -85,6 +85,71 @@ vp test run apps/server/src/helm packages/client-runtime/src/voice-input
 Mobile isn't checked (see above). A typecheck or test failure caused by the merge is a conflict too:
 fix it if it's easy, ask if it's hard.
 
+### Helm's features still work with upstream's
+
+Passing typecheck and the smoke test is not enough: on 2026-10-22 a merge
+silently dropped the effect in `ChatView.tsx` that tells Helm Mobile which
+thread is open. Its imports stayed, so everything compiled and launched, and
+the phone's remote just disappeared. Every merge must show that Helm's own
+changes came through and still fit what upstream changed.
+
+1. **Nothing of Helm's was lost.** With the merge committed:
+
+   ```sh
+   node scripts/helm-fork-check.ts
+   ```
+
+   It lists each line Helm had added on top of the previous upstream that is
+   nowhere in the merged tree. Go through every line under "Missing from
+   code" and decide:
+   - reworded or adapted on purpose while resolving (an import trimmed, text
+     reflowed, a hook moved into upstream's new code): fine, say so in the
+     report;
+   - dropped by mistake: restore it (look at `git show HEAD^1:<file>`), then
+     rerun the check and step 3;
+   - upstream removed the code it lived in and there's no obvious new home:
+     a hard conflict, ask.
+
+   "Missing from tests" is usually upstream pruning its own tests; glance at
+   it and restore only tests that cover Helm's behaviour.
+
+2. **Helm's hooks fit upstream's changes.** Files both sides touched:
+
+   ```sh
+   base=$(git merge-base HEAD^1 HEAD^2)
+   comm -12 <(git diff --name-only "$base" HEAD^1 | sort) <(git diff --name-only "$base" HEAD^2 | sort)
+   ```
+
+   For each file outside `apps/mobile`, read upstream's change
+   (`git diff "$base" HEAD^2 -- <file>`) next to Helm's hook in the merged
+   file. The hook has to still run where it did: not left behind in code
+   upstream no longer calls, not bypassed by a new path upstream added (a new
+   route, component or RPC that does the same job without Helm's hook). Fix
+   easy cases; ask about hard ones.
+
+3. **What Helm Mobile depends on is intact.** The phone app (separate project
+   `~/Documents/Projects/helm-mobile`) relies on these; if the merge touched
+   any of them, check by reading the merged code that it still does its job:
+   - open thread / draft and composer state in the activity report
+     (`retainOpenThreadScope` and `retainOpenDraftThreadScope` called from
+     `apps/web/src/components/ChatView.tsx`, `lib/backgroundActivityReporter.ts`)
+     and the `subscribeBackgroundPolicy` stream with `hostPower`: the remote;
+   - the Bonjour announcement `_helm._tcp` with `environmentId` in its TXT
+     record (`apps/server/src/helm/nearbyAdvertiser.ts`): finding the Mac on the
+     local network;
+   - `apps/web/src/helm/` (draft sync, remote commands, remote composer and
+     dictation, tailnet pairing) and the hooks that mount them in
+     `routes/__root.tsx`, `ChatComposer.tsx`;
+   - `apps/server/src/helm/` (push, screen remote and the rest) and its hooks
+     in `ws.ts`, `server.ts`, `auth/RpcAuthorization.ts`, `httpCors.ts`.
+
+   Search the merged tree for each entry point (`grep -rn`): a Helm function
+   that is still exported but no longer called anywhere is exactly the
+   failure this section exists for.
+
+If any of this turns up a problem you can't fix with confidence, don't
+release: report it (step 4's reply) and ask, and don't settle the thread.
+
 ## 4. Release
 
 ```sh
@@ -119,7 +184,13 @@ If that fails (someone committed to `helm` meanwhile, or the merge touches
 files with uncommitted edits there), don't force it: tell the user.
 
 Reply with one short message: the upstream tag, the Helm version, the
-release link, and anything you fixed or translated along the way.
+release link, and anything you fixed or translated along the way. Always
+add one line on Helm's features: how many lines `helm-fork-check.ts`
+reported and what you did with each (restored, adapted on purpose), and any
+hook you moved to fit upstream's changes. If upstream added something that
+overlaps a Helm feature (does the same job differently, or makes a Helm
+change unnecessary), mention it so the user can decide; don't remove Helm's
+side on your own.
 
 ## 5. Settle the thread
 
@@ -127,5 +198,6 @@ When the run needed nothing from the user (nothing new, or released with
 every conflict resolved and every check passing), call `t3_thread_organize`
 with `action: "settle"` and no `threadId` right before the final reply. Helm
 settles the thread when the turn ends, so the run doesn't wait in the inbox.
-Don't settle when you are asking about a hard conflict, a check failed, the
-release or the `helm` fast-forward failed, or anything else needs the user.
+Don't settle when you are asking about a hard conflict, a check failed, a
+Helm feature may be broken or lost, the release or the `helm` fast-forward
+failed, or anything else needs the user.
