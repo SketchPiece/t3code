@@ -2469,6 +2469,22 @@ export default function ChatView(props: ChatViewProps) {
     closeRightPanelSurface,
   });
   const pullRequestSurfaceAvailable = supportsPullRequests && pullRequestPanelTarget !== null;
+  const composerHasDraftContent = useComposerDraftStore((store) =>
+    composerDraftHasUserContent(store.getComposerDraft(composerDraftTarget)),
+  );
+  // Helm fork: whether the draft holds anything rides along, so the remote can offer Send.
+  useEffect(() => {
+    if (routeKind === "server") {
+      return retainOpenThreadScope(environmentId, threadId, composerHasDraftContent);
+    }
+    if (draftThreadProjectId === null) return;
+    return retainOpenDraftThreadScope(
+      environmentId,
+      threadId,
+      draftThreadProjectId,
+      composerHasDraftContent,
+    );
+  }, [composerHasDraftContent, draftThreadProjectId, environmentId, routeKind, threadId]);
   const nowMinute = useNowMinute();
   const {
     acknowledgeActiveThreadWoke,
