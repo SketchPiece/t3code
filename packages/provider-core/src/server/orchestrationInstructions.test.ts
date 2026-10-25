@@ -6,8 +6,8 @@ import { T3_CODE_ORCHESTRATION_INSTRUCTIONS } from "./orchestrationInstructions.
 describe("Helm orchestration instructions", () => {
   it("names Helm in its prose but keeps tool names and ids exact", () => {
     assert.notMatch(T3_CODE_ORCHESTRATION_INSTRUCTIONS, /\bT3(?: Code)?\b(?![-_])/);
-    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "does not update Helm's thread binding");
-    for (const id of ["`t3_worktree_handoff`", "mcp__t3_code__delegate_task", "T3_ACP_MCP_NODE"]) {
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Ordinary coding tasks need no Helm tools.");
+    for (const id of ["`t3_thread_launch`", "`t3_thread_send`", "t3-thread://v1/"]) {
       assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, id);
     }
   });
