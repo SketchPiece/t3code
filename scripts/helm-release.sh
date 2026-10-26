@@ -83,7 +83,10 @@ out="release/helm/$version"
 
 echo "helm-release: $tag from $(git rev-parse --short HEAD) (upstream $base_tag)"
 
-if [[ -f "$out/latest-mac.yml" ]]; then
+# A build is reused only for the commit it was made from: a fix after a failed
+# smoke run keeps the same version, and must not ship the old bundle.
+head_sha=$(git rev-parse HEAD)
+if [[ -f "$out/latest-mac.yml" && "$(cat "$out/.built-from" 2>/dev/null)" == "$head_sha" ]]; then
   echo "helm-release: reusing the build in $out"
 else
   scripts/helm-check-deps.sh
@@ -96,6 +99,7 @@ else
     node scripts/build-desktop-artifact.ts \
     --platform mac --target zip --arch arm64 \
     --build-version "$version" --output-dir "$out"
+  echo "$head_sha" >"$out/.built-from"
 fi
 
 assets=("$out"/*.zip "$out"/*.zip.blockmap "$out"/latest-mac.yml)
