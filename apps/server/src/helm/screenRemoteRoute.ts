@@ -57,136 +57,135 @@ type Out =
   | { readonly _tag: "binary"; readonly data: Uint8Array }
   | { readonly _tag: "text"; readonly data: string };
 
-const makeHandler = (
+const makeHandler = Effect.fn("HelmScreenRemote.handle")(function* (
   helperPath: string | undefined,
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
   consentPath: string | undefined,
-) =>
-  Effect.gen(function* () {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    if (request.headers.upgrade?.toLowerCase() !== "websocket") {
-      return HttpServerResponse.text("Not Found", { status: 404 });
-    }
-    yield* authenticateMediaRequest(AuthTerminalOperateScope);
-    if (helperPath === undefined) {
-      return HttpServerResponse.text("Screen remote is not available on this computer.", {
-        status: 501,
-      });
-    }
-    return yield* Effect.scoped(
-      Effect.gen(function* () {
-        const output = yield* Queue.unbounded<Out>();
-        const commands = yield* Queue.unbounded<string>();
-        // Only the desktop launcher supplies this path; the phone cannot choose consent.
-        const helper = yield* spawner.spawn(
-          ChildProcess.make(helperPath, consentPath ? ["--unlock-settings", consentPath] : []),
-        );
-        yield* Stream.fromQueue(commands).pipe(
-          Stream.map((line) => `${line}\n`),
-          Stream.encodeText,
-          Stream.run(helper.stdin),
-          Effect.forkScoped,
-        );
-        yield* helper.stderr.pipe(
-          Stream.decodeText,
-          Stream.runForEach((text) => Effect.logDebug("helm-screen", { text })),
-          Effect.ignore,
-          Effect.forkScoped,
-        );
-        // stdout is [u8 kind][u32 length][payload]; kind 10 is JSON, the rest goes as binary.
-        let pending = Buffer.alloc(0);
-        const readFrames = (chunk: Uint8Array) =>
-          Effect.sync(() => {
-            pending = Buffer.concat([pending, chunk]);
-            while (pending.length >= 5) {
-              const length = pending.readUInt32BE(1);
-              if (pending.length < 5 + length) break;
-              const kind = pending[0]!;
-              const payload = pending.subarray(5, 5 + length);
-              Queue.offerUnsafe(
-                output,
-                kind === 10
-                  ? { _tag: "text", data: payload.toString("utf8") }
-                  : {
-                      _tag: "binary",
-                      data: new Uint8Array(Buffer.concat([pending.subarray(0, 1), payload])),
-                    },
-              );
-              pending = pending.subarray(5 + length);
-            }
-          });
-        // The helper ends when its display goes away or capture fails; the phone then sees it close.
-        const helperDone = helper.stdout.pipe(Stream.runForEach(readFrames), Effect.ignore);
-        const command = (line: string) => Queue.offer(commands, line).pipe(Effect.asVoid);
+) {
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  if (request.headers.upgrade?.toLowerCase() !== "websocket") {
+    return HttpServerResponse.text("Not Found", { status: 404 });
+  }
+  yield* authenticateMediaRequest(AuthTerminalOperateScope);
+  if (helperPath === undefined) {
+    return HttpServerResponse.text("Screen remote is not available on this computer.", {
+      status: 501,
+    });
+  }
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      const output = yield* Queue.unbounded<Out>();
+      const commands = yield* Queue.unbounded<string>();
+      // Only the desktop launcher supplies this path; the phone cannot choose consent.
+      const helper = yield* spawner.spawn(
+        ChildProcess.make(helperPath, consentPath ? ["--unlock-settings", consentPath] : []),
+      );
+      yield* Stream.fromQueue(commands).pipe(
+        Stream.map((line) => `${line}\n`),
+        Stream.encodeText,
+        Stream.run(helper.stdin),
+        Effect.forkScoped,
+      );
+      yield* helper.stderr.pipe(
+        Stream.decodeText,
+        Stream.runForEach((text) => Effect.logDebug("helm-screen", { text })),
+        Effect.ignore,
+        Effect.forkScoped,
+      );
+      // stdout is [u8 kind][u32 length][payload]; kind 10 is JSON, the rest goes as binary.
+      let pending = Buffer.alloc(0);
+      const readFrames = (chunk: Uint8Array) =>
+        Effect.sync(() => {
+          pending = Buffer.concat([pending, chunk]);
+          while (pending.length >= 5) {
+            const length = pending.readUInt32BE(1);
+            if (pending.length < 5 + length) break;
+            const kind = pending[0]!;
+            const payload = pending.subarray(5, 5 + length);
+            Queue.offerUnsafe(
+              output,
+              kind === 10
+                ? { _tag: "text", data: payload.toString("utf8") }
+                : {
+                    _tag: "binary",
+                    data: new Uint8Array(Buffer.concat([pending.subarray(0, 1), payload])),
+                  },
+            );
+            pending = pending.subarray(5 + length);
+          }
+        });
+      // The helper ends when its display goes away or capture fails; the phone then sees it close.
+      const helperDone = helper.stdout.pipe(Stream.runForEach(readFrames), Effect.ignore);
+      const command = (line: string) => Queue.offer(commands, line).pipe(Effect.asVoid);
 
-        // Video is already compressed; no deflate, and the socket buffer stays the one we watch.
-        const incoming = NodeHttpServerRequest.toIncomingMessage(request);
-        delete incoming.headers["sec-websocket-extensions"];
-        const transport = incoming.socket;
-        // Frames go out as they're written, not batched.
-        transport.setNoDelay(true);
-        const socket = yield* request.upgrade;
-        const reader = yield* socket.reader;
-        const writer = yield* socket.writer;
+      // Video is already compressed; no deflate, and the socket buffer stays the one we watch.
+      const incoming = NodeHttpServerRequest.toIncomingMessage(request);
+      delete incoming.headers["sec-websocket-extensions"];
+      const transport = incoming.socket;
+      // Frames go out as they're written, not batched.
+      transport.setNoDelay(true);
+      const socket = yield* request.upgrade;
+      const reader = yield* socket.reader;
+      const writer = yield* socket.writer;
 
-        // A phone that falls behind skips video until the next keyframe, asked for once the
-        // queue has drained (Sill's pacing): the newest picture rather than a backlog.
-        let skipping = false;
-        let keyframeAsked = false;
-        let lastKeyframeBytes = 0;
-        const send = Queue.take(output).pipe(
-          Effect.flatMap((out) => {
-            if (out._tag === "text") return writer.write(out.data);
-            const kind = out.data[0];
-            if (kind === 1) {
-              const keyframe = (out.data[1]! & 1) === 1;
-              if (keyframe) lastKeyframeBytes = out.data.length;
-              const buffered = transport.writableLength;
-              if (!keyframe && buffered > lastKeyframeBytes + BEHIND_SLACK_BYTES) skipping = true;
-              if (skipping && !keyframe) {
-                if (!keyframeAsked && buffered <= KEYFRAME_ASK_BYTES) {
-                  keyframeAsked = true;
-                  return command(JSON.stringify({ t: "keyframe" }));
-                }
-                return Effect.void;
-              }
-              if (keyframe) {
-                skipping = false;
-                keyframeAsked = false;
-              }
-            } else if (kind === 5) {
-              const buffered = transport.writableLength;
-              // A still screen sends no frames: the tick is when a skipping phone asks.
-              if (skipping && !keyframeAsked && buffered <= KEYFRAME_ASK_BYTES) {
+      // A phone that falls behind skips video until the next keyframe, asked for once the
+      // queue has drained (Sill's pacing): the newest picture rather than a backlog.
+      let skipping = false;
+      let keyframeAsked = false;
+      let lastKeyframeBytes = 0;
+      const send = Queue.take(output).pipe(
+        Effect.flatMap((out) => {
+          if (out._tag === "text") return writer.write(out.data);
+          const kind = out.data[0];
+          if (kind === 1) {
+            const keyframe = (out.data[1]! & 1) === 1;
+            if (keyframe) lastKeyframeBytes = out.data.length;
+            const buffered = transport.writableLength;
+            if (!keyframe && buffered > lastKeyframeBytes + BEHIND_SLACK_BYTES) skipping = true;
+            if (skipping && !keyframe) {
+              if (!keyframeAsked && buffered <= KEYFRAME_ASK_BYTES) {
                 keyframeAsked = true;
                 return command(JSON.stringify({ t: "keyframe" }));
               }
-              // The keep-awake tick only matters on an idle link.
-              if (buffered > KEYFRAME_ASK_BYTES) return Effect.void;
+              return Effect.void;
             }
-            return writer.write(out.data);
-          }),
-        );
-        const receive = (chunk: Uint8Array | string) => {
-          const text = typeof chunk === "string" ? chunk : textDecoder.decode(chunk);
-          if (text.length > MAX_COMMAND_BYTES || text.includes("\n")) return Effect.void;
-          return command(text);
-        };
-        const receiveInput = reader.pull.pipe(
-          Effect.flatMap((chunks) => Effect.forEach(chunks, receive, { discard: true })),
-        );
-        yield* Effect.logInfo("helm screen remote: phone connected");
-        return yield* Effect.raceFirst(
-          Effect.raceFirst(Effect.forever(send), Effect.forever(receiveInput)),
-          helperDone,
-        ).pipe(Effect.as(HttpServerResponse.empty()));
-      }),
-    ).pipe(
-      // A dropped socket is a normal end of watching.
-      Effect.orElseSucceed(() => HttpServerResponse.empty()),
-      Effect.ensuring(Effect.logInfo("helm screen remote: phone left")),
-    );
-  });
+            if (keyframe) {
+              skipping = false;
+              keyframeAsked = false;
+            }
+          } else if (kind === 5) {
+            const buffered = transport.writableLength;
+            // A still screen sends no frames: the tick is when a skipping phone asks.
+            if (skipping && !keyframeAsked && buffered <= KEYFRAME_ASK_BYTES) {
+              keyframeAsked = true;
+              return command(JSON.stringify({ t: "keyframe" }));
+            }
+            // The keep-awake tick only matters on an idle link.
+            if (buffered > KEYFRAME_ASK_BYTES) return Effect.void;
+          }
+          return writer.write(out.data);
+        }),
+      );
+      const receive = (chunk: Uint8Array | string) => {
+        const text = typeof chunk === "string" ? chunk : textDecoder.decode(chunk);
+        if (text.length > MAX_COMMAND_BYTES || text.includes("\n")) return Effect.void;
+        return command(text);
+      };
+      const receiveInput = reader.pull.pipe(
+        Effect.flatMap((chunks) => Effect.forEach(chunks, receive, { discard: true })),
+      );
+      yield* Effect.logInfo("helm screen remote: phone connected");
+      return yield* Effect.raceFirst(
+        Effect.raceFirst(Effect.forever(send), Effect.forever(receiveInput)),
+        helperDone,
+      ).pipe(Effect.as(HttpServerResponse.empty()));
+    }),
+  ).pipe(
+    // A dropped socket is a normal end of watching.
+    Effect.orElseSucceed(() => HttpServerResponse.empty()),
+    Effect.ensuring(Effect.logInfo("helm screen remote: phone left")),
+  );
+});
 
 export const screenRemoteRouteLayer = HttpRouter.use((router) =>
   Effect.gen(function* () {

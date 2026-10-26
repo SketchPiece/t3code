@@ -271,33 +271,31 @@ class TailnetPairRefused extends Schema.TaggedError<TailnetPairRefused>()("Tailn
   reason: Schema.String,
 }) {}
 
-const runTailscaleJson = <S extends Schema.Top>(schema: S, args: ReadonlyArray<string>) =>
-  Effect.gen(function* () {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-    for (const executable of TAILSCALE_EXECUTABLES) {
-      const output = yield* Effect.gen(function* () {
-        const child = yield* spawner.spawn(ChildProcess.make(executable, [...args]));
-        const [stdout, exitCode] = yield* Effect.all(
-          [
-            Stream.mkString(Stream.decodeText(child.stdout)),
-            child.exitCode.pipe(Effect.map(Number)),
-          ],
-          { concurrency: "unbounded" },
-        );
-        return exitCode === 0 ? stdout : null;
-      }).pipe(
-        Effect.scoped,
-        Effect.timeout(TAILSCALE_TIMEOUT),
-        Effect.catchCause(() => Effect.succeed(null)),
+const runTailscaleJson = Effect.fn("HelmTailnetPair.runTailscaleJson")(function* <
+  S extends Schema.Top,
+>(schema: S, args: ReadonlyArray<string>) {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  for (const executable of TAILSCALE_EXECUTABLES) {
+    const output = yield* Effect.gen(function* () {
+      const child = yield* spawner.spawn(ChildProcess.make(executable, [...args]));
+      const [stdout, exitCode] = yield* Effect.all(
+        [Stream.mkString(Stream.decodeText(child.stdout)), child.exitCode.pipe(Effect.map(Number))],
+        { concurrency: "unbounded" },
       );
-      if (output !== null) {
-        return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(output).pipe(
-          Effect.mapError(() => new TailnetPairRefused({ reason: "unreadable tailscale output" })),
-        );
-      }
+      return exitCode === 0 ? stdout : null;
+    }).pipe(
+      Effect.scoped,
+      Effect.timeout(TAILSCALE_TIMEOUT),
+      Effect.catchCause(() => Effect.succeed(null)),
+    );
+    if (output !== null) {
+      return yield* Schema.decodeEffect(Schema.fromJsonString(schema))(output).pipe(
+        Effect.mapError(() => new TailnetPairRefused({ reason: "unreadable tailscale output" })),
+      );
     }
-    return yield* new TailnetPairRefused({ reason: "tailscale CLI unavailable" });
-  });
+  }
+  return yield* new TailnetPairRefused({ reason: "tailscale CLI unavailable" });
+});
 
 /** Who may ask: a node of the owner's tailnet, or (with a code to come) a device on the local network. */
 const pairCaller = Effect.gen(function* () {

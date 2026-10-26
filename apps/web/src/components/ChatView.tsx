@@ -2041,7 +2041,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const scrollToEndStable = useStableCallback(scrollToEnd);
   // Helm fork: Helm Mobile's remote. Opening or typing into this thread shows the latest; its
-  // trackpad scrolls the timeline like the wheel would (leaving live-follow, as the wheel does).
+  // trackpad scrolls the timeline like the wheel would; the viewport releases live-follow on its upward scroll.
   useEffect(() => {
     const glide = makeScrollGlide(() => legendListRef.current?.getScrollableNode());
     const onRemote = (event: Event) => {
@@ -2052,7 +2052,6 @@ export default function ChatView(props: ChatViewProps) {
         scrollToEndStable(detail.smooth === true);
         return;
       }
-      if (detail.by < 0) cancelTimelineLiveFollowForUserNavigationStable();
       glide.add(detail.by, detail.smooth === true);
     };
     window.addEventListener(REMOTE_SCROLL_EVENT, onRemote);
@@ -2060,7 +2059,7 @@ export default function ChatView(props: ChatViewProps) {
       window.removeEventListener(REMOTE_SCROLL_EVENT, onRemote);
       glide.stop();
     };
-  }, [cancelTimelineLiveFollowForUserNavigationStable, routeThreadKey, scrollToEndStable]);
+  }, [routeThreadKey, scrollToEndStable]);
 
   useEffect(() => {
     if (!activeThread?.id || terminalUiState.terminalOpen) return;
