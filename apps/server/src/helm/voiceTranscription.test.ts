@@ -69,7 +69,7 @@ describe("transcribeVoice", () => {
   const sent: Array<SentRequest> = [];
 
   it.effect(
-    "forwards the clip to the Volna core with hints, returns its text and deletes the clip",
+    "forwards the clip to helm-cloud with hints, returns its text and deletes the clip",
     () =>
       Effect.gen(function* () {
         const { attachmentId, filePath } = yield* storeClip;

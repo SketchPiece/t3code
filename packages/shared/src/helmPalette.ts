@@ -1,6 +1,6 @@
 import type { ThemeColors } from "./themePalettes.ts";
 
-// Helm fork: the "Bakelite" palette from Volna's design system (bakelite and
+// Helm fork: the "Bakelite" palette (bakelite and
 // lamp). It replaces T3 Code's stock palette, so every client wears it with no
 // theme installed. Dark is flat bakelite, light is the ivory casing. The amber
 // lamp is the action color (send, switches, sliders, links); signal red is kept

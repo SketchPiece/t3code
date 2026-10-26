@@ -387,7 +387,7 @@ export const make = Effect.gen(function* () {
   const helmPush = yield* readHelmPushConfig(secrets);
 
   const readRelayConfig = Effect.gen(function* () {
-    // Helm fork: the Volna core takes the relay's place when configured.
+    // Helm fork: helm-cloud takes the relay's place when configured.
     if (helmPush) {
       return { url: helmPush.url, issuer: helmPush.url, environmentCredential: helmPush.token };
     }

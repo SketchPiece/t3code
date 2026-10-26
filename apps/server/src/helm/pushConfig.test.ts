@@ -12,13 +12,13 @@ const storeWith = (value: string | null) =>
   }) as unknown as ServerSecretStore.ServerSecretStore["Service"];
 
 describe("readHelmPushConfig", () => {
-  it.effect("points the publisher at the Volna core's /helm routes", () =>
+  it.effect("points the publisher at helm-cloud's /helm routes", () =>
     Effect.gen(function* () {
       const config = yield* readHelmPushConfig(
-        storeWith('{"url":"https://volna-core.example.app/","token":"secret"}'),
+        storeWith('{"url":"https://helm.example.app/","token":"secret"}'),
       );
       assert.deepStrictEqual(config, {
-        url: "https://volna-core.example.app/helm",
+        url: "https://helm.example.app/helm",
         token: "secret",
       });
     }),

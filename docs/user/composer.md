@@ -197,7 +197,7 @@ transcription or cancellation; only the message text is sent when you submit.
 
 ## Voice input on web and desktop
 
-When the server has a transcription backend (Helm: the Volna core named by the
+When the server has a transcription backend (Helm: helm-cloud, named by the
 `helm-push` secret), click the microphone next to send, speak, and confirm with the
 checkmark; press `Escape` to cancel. Dictation understands Russian and English in
 the same take. If transcription fails, the recording is kept: use the retry button

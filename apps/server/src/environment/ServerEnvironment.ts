@@ -277,7 +277,7 @@ export const make = Effect.gen(function* () {
     // Publishing opt-in and relay links change at runtime; read the capability per request.
     getDescriptor: Effect.all([
       readAgentActivityPublishingActive(secrets),
-      // Helm fork: dictation goes through the Volna core named by the helm-push secret.
+      // Helm fork: dictation goes through helm-cloud, named by the helm-push secret.
       readHelmPushConfig(secrets),
     ]).pipe(
       Effect.map(([agentActivityPublishing, helmCore]) => ({

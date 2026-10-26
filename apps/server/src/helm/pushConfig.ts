@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 
 import type * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 
-// Helm fork: agent notifications and Live Activities go to the Volna core
+// Helm fork: agent notifications and Live Activities go to helm-cloud
 // (its /helm routes speak the relay's publish API) instead of T3 Connect.
 // The secret `helm-push` ({"url": "https://…", "token": "…"}, secrets/helm-push.bin)
 // turns publishing on; without it the upstream relay link decides as before.

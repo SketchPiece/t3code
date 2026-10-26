@@ -15,7 +15,7 @@ import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import { readHelmPushConfig } from "./pushConfig.ts";
 
-// Helm fork: dictation is transcribed by the Volna core (POST /helm/v1/transcriptions),
+// Helm fork: dictation is transcribed by helm-cloud (POST /helm/v1/transcriptions),
 // which holds the OpenAI key; this server only forwards the clip with its server token.
 // Spoken languages are fixed to the owner's two; keywords come from the thread plus
 // the coding words a Russian speaker says in English, so they stay in Latin script.
@@ -141,7 +141,7 @@ export const transcribeVoice = Effect.fn("HelmVoice.transcribe")(function* (
     if (response.status < 200 || response.status >= 300) {
       return yield* new VoiceTranscribeError({
         reason: "failed",
-        cause: `Volna core answered ${response.status}.`,
+        cause: `helm-cloud answered ${response.status}.`,
       });
     }
     return yield* decodeTranscriptionResponse(yield* response.json);
