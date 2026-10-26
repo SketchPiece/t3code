@@ -580,8 +580,13 @@ export const make = Effect.gen(function* () {
 
       return yield* persist((settings) => setWslOnly(settings, enabled));
     }),
-    setScreenUnlockEnabled: (enabled) =>
-      persist((settings) => setScreenUnlockEnabled(settings, enabled)),
+    setScreenUnlockEnabled: Effect.fn("desktop.settings.setScreenUnlockEnabled")(
+      function* (enabled) {
+        yield* Effect.annotateCurrentSpan({ enabled });
+
+        return yield* persist((settings) => setScreenUnlockEnabled(settings, enabled));
+      },
+    ),
     setLocalEnvironmentEnabled: Effect.fn("desktop.settings.setLocalEnvironmentEnabled")(
       function* (enabled) {
         yield* Effect.annotateCurrentSpan({ enabled });
@@ -647,8 +652,11 @@ export const layerTest = (initialSettings: DesktopSettings = DEFAULT_DESKTOP_SET
         setWslOnly: Effect.fn("DesktopAppSettings.setWslOnly")(function (enabled) {
           return update((settings) => setWslOnly(settings, enabled));
         }),
-        setScreenUnlockEnabled: (enabled) =>
-          update((settings) => setScreenUnlockEnabled(settings, enabled)),
+        setScreenUnlockEnabled: Effect.fn("DesktopAppSettings.setScreenUnlockEnabled")(
+          function (enabled) {
+            return update((settings) => setScreenUnlockEnabled(settings, enabled));
+          },
+        ),
         setLocalEnvironmentEnabled: Effect.fn("DesktopAppSettings.setLocalEnvironmentEnabled")(
           function (enabled) {
             return update((settings) => setLocalEnvironmentEnabled(settings, enabled));
