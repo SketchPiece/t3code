@@ -3503,7 +3503,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   </div>
                   {showVoiceInputAction ? (
                     <ComposerDictationButton
-                      disabled={isConnecting || environmentUnavailable !== null}
+                      disabled={environmentUnavailable !== null}
                       onStart={voiceInput.start}
                     />
                   ) : null}
