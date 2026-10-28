@@ -10,6 +10,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
@@ -20,6 +21,7 @@ import { readAgentActivityPublishingActive } from "../cloud/config.ts";
 import { resolveServerSelfUpdateCapability } from "../cloud/selfUpdate.ts";
 import { resolveServiceLauncherMode } from "../cloud/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
+import { helmServerUpdateScript } from "../helm/gitSelfUpdate.ts";
 import { resolveHelmScreenPath } from "../helm/screenRemoteRoute.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
@@ -198,6 +200,7 @@ export const make = Effect.gen(function* () {
   const serverSelfUpdate = resolveServerSelfUpdateCapability({
     desktopManaged: serverConfig.mode === "desktop",
     launcherManaged: launcher.managed,
+    helmGitUpdate: Option.isSome(yield* helmServerUpdateScript),
   });
   const helmScreenPath = yield* resolveHelmScreenPath(serverConfig);
   const serverInstallation = serverSelfUpdate === null ? yield* resolveServerInstallation : null;
@@ -267,7 +270,7 @@ export const make = Effect.gen(function* () {
       triage: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
-      ...(serverSelfUpdate === "boot-service" || desktopAppUpdate
+      ...(serverSelfUpdate === "boot-service" || serverSelfUpdate === "respawn" || desktopAppUpdate
         ? { serverSelfUpdateProgress: true }
         : {}),
       ...(desktopAppUpdate ? { desktopAppUpdate: true } : {}),

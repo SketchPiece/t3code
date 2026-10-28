@@ -56,9 +56,11 @@ export function resolveVersionMismatch(
 
   const clientCore = versionCore(normalizedClientVersion);
   const serverCore = versionCore(normalizedServerVersion);
+  // Helm fork: Helm releases are dated builds too, so compare them like nightlies.
+  const clientChannel = parseSemver(normalizedClientVersion)?.prerelease[0];
   const compareNightlyBuilds =
-    parseSemver(normalizedClientVersion)?.prerelease[0] === "nightly" &&
-    parseSemver(normalizedServerVersion)?.prerelease[0] === "nightly";
+    (clientChannel === "nightly" || clientChannel === "helm") &&
+    parseSemver(normalizedServerVersion)?.prerelease[0] === clientChannel;
   const serverIsBehind =
     parseSemver(clientCore) && parseSemver(serverCore)
       ? compareSemverVersions(

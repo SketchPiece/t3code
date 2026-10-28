@@ -72,18 +72,20 @@ describe("versionSkew", () => {
     expect(resolveVersionMismatch("0.0.34")).toBeNull();
   });
 
-  it.each(["0.0.34-nightly.20260823.1124", "0.0.34-nightly.20260824.1124"])(
-    "warns when nightly server %s is behind a nightly client on the same release",
-    (serverVersion) => {
-      branding.APP_VERSION = "0.0.34-nightly.20260824.1125";
+  it.each([
+    ["0.0.34-nightly.20260823.1124", "0.0.34-nightly.20260824.1125"],
+    ["0.0.34-nightly.20260824.1124", "0.0.34-nightly.20260824.1125"],
+    ["0.0.34-helm.20260823.1", "0.0.34-helm.20260824.1"],
+    ["0.0.34-helm.20260824.1", "0.0.34-helm.20260824.2"],
+  ])("warns when build server %s is behind a client on %s", (serverVersion, clientVersion) => {
+    branding.APP_VERSION = clientVersion;
 
-      expect(resolveVersionMismatch(serverVersion)).toEqual({
-        clientVersion: "0.0.34-nightly.20260824.1125",
-        serverVersion,
-        hint: MISMATCH_HINT,
-      });
-    },
-  );
+    expect(resolveVersionMismatch(serverVersion)).toEqual({
+      clientVersion,
+      serverVersion,
+      hint: MISMATCH_HINT,
+    });
+  });
 
   // regression: #7579 versions were compared as strings, not semver
   it("treats a nightly server built past the client as ahead, not skew", () => {

@@ -58,12 +58,13 @@ export function useUpdateEverything(localUpdateVersion: string | null) {
     machines,
     targetVersion,
   );
-  // Desktop-managed servers use their app feed; only npm installs need to wait for publication.
-  const needsNpm = behindServers.some((server) => server.selfUpdate !== "desktop-managed");
+  // Only boot-service installs come from npm. Desktop-managed servers use their app feed, and
+  // Helm's respawn servers build the release tag from git.
+  const needsNpm = behindServers.some((server) => server.selfUpdate === "boot-service");
   const published = useNpmReleasePublished(needsNpm ? targetVersion : null);
   const servers = published
     ? behindServers
-    : behindServers.filter((server) => server.selfUpdate === "desktop-managed");
+    : behindServers.filter((server) => server.selfUpdate !== "boot-service");
   const skipped: ReadonlyArray<SkippedMachine> = [
     ...unreachable,
     ...behindServers
