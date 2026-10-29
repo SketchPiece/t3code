@@ -43,6 +43,8 @@ const DEFAULT_BACKEND_OUTPUT_DRAIN_TIMEOUT = Duration.seconds(5);
 const BACKEND_READINESS_PATH = "/.well-known/t3/environment";
 // Three restarts without readiness is about 2 s of backoff: past a blip, early enough to help.
 const STARTUP_FAILURE_RESTART_ATTEMPTS = 3;
+// A quitting desktop gives its backend seconds to exit; about 15 s of backoff outlasts that.
+const STATE_DIR_OWNED_RESTART_ATTEMPTS = 5;
 const STARTUP_FAILURE_OUTPUT_CHARS = 4_000;
 const { logWarning: logBackendProcessWarning } =
   DesktopObservability.makeComponentLogger("desktop-backend-process");
@@ -872,6 +874,10 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
 
               if (isCurrentRun && nextState.desiredRunning) {
                 if (stateDirOwned && !stopRequested) {
+                  if (nextState.restartAttempt < STATE_DIR_OWNED_RESTART_ATTEMPTS) {
+                    yield* scheduleRestart(reason, { reportStartupFailure: false });
+                    return;
+                  }
                   yield* Ref.update(state, (latest) => ({ ...latest, desiredRunning: false }));
                   yield* (spec.onStateDirOwned?.() ?? Effect.void).pipe(Effect.ignore);
                   return;
@@ -976,6 +982,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
 
   const scheduleRestart = Effect.fn("desktop.backendInstance.scheduleRestart")(function* (
     reason: string,
+    options?: { readonly reportStartupFailure?: boolean },
   ) {
     const scheduled = yield* Ref.modify(state, (latest) => {
       if (!latest.desiredRunning || Option.isSome(latest.restartFiber)) {
@@ -999,7 +1006,10 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
           reason,
           delayMs: Duration.toMillis(delay),
         });
-        if (attempt >= STARTUP_FAILURE_RESTART_ATTEMPTS) {
+        if (
+          attempt >= STARTUP_FAILURE_RESTART_ATTEMPTS &&
+          options?.reportStartupFailure !== false
+        ) {
           yield* reportStartupFailure(`The server could not start (${reason}).`);
         }
         const restartFiber = yield* Effect.forkIn(

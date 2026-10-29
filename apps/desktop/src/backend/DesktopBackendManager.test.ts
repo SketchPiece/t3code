@@ -547,10 +547,12 @@ describe("DesktopBackendManager", () => {
     ),
   );
 
-  it.effect("reports state-directory ownership once without scheduling another backend", () =>
+  it.effect("retries an owned state directory, then reports it once and stops", () =>
     Effect.scoped(
       Effect.gen(function* () {
         let startCount = 0;
+        let startupFailures = 0;
+        const firstExit = yield* Deferred.make<void>();
         const refused = yield* Deferred.make<void>();
         const instance = yield* makeTestInstance({
           spawnerLayer: Layer.succeed(
@@ -567,15 +569,26 @@ describe("DesktopBackendManager", () => {
             ),
           ),
           httpClientLayer: layerHttpClient(() => Effect.never),
+          backendOutputLog: {
+            persistFailure: () => Deferred.succeed(firstExit, undefined).pipe(Effect.asVoid),
+          },
+          onStartupFailure: () =>
+            Effect.sync(() => {
+              startupFailures += 1;
+            }),
           onStateDirOwned: Deferred.succeed(refused, undefined).pipe(Effect.asVoid),
         });
         yield* instance.start;
+        yield* Deferred.await(firstExit);
+        // A quitting desktop can still hold the lock for a few seconds.
+        yield* TestClock.adjust(Duration.minutes(1));
         yield* Deferred.await(refused);
         const snapshot = yield* instance.snapshot;
         assert.isFalse(snapshot.desiredRunning);
         assert.isFalse(snapshot.restartScheduled);
         yield* TestClock.adjust(Duration.minutes(1));
-        assert.equal(startCount, 1);
+        assert.equal(startCount, 6);
+        assert.equal(startupFailures, 0);
       }).pipe(Effect.provide(TestClock.layer())),
     ),
   );
