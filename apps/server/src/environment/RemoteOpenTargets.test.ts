@@ -9,6 +9,7 @@ import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import { TestClock } from "effect/testing";
 import { afterEach, describe, expect, vi } from "vite-plus/test";
 
 import * as RemoteOpenTargets from "./RemoteOpenTargets.ts";
@@ -29,10 +30,14 @@ interface CommandResult {
   readonly stdout: string;
 }
 
-const layerSpawner = (input: { readonly status: CommandResult; readonly prefs: CommandResult }) =>
+const layerSpawner = (
+  input: { readonly status: CommandResult; readonly prefs: CommandResult },
+  onSpawn: () => void = () => {},
+) =>
   Layer.succeed(
     ChildProcessSpawner.ChildProcessSpawner,
     ChildProcessSpawner.make((command) => {
+      onSpawn();
       const args = ChildProcess.isStandardCommand(command) ? command.args : [];
       const result = args[0] === "debug" ? input.prefs : input.status;
       return Effect.succeed(
@@ -148,4 +153,39 @@ describe("RemoteOpenTargets", () => {
       expect(targets).toEqual([{ kind: "mdns", host: "bb-1.local", username: "t3-user" }]);
     }),
   );
+
+  it.effect("answers from the last targets and refreshes them in the background after 30 s", () => {
+    let spawns = 0;
+    return Effect.gen(function* () {
+      const service = yield* RemoteOpenTargets.RemoteOpenTargets;
+      const first = yield* service.resolveTargets();
+      const spawnsForOne = spawns;
+      expect(spawnsForOne).toBeGreaterThan(0);
+
+      yield* TestClock.adjust("10 seconds");
+      expect(yield* service.resolveTargets()).toEqual(first);
+      expect(spawns).toBe(spawnsForOne);
+
+      yield* TestClock.adjust("25 seconds");
+      expect(yield* service.resolveTargets()).toEqual(first);
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      expect(spawns).toBe(spawnsForOne * 2);
+    }).pipe(
+      Effect.provideService(HostProcess.Hostname, "bb-1"),
+      Effect.provideService(HostProcess.Username, "t3-user"),
+      Effect.provide(
+        RemoteOpenTargets.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              layerNet({ ipv4: true, ipv6: false }),
+              layerSpawner(TAILSCALE_UP, () => {
+                spawns += 1;
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+  });
 });
