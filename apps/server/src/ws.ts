@@ -216,6 +216,7 @@ import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts
 import * as ProjectService from "./project/ProjectService.ts";
 import { threadWorkspaceRoot } from "./project/threadWorkspaceRoot.ts";
 import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
+import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import { projectMutationOperation } from "./project/ProjectMutation.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
@@ -1240,6 +1241,7 @@ export const layerWsRpc = (
       const projectStore = yield* ProjectStore.ProjectStoreV2;
       const projectService = yield* ProjectService.ProjectService;
       const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
+      const scratchThreadPromotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
       const eventLoopMonitor = yield* EventLoopMonitor.EventLoopMonitor;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
 
@@ -2718,6 +2720,14 @@ export const layerWsRpc = (
                 (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
               ),
             ),
+        [WS_METHODS.projectsCreateFromThread]: (input) =>
+          scratchThreadPromotion
+            .promote(input)
+            .pipe(
+              Effect.mapError(
+                (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
+              ),
+            ),
         [WS_METHODS.projectCloneCancel]: (input) =>
           projectCloneTracker.cancel(input.projectId).pipe(Effect.map((applied) => ({ applied }))),
         [WS_METHODS.projectCloneRetry]: (input) =>
@@ -2828,28 +2838,27 @@ export const layerWsRpc = (
           ),
         [WS_METHODS.attachmentsCreateUploadUrl]: (input) => issueAttachmentUploadUrl(input),
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
-        [WS_METHODS.voiceTranscribe]: (input) =>
-          Effect.gen(function* () {
-            // Helm fork: the thread's project and branch help recognize spoken names.
-            const keywords =
-              input.threadId === undefined
-                ? []
-                : yield* threadManagement.getThreadRecords(input.threadId, []).pipe(
-                    Effect.flatMap(({ thread }) =>
-                      projectService
-                        .getShell(thread.projectId)
-                        .pipe(
-                          Effect.map((project) =>
-                            [Option.getOrNull(project)?.title, thread.branch].filter(
-                              (keyword): keyword is string => typeof keyword === "string",
-                            ),
+        [WS_METHODS.voiceTranscribe]: Effect.fn("ws.voiceTranscribe")(function* (input) {
+          // Helm fork: the thread's project and branch help recognize spoken names.
+          const keywords =
+            input.threadId === undefined
+              ? []
+              : yield* threadManagement.getThreadRecords(input.threadId, []).pipe(
+                  Effect.flatMap(({ thread }) =>
+                    projectService
+                      .getShell(thread.projectId)
+                      .pipe(
+                        Effect.map((project) =>
+                          [Option.getOrNull(project)?.title, thread.branch].filter(
+                            (keyword): keyword is string => typeof keyword === "string",
                           ),
                         ),
-                    ),
-                    Effect.orElseSucceed((): string[] => []),
-                  );
-            return yield* transcribeVoice(input, keywords);
-          }),
+                      ),
+                  ),
+                  Effect.orElseSucceed((): string[] => []),
+                );
+          return yield* transcribeVoice(input, keywords);
+        }),
         // Helm fork: helm/helmRpc.ts
         [WS_METHODS.helmCommand]: (input) => runHelmCommand(config.stateDir, input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
@@ -3046,6 +3055,7 @@ export const layerWsRpc = (
         [WS_METHODS.deviceConfigure]: (input) => deviceService.configure(input),
         [WS_METHODS.deviceTestHost]: (input) => deviceService.testHost(input),
         [WS_METHODS.deviceEasAccount]: (input) => deviceService.easAccount(input),
+        [WS_METHODS.deviceSimlockIdentity]: (input) => deviceService.simlockIdentity(input),
         [WS_METHODS.deviceList]: (input) =>
           input.inspectOnly && !input.updateTool
             ? deviceService.inspect
