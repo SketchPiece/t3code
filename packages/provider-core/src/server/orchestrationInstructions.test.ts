@@ -89,7 +89,7 @@ describe("Helm orchestration instructions", () => {
   it("names Helm in its prose but keeps tool names and ids exact", () => {
     assert.notMatch(T3_CODE_ORCHESTRATION_INSTRUCTIONS, /\bT3(?: Code)?\b(?![-_])/);
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Ordinary coding tasks need no Helm tools.");
-    for (const id of ["`t3_thread_launch`", "`t3_thread_send`", "t3-thread://v1/"]) {
+    for (const id of ["`t3_thread_launch`", "`t3_thread_send`", "t3_environment_link"]) {
       assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, id);
     }
     assert.include(T3_CODE_DEVICE_TOOL_INSTRUCTIONS, "## Helm devices");

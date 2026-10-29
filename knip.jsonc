@@ -57,8 +57,12 @@
         // graphqlgen reads its config.
         "graphql.config.ts",
       ],
-      // The generated operations export every selection's class.
-      "ignoreIssues": { "**/*.graphql.ts": ["exports", "types", "namespaceMembers"] },
+      // The generated operations export every selection's class. Helm fork: Helm's modules
+      // export the constants their tests pin.
+      "ignoreIssues": {
+        "**/*.graphql.ts": ["exports", "types", "namespaceMembers"],
+        "src/helm/**": ["exports"],
+      },
       // Keep the transitive Effect runtime pinned for standalone npm installs.
       // The Vite+ web build prerequisite.
       // Native and disk-loaded provider packages stay external to the bundle; the
@@ -93,7 +97,11 @@
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
-      "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
+      "ignoreIssues": {
+        "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
+        // Helm fork: Helm's modules export the constants their tests pin.
+        "src/helm/**": ["exports"],
+      },
     },
     "apps/marketing": {
       // `astro check` runs from the typecheck task in vite.config.ts, which knip does not read.

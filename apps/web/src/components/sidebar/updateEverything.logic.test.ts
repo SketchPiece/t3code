@@ -100,8 +100,9 @@ describe("collectServerUpdateTargets", () => {
         releaseArchivesPublished,
       ).waitForNpm.map((target) => target.serverLabel);
 
-    expect(waits(true)).toEqual(["npm-service", "legacy-respawn"]);
-    expect(waits(false)).toEqual(["archive-service", "npm-service", "legacy-respawn"]);
+    // Helm fork: respawn servers build the release tag from git and never wait for npm.
+    expect(waits(true)).toEqual(["npm-service"]);
+    expect(waits(false)).toEqual(["archive-service", "npm-service"]);
   });
 });
 

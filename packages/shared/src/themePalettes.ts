@@ -107,6 +107,7 @@ export type ThemeDefinition = Readonly<{
   managed?: boolean;
 }>;
 
+/** @public */
 export const UPSTREAM_T3_CODE_LIGHT_THEME_COLORS: ThemeColors = {
   searchMatchBackground: "#ffde8b",
   searchMatchForeground: "#21180a",
@@ -171,6 +172,7 @@ export const UPSTREAM_T3_CODE_LIGHT_THEME_COLORS: ThemeColors = {
   terminalScrollbarHover: "#bdbdbd",
 };
 
+/** @public */
 export const UPSTREAM_T3_CODE_DARK_THEME_COLORS: ThemeColors = {
   searchMatchBackground: "#8c6c1f",
   searchMatchForeground: "#f5f5f5",

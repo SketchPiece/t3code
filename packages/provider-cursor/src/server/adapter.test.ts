@@ -719,7 +719,7 @@ describe("CursorAdapterV2", () => {
         );
         const sent = sentMessages.at(-1)!;
         return {
-          orchestration: sent.includes("## T3 Code orchestration"),
+          orchestration: sent.includes("## Helm orchestration"),
           devices: sent.includes("## Helm devices"),
         };
       });

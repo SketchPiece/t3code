@@ -1637,6 +1637,7 @@ export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppe
 }
 
 /** Helm fork: data-theme-id worn by the stock Bakelite palette. */
+/** @public */
 export const HELM_STOCK_THEME_ID = "helm";
 
 export function resolveThemeAppearance(

@@ -2,6 +2,7 @@
 // Helm shows its own name instead. Identifiers (the `t3-code` MCP server id,
 // `t3_*` tool names, `@t3tools/*`, T3CODE_* env vars) are protocol and stay.
 
+/** @public */
 export const HELM_PRODUCT_NAME = "Helm";
 
 // "T3 Code" or a standalone "T3" word, but not identifier-like spellings such
