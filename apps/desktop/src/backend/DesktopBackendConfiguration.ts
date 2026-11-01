@@ -534,6 +534,7 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
         ELECTRON_RUN_AS_NODE: "1",
         HELM_SCREEN_UNLOCK_SETTINGS_PATH:
           environment.platform === "darwin" ? environment.desktopSettingsPath : undefined,
+        T3CODE_DESKTOP_SHELL_DISCOVERY_PENDING: "1",
         T3CODE_CLI_PATH: Option.getOrUndefined(input.cliPath),
       },
       extendEnv: true,
