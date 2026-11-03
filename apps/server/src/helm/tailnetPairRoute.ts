@@ -1,6 +1,6 @@
 import { AuthAccessWriteScope } from "@t3tools/contracts";
 import { isTailscaleIpv4Address } from "@t3tools/tailscale";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -13,18 +13,10 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import { deriveAuthClientMetadata } from "../auth/utils.ts";
 
-// Helm fork: a phone on the owner's tailnet asks to pair, and Helm on the Mac
-// asks the owner. The request is only taken straight from a tailnet address
-// whose node belongs to this Mac's Tailscale user (`tailscale whois`), and no
-// credential leaves the server until someone signed in to Helm with
-// access:write answers "Allow". The phone then pairs with that one-time
-// credential the usual way. Requests live in memory for five minutes.
-//
-// A device on the local network (no Tailscale) may ask too, the way AirPlay
-// pairs: after "Allow" the Mac shows a four-digit code, and the credential
-// goes only to a request that sends that code back. Whoever reads the code is
-// at the Mac, so a stranger on the same Wi-Fi gets nothing from a misplaced
-// "Allow"; five wrong codes end the request.
+// Helm fork: phone pairing approved on the Mac. Tailnet requests must come from this Mac's
+// Tailscale user (`tailscale whois`); no credential leaves until an access:write session allows it.
+// LAN requests also need the four-digit code the Mac shows, and five wrong codes end the request.
+// Requests live in memory for five minutes.
 export const HELM_TAILNET_PAIR_PATH = "/api/helm/tailnet-pair";
 export const HELM_TAILNET_PAIR_REQUESTS_PATH = "/api/helm/tailnet-pair-requests";
 
@@ -372,7 +364,7 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
           Effect.orElseSucceed(() => ({ label: undefined })),
         );
         const label = body.label?.trim().slice(0, 80) || caller.nodeName;
-        const id = yield* (yield* Crypto.Crypto).randomUUIDv4().pipe(Effect.orDie);
+        const id = yield* (yield* SecureRandom.SecureRandom).uuidV4().pipe(Effect.orDie);
         const asked = requests.ask({ ...caller, id, label });
         yield* Effect.logInfo("helm tailnet pairing requested", {
           node: caller.nodeName,
