@@ -17,8 +17,10 @@ import type {
   HelmAuthSecretKind,
   HelmAuthSudoSetup,
 } from "@t3tools/contracts";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 
@@ -380,7 +382,10 @@ export const authBridgeLayer = Layer.effectDiscard(
     const isMainInstance =
       config.baseDir === NodePath.join(home, ".helm") &&
       NodePath.basename(config.stateDir) === "userdata";
-    if (!isMainInstance && !process.env.HELM_AUTH_FORCE) return;
+    const force = Option.getOrUndefined(
+      yield* Config.String("HELM_AUTH_FORCE").pipe(Config.option),
+    );
+    if (!isMainInstance && !force) return;
 
     const directory = helperDirectory(config.resourceMonitorPath);
     state.enabled = true;
