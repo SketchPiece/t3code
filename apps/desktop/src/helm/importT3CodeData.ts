@@ -6,6 +6,12 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as Schema from "effect/Schema";
+
+class T3CodeDatabaseCopyError extends Schema.TaggedError<T3CodeDatabaseCopyError>()(
+  "T3CodeDatabaseCopyError",
+  { cause: Schema.Defect() },
+) {}
 
 // Helm fork: replaces Helm's server state with a copy of the official T3 Code
 // install, on request only. The Helm menu's "Import from T3 Code…" leaves a
@@ -111,13 +117,16 @@ export const importT3CodeData = Effect.fn("helm.importT3CodeData")(function* (in
 
   const copied: string[] = [];
   const copy = Effect.gen(function* () {
-    yield* Effect.try(() => {
-      const sqlite = new NodeSqlite.DatabaseSync(source(database), { readOnly: true });
-      try {
-        sqlite.exec(`VACUUM INTO '${target(database).replaceAll("'", "''")}'`);
-      } finally {
-        sqlite.close();
-      }
+    yield* Effect.try({
+      try: () => {
+        const sqlite = new NodeSqlite.DatabaseSync(source(database), { readOnly: true });
+        try {
+          sqlite.exec(`VACUUM INTO '${target(database).replaceAll("'", "''")}'`);
+        } finally {
+          sqlite.close();
+        }
+      },
+      catch: (cause) => new T3CodeDatabaseCopyError({ cause }),
     });
     copied.push(database);
     for (const file of COPIED_FILES) {
