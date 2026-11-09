@@ -12,8 +12,9 @@ import {
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@t3tools/client-runtime/voice-input";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { BrowserVoiceRecorder } from "~/lib/browserVoiceRecorder";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { attachmentEnvironment } from "~/state/attachments";
@@ -95,7 +96,7 @@ type ComposerVoiceInput = {
 };
 
 function createComposerVoiceSession(input: {
-  readonly latestInput: { readonly current: ComposerVoiceInput };
+  readonly latestInput: () => ComposerVoiceInput;
   readonly onStateChange: (state: VoiceInputState) => void;
 }) {
   // The recorder reports auto-stop and mic loss to the controller created below.
@@ -109,7 +110,7 @@ function createComposerVoiceSession(input: {
       if (!recording) throw new Error("The recording is no longer available.");
       const attachmentId = await abortable(
         uploadVoiceRecording(
-          input.latestInput.current.environmentId,
+          input.latestInput().environmentId,
           {
             blob: recording.blob,
             mimeType: recording.format.mimeType,
@@ -123,7 +124,7 @@ function createComposerVoiceSession(input: {
       return attachmentId;
     },
     transcribeAttachment: async (attachmentId, signal) => {
-      const { environmentId, threadId } = input.latestInput.current;
+      const { environmentId, threadId } = input.latestInput();
       // The server deletes the clip after one attempt; a retry uploads it again.
       const durationSeconds = durationByAttachmentId.get(attachmentId);
       durationByAttachmentId.delete(attachmentId);
@@ -164,7 +165,7 @@ function createComposerVoiceSession(input: {
     deleteRecording: (uri) => recorder.deleteRecording(uri),
     retryFailedRecording: true,
     readDraft: (): VoiceDraftSnapshot => {
-      const current = input.latestInput.current;
+      const current = input.latestInput();
       return {
         ownerKey: current.ownerKey,
         text: current.readPrompt(),
@@ -173,7 +174,7 @@ function createComposerVoiceSession(input: {
         revision: 0,
       };
     },
-    commitDraft: (text, selection) => input.latestInput.current.commitPrompt(text, selection),
+    commitDraft: (text, selection) => input.latestInput().commitPrompt(text, selection),
     onStateChange: (next) => {
       // Close the microphone on every way out, including a take cancelled while
       // permission was still being asked, before the controller owned the stream.
@@ -190,24 +191,23 @@ function createComposerVoiceSession(input: {
  */
 export function useComposerVoiceInput(input: ComposerVoiceInput) {
   const [state, setState] = useState<VoiceInputState>(IDLE_STATE);
-  const latestInputRef = useRef(input);
-  useLayoutEffect(() => {
-    latestInputRef.current = input;
-  });
+  const readInput = useStableCallback(() => input);
   const [{ recorder, controller }] = useState(() =>
     createComposerVoiceSession({
-      latestInput: latestInputRef,
+      latestInput: readInput,
       onStateChange: setState,
     }),
   );
 
   const previousOwnerRef = useRef(input.ownerKey);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- cancels the controller's take when the draft it records into changes.
   useEffect(() => {
     if (previousOwnerRef.current === input.ownerKey) return;
     previousOwnerRef.current = input.ownerKey;
     controller.ownerChanged();
   }, [controller, input.ownerKey]);
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- frees the microphone and recordings on unmount.
   useEffect(
     () => () => {
       controller.dispose();
@@ -216,11 +216,11 @@ export function useComposerVoiceInput(input: ComposerVoiceInput) {
     [controller, recorder],
   );
 
-  const start = useCallback(() => void controller.start(), [controller]);
-  const stop = useCallback(() => void controller.stop(), [controller]);
+  const start = () => void controller.start();
+  const stop = () => void controller.stop();
   // Start reuses the kept take when its transcription failed.
-  const retry = useCallback(() => void controller.start(), [controller]);
-  const cancel = useCallback(() => controller.cancel(), [controller]);
+  const retry = () => void controller.start();
+  const cancel = () => controller.cancel();
 
   return {
     state,
