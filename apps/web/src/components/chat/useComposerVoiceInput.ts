@@ -162,6 +162,7 @@ function createComposerVoiceSession(input: {
     configureRecording: () => recorder.acquire(),
     releaseRecording: async () => recorder.release(),
     deleteRecording: (uri) => recorder.deleteRecording(uri),
+    retryFailedRecording: true,
     readDraft: (): VoiceDraftSnapshot => {
       const current = input.latestInput.current;
       return {
@@ -216,8 +217,9 @@ export function useComposerVoiceInput(input: ComposerVoiceInput) {
   );
 
   const start = useCallback(() => void controller.start(), [controller]);
-  const stop = useCallback(() => void controller.stop("insert"), [controller]);
-  const retry = useCallback(() => void controller.retry(), [controller]);
+  const stop = useCallback(() => void controller.stop(), [controller]);
+  // Start reuses the kept take when its transcription failed.
+  const retry = useCallback(() => void controller.start(), [controller]);
   const cancel = useCallback(() => controller.cancel(), [controller]);
 
   return {

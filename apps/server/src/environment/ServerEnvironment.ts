@@ -25,6 +25,7 @@ import { helmServerUpdateScript } from "../helm/gitSelfUpdate.ts";
 import { resolveHelmScreenPath } from "../helm/screenRemoteRoute.ts";
 import { databaseMigrationHead } from "../persistence/databaseMigrationHead.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { isSpeechPlatformSupported } from "../speech/platform.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
 import { detectServerEnvironmentMachineKind } from "./ServerEnvironmentMachine.ts";
 import { readHelmPushConfig } from "../helm/pushConfig.ts";
@@ -193,6 +194,7 @@ export const make = Effect.gen(function* () {
   const identity = yield* ServerEnvironmentIdentity;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
+  const hostLibc = hostPlatform === "linux" ? yield* HostProcess.LinuxLibc : undefined;
   const environmentId = yield* identity.getEnvironmentId;
   const cwdBaseName = path.basename(serverConfig.cwd).trim();
   const label = yield* resolveServerEnvironmentLabel({ cwdBaseName });
@@ -231,6 +233,7 @@ export const make = Effect.gen(function* () {
       pullRequests: true,
       pullRequestChecks: true,
       sideChats: true,
+      vcsBranchStatus: true,
       inlineMessageContext: true,
       requiredWorktreeBootstrap: true,
       threadSettlement: true,
@@ -242,6 +245,7 @@ export const make = Effect.gen(function* () {
       projectWorktreeCleanup: true,
       settledWorktreeCleanup: true,
       worktreesDirectory: true,
+      ...(hostPlatform === "darwin" ? { fastWorktreeCheckout: true } : {}),
       threadAutoSettlementScope: true,
       // Helm fork: helm/screenRemoteRoute.ts
       screenRemote: helmScreenPath !== undefined,
@@ -276,7 +280,11 @@ export const make = Effect.gen(function* () {
       ignoredFileListing: true,
       triage: true,
       oneTimeSchedules: true,
+      freshContext: true,
+      scheduledTaskThreadModes: true,
       npmReleaseLookup: true,
+      voiceTranscription: isSpeechPlatformSupported(hostPlatform, hostArchitecture, hostLibc),
+      cloudVoiceTranscription: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
       ...(serverSelfUpdate === "boot-service" || serverSelfUpdate === "respawn" || desktopAppUpdate
@@ -303,7 +311,7 @@ export const make = Effect.gen(function* () {
         capabilities: {
           ...descriptor.capabilities,
           agentActivityPublishing,
-          voiceTranscription: helmCore !== null,
+          helmVoiceTranscription: helmCore !== null,
         },
       })),
     ),
