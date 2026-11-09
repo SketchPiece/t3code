@@ -143,6 +143,16 @@ changes came through and still fit what upstream changed.
    - `apps/server/src/helm/` (push, screen remote and the rest) and its hooks
      in `ws.ts`, `server.ts`, `auth/RpcAuthorization.ts`, `httpCors.ts`.
 
+   - Settings → Helm (`apps/web/src/helm/HelmSettingsPanel.tsx`): every
+     Helm feature has a switch there. Its switches live in
+     `packages/contracts/src/helmSettings.ts`, spread into upstream's settings
+     schemas in `settings.ts`, and each feature reads its own
+     (`readHelmSetting` / `helmSettingChanges` on the server,
+     `settings.helm…Enabled` in `ChatComposer.tsx` and `helm/HelmCoordinators.tsx`,
+     `helm/look.ts` in `themePalette.ts`). When upstream adds a feature
+     that overlaps one of Helm's, keep both and give upstream's a switch here
+     too, like `t3DictationEnabled`.
+
    Search the merged tree for each entry point (`grep -rn`): a Helm function
    that is still exported but no longer called anywhere is exactly the
    failure this section exists for.
