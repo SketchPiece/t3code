@@ -3,7 +3,7 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeNet from "node:net";
-import * as OS from "node:os";
+import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeReadline from "node:readline";
 
@@ -17,6 +17,7 @@ import type {
   HelmAuthSecretKind,
   HelmAuthSudoSetup,
 } from "@t3tools/contracts";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -27,17 +28,13 @@ import * as Stream from "effect/Stream";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { ServerConfig } from "../config.ts";
 import { ServerEnvironment } from "../environment/ServerEnvironment.ts";
+import { helmSettingChanges } from "./helmSettings.ts";
 import { readHelmPushConfig } from "./pushConfig.ts";
 
-// Helm fork: Face ID on the phone for the Mac (contracts/helmAuth.ts).
-//
-// - sudo: pam_helm connects to `~/.helm/sudo.sock`, sends one JSON line and waits for one back.
-//   The server only passes the phone's signature through; pam_helm checks it.
-// - prompts: `helm-auth` (native/helm-auth) watches the screen for Touch ID / password sheets
-//   and types a password the phone sealed to it.
-//
-// Only the server on the real `~/.helm` takes part: dev servers on other base dirs would
-// otherwise fight over the socket.
+// Helm fork: Face ID on the phone for the Mac (contracts/helmAuth.ts). pam_helm asks over
+// `~/.helm/sudo.sock` and checks the phone's signature itself; `native/helm-auth` types a
+// password the phone sealed to it into dialogs. Only the server on the real `~/.helm` runs
+// it, so dev servers on other base dirs don't fight over the socket.
 
 const PAM_MODULE_PATH = "/usr/local/lib/pam/pam_helm.so.2";
 const SUDO_LOCAL_PATH = "/etc/pam.d/sudo_local";
@@ -54,6 +51,8 @@ interface SudoEntry {
 
 const state = {
   enabled: false,
+  /** Settings → Helm → "Confirm on the phone"; off leaves sudo and dialogs to the Mac. */
+  switchedOn: true,
   requests: new Map<string, HelmAuthRequest>(),
   sudoReplies: new Map<string, SudoEntry["reply"]>(),
   fills: new Map<string, (result: HelmAuthRespondResult) => void>(),
@@ -179,7 +178,9 @@ function handleSudoConnection(socket: NodeNet.Socket): void {
     const text = (key: string) =>
       typeof message[key] === "string" ? (message[key] as string) : "";
     // Without a phone listening or a push to wake one, don't keep sudo waiting.
-    if (state.listeners.size === 0 && !state.notify) return reply({ status: "unavailable" });
+    if (!state.switchedOn || (state.listeners.size === 0 && !state.notify)) {
+      return reply({ status: "unavailable" });
+    }
     const timeout = Math.min(Number(message.timeout) || 45, SUDO_TIMEOUT_CAP_S);
     const now = Date.now();
     id = `sudo-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -251,6 +252,7 @@ function startHelper(helperPath: string): void {
         state.promptsAvailable = event.trusted === true;
         break;
       case "prompt": {
+        if (!state.switchedOn) break;
         const kinds = (Array.isArray(event.kinds) ? event.kinds : []).filter(
           (kind): kind is HelmAuthSecretKind => kind === "mac" || kind === "onepassword",
         );
@@ -376,9 +378,9 @@ function helperDirectory(resourceMonitorPath: string | undefined): string | unde
 
 export const authBridgeLayer = Layer.effectDiscard(
   Effect.gen(function* () {
-    if (process.platform !== "darwin") return;
+    if ((yield* HostProcess.Platform) !== "darwin") return;
     const config = yield* ServerConfig;
-    const home = OS.homedir();
+    const home = NodeOS.homedir();
     const isMainInstance =
       config.baseDir === NodePath.join(home, ".helm") &&
       NodePath.basename(config.stateDir) === "userdata";
@@ -389,6 +391,15 @@ export const authBridgeLayer = Layer.effectDiscard(
 
     const directory = helperDirectory(config.resourceMonitorPath);
     state.enabled = true;
+    const switchedOn = yield* helmSettingChanges("helmPhoneConfirmEnabled");
+    yield* switchedOn.pipe(
+      Stream.runForEach((on) =>
+        Effect.sync(() => {
+          state.switchedOn = on;
+        }),
+      ),
+      Effect.forkScoped,
+    );
     state.pendingApproversPath = NodePath.join(config.stateDir, "sudo-approvers.pending");
     const scriptPath = NodePath.join(config.baseDir, "bin", "helm-sudo-setup");
     state.setupCommand = scriptPath.replace(home, "~");

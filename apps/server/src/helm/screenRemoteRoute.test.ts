@@ -17,6 +17,7 @@ import { HttpRouter, HttpServer } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
+import { ServerSettingsService } from "../serverSettings.ts";
 import { screenRemoteRouteLayer } from "./screenRemoteRoute.ts";
 
 const platformLayer = NodeHttpPlatform.layer.pipe(Layer.provideMerge(NodeServices.layer));
@@ -56,7 +57,11 @@ const authLayer = (scopes: ReadonlyArray<AuthEnvironmentScope>) =>
       }),
   });
 
-const serve = (scopes: ReadonlyArray<AuthEnvironmentScope>, consentPath?: string) =>
+const serve = (
+  scopes: ReadonlyArray<AuthEnvironmentScope>,
+  consentPath?: string,
+  screenRemoteOn = true,
+) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const dir = yield* fs.makeTempDirectoryScoped({ prefix: "helm-screen-test-" });
@@ -79,7 +84,11 @@ const serve = (scopes: ReadonlyArray<AuthEnvironmentScope>, consentPath?: string
           ),
         ),
         { disableListenLog: true },
-      ).pipe(Layer.provideMerge(NodeHttpServer.layerTest), Layer.provide(authLayer(scopes))),
+      ).pipe(
+        Layer.provideMerge(NodeHttpServer.layerTest),
+        Layer.provide(authLayer(scopes)),
+        Layer.provide(ServerSettingsService.layerTest({ helmScreenRemoteEnabled: screenRemoteOn })),
+      ),
     );
     const server = Context.get(services, HttpServer.HttpServer);
     return `${HttpServer.formatAddress(server.address).replace(/^http/, "ws")}/api/helm/screen?wsTicket=t`;
@@ -117,9 +126,12 @@ it.effect("relays the helper's video and messages, and the phone's commands back
   }).pipe(Effect.scoped),
 );
 
-it.effect("refuses a session that can't drive a terminal", () =>
+it.effect.each([
+  ["a session that can't drive a terminal", [AuthOrchestrationOperateScope], true],
+  ["every session once Settings → Helm turns it off", [AuthTerminalOperateScope], false],
+] as const)("refuses %s", ([, scopes, screenRemoteOn]) =>
   Effect.gen(function* () {
-    const url = yield* serve([AuthOrchestrationOperateScope]);
+    const url = yield* serve(scopes, undefined, screenRemoteOn);
     const closed = Promise.withResolvers<boolean>();
     const socket = new WebSocket(url);
     socket.addEventListener("open", () => closed.resolve(true));

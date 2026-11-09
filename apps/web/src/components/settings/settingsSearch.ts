@@ -14,6 +14,7 @@ import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
 import { writeLocalStorageValue } from "../../hooks/useLocalStorage";
 import { commandLabel } from "./KeybindingsSettings.logic";
 import type { ResolvedSettingsScope } from "./settingsScope";
+import { HELM_SETTINGS_SEARCH_ITEMS } from "../../helm/helmSettingsSearch"; // Helm fork
 
 export type SettingsPath =
   | "/settings/projects"
@@ -37,6 +38,7 @@ export type SettingsPath =
   | "/settings/secrets"
   | "/settings/maintenance"
   | "/settings/labs"
+  | "/settings/helm" // Helm fork
   | "/settings/about"
   | "/settings/archived";
 
@@ -107,6 +109,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/secrets": "Secrets",
   "/settings/maintenance": "Maintenance",
   "/settings/labs": "Labs",
+  "/settings/helm": "Helm", // Helm fork
   "/settings/about": "About",
   "/settings/voice": "Voice",
   "/settings/archived": "Archive",
@@ -153,7 +156,13 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   },
   {
     heading: null,
-    paths: ["/settings/maintenance", "/settings/labs", "/settings/about", "/settings/archived"],
+    paths: [
+      "/settings/helm", // Helm fork
+      "/settings/maintenance",
+      "/settings/labs",
+      "/settings/about",
+      "/settings/archived",
+    ],
   },
 ];
 
@@ -1313,6 +1322,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/archived",
     searchTerms: ["restore reopen deleted history projects"],
   },
+  ...HELM_SETTINGS_SEARCH_ITEMS, // Helm fork
 ] as const satisfies ReadonlyArray<SettingsSearchItem>;
 
 export type SettingsSearchItemId = (typeof SETTINGS_SEARCH_ITEMS)[number]["id"];
@@ -1341,6 +1351,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/scheduled-tasks": null,
   "/settings/maintenance": null,
   "/settings/labs": null,
+  "/settings/helm": null, // Helm fork
   "/settings/about": null,
   "/settings/archived": "project-defaults",
 };

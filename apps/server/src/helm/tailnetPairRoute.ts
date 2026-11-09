@@ -12,6 +12,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import { deriveAuthClientMetadata } from "../auth/utils.ts";
+import { readHelmSetting } from "./helmSettings.ts";
 
 // Helm fork: phone pairing approved on the Mac. Tailnet requests must come from this Mac's
 // Tailscale user (`tailscale whois`); no credential leaves until an access:write session allows it.
@@ -357,6 +358,9 @@ export const tailnetPairRouteLayer = Layer.mergeAll(
     HELM_TAILNET_PAIR_PATH,
     refuse(
       Effect.gen(function* () {
+        if (!(yield* readHelmSetting("helmTailnetPairingEnabled"))) {
+          return yield* new TailnetPairRefused({ reason: "turned off in Settings" });
+        }
         const caller = yield* pairCaller;
         const request = yield* HttpServerRequest.HttpServerRequest;
         const body = yield* request.json.pipe(

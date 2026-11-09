@@ -10,7 +10,11 @@ import { hasCloudPublicConfig } from "./cloud/publicConfig";
 import { isElectron } from "./env";
 import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
+import { applyHelmLook } from "./helm/look";
 import { clearChunkReloadGuard, reloadOnceForChunkLoadError } from "./lib/chunkReloadGuard";
+
+// Helm fork: before the first paint, so Helm's type does not flash in or out.
+applyHelmLook();
 
 const router = startAppServices();
 

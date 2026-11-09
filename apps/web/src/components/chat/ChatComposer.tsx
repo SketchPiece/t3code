@@ -1780,6 +1780,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // Helm fork: Helm Mobile's remote is listening for this thread's draft.
   const remoteDictating = useRemoteDictation(scopedThreadKey(routeThreadRef));
   const showVoiceInputAction =
+    settings.helmDictationEnabled &&
     supportsVoiceTranscription &&
     isBrowserVoiceRecordingSupported() &&
     !isChoiceOnlyPendingQuestion;
@@ -1813,7 +1814,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     projectSelectionRequired ||
     isComposerApprovalState ||
     activePendingIsResponding ||
-    activePendingProgress?.activeQuestion?.allowCustomAnswer === false;
+    activePendingProgress?.activeQuestion?.allowCustomAnswer === false ||
+    // Helm fork: T3 Code's own dictation has a switch in Settings → Helm.
+    !settings.t3DictationEnabled;
   const speechInput = useEnvironmentSpeechInput({
     environmentId,
     projectId: activeProjectId,
@@ -3648,7 +3651,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     keepFullHistory={props.keepFullHistory}
                     onToggleKeepFullHistory={props.onToggleKeepFullHistory}
                   >
-                    {speechInput.available ? (
+                    {speechInput.available && settings.t3DictationEnabled ? (
                       <>
                         <ComposerSpeechRecordingPill
                           state={speechInput.state}

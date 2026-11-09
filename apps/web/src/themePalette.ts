@@ -15,6 +15,8 @@ import {
   T3_CHAT_THEME,
   T3_CODE_LIGHT_THEME_COLORS,
   T3_CODE_DARK_THEME_COLORS,
+  UPSTREAM_T3_CODE_LIGHT_THEME_COLORS,
+  UPSTREAM_T3_CODE_DARK_THEME_COLORS,
   RESERVED_THEME_IDS,
   THEME_COLOR_ROLES,
   type ThemeAppearance,
@@ -29,6 +31,7 @@ import {
   type ContextChipAccentKind,
 } from "./lib/contextChipAccents";
 
+import { isHelmLookEnabled } from "./helm/look";
 import { appAtomRegistry, subscribeAtomChanges } from "./rpc/atomRegistry";
 import { themeServerEnvironmentThemesAtom } from "./state/server";
 
@@ -395,6 +398,16 @@ function legacyThemeMode(theme: ThemePreference): ThemeAppearance | null {
 }
 
 export function getStandardThemeColors(appearance: ThemeAppearance): ThemeColors {
+  // Helm fork: with the Helm look off, T3 Code's own stock colors.
+  if (!isHelmLookEnabled()) {
+    if (appearance === "dark") {
+      return (upstreamDarkThemeColors ??= decodeThemeColors({
+        ...UPSTREAM_T3_CODE_DARK_THEME_COLORS,
+        canvas: "#000000",
+      }));
+    }
+    return (upstreamLightThemeColors ??= decodeThemeColors(UPSTREAM_T3_CODE_LIGHT_THEME_COLORS));
+  }
   if (appearance === "dark") {
     // Helm fork: keep Bakelite's own canvas, not upstream's pure-black override.
     return (standardDarkThemeColors ??= decodeThemeColors(T3_CODE_DARK_THEME_COLORS));
@@ -424,6 +437,8 @@ type ParsedThemeColor = { color: ThemeOklch; alpha: number };
 
 let standardLightThemeColors: ThemeColors | undefined;
 let standardDarkThemeColors: ThemeColors | undefined;
+let upstreamLightThemeColors: ThemeColors | undefined;
+let upstreamDarkThemeColors: ThemeColors | undefined;
 
 const THEME_LIGHT_FOREGROUND: ThemeRgbColor = { r: 255, g: 250, b: 255 };
 const THEME_DARK_FOREGROUND: ThemeRgbColor = { r: 36, g: 21, b: 35 };
@@ -1630,6 +1645,16 @@ export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppe
       root.style.setProperty(APP_THEME_VARIABLES[role], value);
     }
     applyContextChipVariables(root, colors);
+    return;
+  }
+
+  // Helm fork: with the Helm look off, T3 Code's stock path below the hook.
+  if (!isHelmLookEnabled()) {
+    delete root.dataset.themeId;
+    for (const variable of Object.values(APP_THEME_VARIABLES)) {
+      root.style.removeProperty(variable);
+    }
+    applyContextChipVariables(root, getStandardPaintedThemeColors(appearance ?? "light"));
     return;
   }
 

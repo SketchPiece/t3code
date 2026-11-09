@@ -1,12 +1,15 @@
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
-import * as OS from "node:os";
+import * as NodeOS from "node:os";
 
 import { ServerConfig } from "../config.ts";
 import { ServerEnvironment } from "../environment/ServerEnvironment.ts";
+import { helmSettingChanges } from "./helmSettings.ts";
 
 // Helm fork: the server announces itself on the local network over Bonjour, so
 // Helm Mobile can tell when it sits on the same Wi-Fi as this Mac and offer its
@@ -33,18 +36,19 @@ export function nearbyRegistrationArgs(input: {
 
 export const nearbyAdvertiserLayer = Layer.effectDiscard(
   Effect.gen(function* () {
-    if (process.platform !== "darwin") return;
+    if ((yield* HostProcess.Platform) !== "darwin") return;
     const config = yield* ServerConfig;
     const environment = yield* ServerEnvironment;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const environmentId = yield* environment.getEnvironmentId;
     const args = nearbyRegistrationArgs({
-      name: `Helm on ${OS.hostname().replace(/\.local$/, "")}`,
+      name: `Helm on ${NodeOS.hostname().replace(/\.local$/, "")}`,
       port: config.port,
       environmentId,
     });
-    // dns-sd keeps the registration while it runs; the scope kills it on shutdown.
-    yield* Effect.gen(function* () {
+    // dns-sd keeps the registration while it runs; turning the setting off or shutting
+    // down interrupts it, which kills the process.
+    const advertise = Effect.gen(function* () {
       const child = yield* spawner.spawn(ChildProcess.make(DNS_SD, [...args]));
       yield* child.exitCode;
       return yield* Effect.fail("dns-sd exited");
@@ -52,6 +56,11 @@ export const nearbyAdvertiserLayer = Layer.effectDiscard(
       Effect.scoped,
       Effect.retry(Schedule.spaced(Duration.seconds(30))),
       Effect.catchCause((cause) => Effect.logWarning("helm nearby advertising stopped", cause)),
+    );
+    const enabled = yield* helmSettingChanges("helmNearbyEnabled");
+    yield* enabled.pipe(
+      Stream.switchMap((on) => (on ? Stream.fromEffect(advertise) : Stream.empty)),
+      Stream.runDrain,
       Effect.forkScoped,
     );
   }),

@@ -47,6 +47,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import { forkParked } from "../serverActivation.ts";
+import { readHelmSetting } from "../helm/helmSettings.ts";
 import { readHelmPushConfig } from "../helm/pushConfig.ts";
 
 export class AgentAwarenessRelay extends Context.Service<
@@ -379,11 +380,16 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-  // Helm fork: read once; changing helm-push takes a restart (helm/pushConfig.ts).
-  const helmPush = yield* readHelmPushConfig(secrets);
+  // Helm fork: the secret is read once (changing helm-push takes a restart); Settings → Helm
+  // can switch helm-cloud off, which hands publishing back to the T3 Connect relay.
+  const helmPushConfig = yield* readHelmPushConfig(secrets);
+  const readHelmPush = readHelmSetting("helmCloudAlertsEnabled").pipe(
+    Effect.map((on) => (on ? helmPushConfig : null)),
+  );
 
   const readRelayConfig = Effect.gen(function* () {
     // Helm fork: helm-cloud takes the relay's place when configured.
+    const helmPush = yield* readHelmPush;
     if (helmPush) {
       return { url: helmPush.url, issuer: helmPush.url, environmentCredential: helmPush.token };
     }
@@ -398,7 +404,7 @@ export const make = Effect.gen(function* () {
   });
 
   const readPublishAgentActivityEnabled = Effect.gen(function* () {
-    if (helmPush) return true; // Helm fork: see readRelayConfig.
+    if (yield* readHelmPush) return true; // Helm fork: see readRelayConfig.
     return isAgentActivityPublishingEnabledValue(
       yield* readSecretString(PUBLISH_AGENT_ACTIVITY_SECRET),
     );
@@ -710,7 +716,7 @@ export const make = Effect.gen(function* () {
 
   const publishActiveThreadsUnsafe = Effect.gen(function* () {
     const relayUrl =
-      helmPush?.url ?? // Helm fork: see readRelayConfig.
+      (yield* readHelmPush)?.url ?? // Helm fork: see readRelayConfig.
       (yield* readSecretString(RELAY_URL_SECRET).pipe(Effect.orElseSucceed(() => null)));
     if (!relayUrl) {
       yield* Effect.logDebug("agent activity snapshot skipped; relay link credentials unavailable");

@@ -7,6 +7,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
+import { readHelmSetting } from "../helm/helmSettings.ts";
 import { readHelmPushConfig } from "../helm/pushConfig.ts";
 
 export const CLOUD_MINT_PUBLIC_KEY = "cloud-mint-ed25519-public-key";
@@ -53,7 +54,9 @@ export const readAgentActivityPublishingActive: (
   secrets: ServerSecretStore.ServerSecretStore["Service"],
 ) => Effect.Effect<boolean> = Effect.fn("config.readAgentActivityPublishingActive")(
   function* (secrets: ServerSecretStore.ServerSecretStore["Service"]) {
-    if (yield* readHelmPushConfig(secrets)) return true; // Helm fork: helm/pushConfig.ts.
+    // Helm fork: helm/pushConfig.ts, unless Settings → Helm switched helm-cloud alerts off.
+    if ((yield* readHelmSetting("helmCloudAlertsEnabled")) && (yield* readHelmPushConfig(secrets)))
+      return true;
     const readSecretString = (name: string) =>
       secrets
         .get(name)

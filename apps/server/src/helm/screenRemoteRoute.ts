@@ -11,12 +11,10 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { authenticateMediaRequest } from "../auth/http.ts";
 import * as ServerConfig from "../config.ts";
+import { readHelmSetting } from "./helmSettings.ts";
 
-// Helm fork: the screen remote (experimental). The phone watches this Mac's screen and drives
-// its mouse and keyboard. `native/helm-screen` captures and encodes (H.264) and posts the
-// input; this route spawns one per phone and relays:
-//   helper → phone: binary [u8 kind][payload] (1 video, 2 format), text JSON (info, cursor, error)
-//   phone → helper: text JSON commands (start, move, button, scroll, key, text, keyframe)
+// Helm fork: the screen remote (experimental). This route spawns `native/helm-screen` per phone
+// and relays binary [u8 kind][payload] frames plus JSON text out, and JSON commands in.
 // Driving the computer is as strong as a terminal, so it takes terminal:operate.
 export const HELM_SCREEN_PATH = "/api/helm/screen";
 
@@ -67,6 +65,11 @@ const makeHandler = Effect.fn("HelmScreenRemote.handle")(function* (
     return HttpServerResponse.text("Not Found", { status: 404 });
   }
   yield* authenticateMediaRequest(AuthTerminalOperateScope);
+  if (!(yield* readHelmSetting("helmScreenRemoteEnabled"))) {
+    return HttpServerResponse.text("Screen remote is turned off in Helm's settings.", {
+      status: 403,
+    });
+  }
   if (helperPath === undefined) {
     return HttpServerResponse.text("Screen remote is not available on this computer.", {
       status: 501,

@@ -10,6 +10,7 @@ import {
 import {
   ArchiveIcon,
   FlaskConicalIcon,
+  ShipWheelIcon, // Helm fork
   BotIcon,
   createLucideIcon,
   CalendarClockIcon,
@@ -107,6 +108,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/secrets": KeyRoundIcon,
   "/settings/maintenance": WrenchIcon,
   "/settings/labs": FlaskConicalIcon,
+  "/settings/helm": ShipWheelIcon, // Helm fork
   "/settings/about": InfoIcon,
   "/settings/archived": ArchiveIcon,
 };

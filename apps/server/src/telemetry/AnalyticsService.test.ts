@@ -26,6 +26,7 @@ import * as ServerConfig from "../config.ts";
 import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import { getTelemetryIdentity } from "./Identify.ts";
 import * as AnalyticsService from "./AnalyticsService.ts";
+import { ServerSettingsService } from "../serverSettings.ts";
 
 interface RecordedBatchRequest {
   readonly path: string;
@@ -395,7 +396,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("AnalyticsService
     }),
   );
 
-  it.effect("does not send batch requests when telemetry is disabled", () =>
+  // Helm fork: without the env opt-in, Settings → Helm decides.
+  it.effect.each([
+    ["does not send batch requests when telemetry is disabled", false],
+    ["sends once Settings → Helm opts in without the env var", true],
+  ] as const)("%s", ([, helmOptIn]) =>
     Effect.gen(function* () {
       const capturedPaths: Array<string> = [];
       const layerServerConfig = ServerConfig.ServerConfig.layerTest(process.cwd(), {
@@ -426,6 +431,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("AnalyticsService
           ),
         ),
         Layer.provideMerge(NodeHttpServer.layerTest),
+        Layer.provideMerge(ServerSettingsService.layerTest({ t3UsageAnalyticsEnabled: helmOptIn })),
       );
 
       yield* Effect.gen(function* () {
@@ -435,7 +441,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("AnalyticsService
         yield* analytics.flush;
       }).pipe(Effect.provide(layerRuntime));
 
-      assert.deepEqual(capturedPaths, []);
+      assert.equal(capturedPaths.length > 0, helmOptIn);
     }),
   );
 });

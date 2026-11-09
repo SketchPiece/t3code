@@ -26,8 +26,7 @@ import { ConnectOnboardingDialog } from "../components/cloud/ConnectOnboardingDi
 import { RelayClientInstallDialog } from "../components/cloud/RelayClientInstallDialog";
 import { SshPasswordPromptDialog } from "../components/desktop/SshPasswordPromptDialog";
 import { SnapShotCoordinator } from "../components/desktop/SnapShotCoordinator";
-import { DraftSyncCoordinator } from "../helm/DraftSyncCoordinator"; // Helm fork
-import { RemoteCommandCoordinator } from "../helm/RemoteCommandCoordinator"; // Helm fork
+import { HelmCoordinators } from "../helm/HelmCoordinators"; // Helm fork
 import { DesktopAppActivationCoordinator } from "../components/desktop/DesktopAppActivationCoordinator";
 import { DesktopWebLinkCoordinator } from "../components/desktop/DesktopWebLinkCoordinator";
 import { DesktopAutoUpdateCoordinator } from "../components/desktop/DesktopAutoUpdateCoordinator";
@@ -211,8 +210,7 @@ function RootRouteBranch() {
         <ConnectOnboardingDialog />
         <SshPasswordPromptDialog />
         <SnapShotCoordinator />
-        <RemoteCommandCoordinator />
-        <DraftSyncCoordinator />
+        <HelmCoordinators />
         {primaryEnvironmentAuthenticated ? <TailnetPairPrompt /> : null}
         <ReopenClosedViewShortcut />
         <ConfirmDialogHost />

@@ -23,6 +23,7 @@ import { resolveServiceLauncherMode } from "../cloud/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
 import { helmServerUpdateScript } from "../helm/gitSelfUpdate.ts";
 import { resolveHelmScreenPath } from "../helm/screenRemoteRoute.ts";
+import { readHelmSetting } from "../helm/helmSettings.ts";
 import { databaseMigrationHead } from "../persistence/databaseMigrationHead.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { isSpeechPlatformSupported } from "../speech/platform.ts";
@@ -305,13 +306,15 @@ export const make = Effect.gen(function* () {
       readAgentActivityPublishingActive(secrets),
       // Helm fork: dictation goes through helm-cloud, named by the helm-push secret.
       readHelmPushConfig(secrets),
+      readHelmSetting("helmScreenRemoteEnabled"),
     ]).pipe(
-      Effect.map(([agentActivityPublishing, helmCore]) => ({
+      Effect.map(([agentActivityPublishing, helmCore, screenRemoteOn]) => ({
         ...descriptor,
         capabilities: {
           ...descriptor.capabilities,
           agentActivityPublishing,
           helmVoiceTranscription: helmCore !== null,
+          screenRemote: descriptor.capabilities.screenRemote === true && screenRemoteOn,
         },
       })),
     ),

@@ -61,6 +61,12 @@ import {
   SpeechModelUnloadTimeout,
   SpeechPostProcessingPromptSettings,
 } from "./speech.ts";
+import {
+  HelmClientSettingsFields,
+  HelmClientSettingsPatchFields,
+  HelmServerSettingsFields,
+  HelmServerSettingsPatchFields,
+} from "./helmSettings.ts"; // Helm fork
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -574,6 +580,7 @@ export const ClientSettingsSchema = Schema.Struct({
   // Opt-in TeX typesetting in rendered Markdown. Off keeps math parsing and
   // KaTeX out of the render path entirely.
   mathRenderingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  ...HelmClientSettingsFields, // Helm fork: helmSettings.ts
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;
 
@@ -1480,6 +1487,7 @@ export const ServerSettings = Schema.Struct({
 
   /** Sent by the Usage tab with each summary request to this environment; edit in settings.json. Invalid values are ignored. */
   usageModelFilter: ForwardCompatibleOptional(UsageModelFilter),
+  ...HelmServerSettingsFields, // Helm fork: helmSettings.ts
 });
 export type ServerSettings = typeof ServerSettings.Type;
 
@@ -1658,6 +1666,7 @@ const ModelSelectionPatch = Schema.Struct({
 });
 
 export const ServerSettingsPatch = Schema.Struct({
+  ...HelmServerSettingsPatchFields, // Helm fork: helmSettings.ts
   setModelFavorites: Schema.optionalKey(
     Schema.Array(Schema.Struct({ ...ModelFavorite.fields, favorite: Schema.Boolean })),
   ),
@@ -1878,6 +1887,7 @@ export function requiredScopesForProjectMutation(
 }
 
 export const ClientSettingsPatch = Schema.Struct({
+  ...HelmClientSettingsPatchFields, // Helm fork: helmSettings.ts
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
