@@ -54,11 +54,11 @@ export const HELM_SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["phone ipad screen sharing mouse keyboard control mac experimental"],
   },
   {
-    id: "helm-phone-confirm",
-    title: "Confirm on the phone",
+    id: "helm-touch-id-password",
+    title: "Password instead of Touch ID",
     to: "/settings/helm",
     scope: "environment",
-    searchTerms: ["face id sudo password approve phone helm mobile"],
+    searchTerms: ["touch id password 1password unlock external display monitor"],
   },
   {
     id: "helm-cloud-alerts",

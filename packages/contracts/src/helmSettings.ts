@@ -27,7 +27,7 @@ export const HelmServerSettingsFields = {
   helmNearbyEnabled: on,
   helmTailnetPairingEnabled: on,
   helmScreenRemoteEnabled: on,
-  helmPhoneConfirmEnabled: on,
+  helmTouchIdPasswordEnabled: on,
   helmCloudAlertsEnabled: on,
   /** Upstream sends anonymous usage data to T3 Code; Helm does not unless this is on. */
   t3UsageAnalyticsEnabled: off,
@@ -37,7 +37,7 @@ export const HelmServerSettingsPatchFields = {
   helmNearbyEnabled: patch,
   helmTailnetPairingEnabled: patch,
   helmScreenRemoteEnabled: patch,
-  helmPhoneConfirmEnabled: patch,
+  helmTouchIdPasswordEnabled: patch,
   helmCloudAlertsEnabled: patch,
   t3UsageAnalyticsEnabled: patch,
 };

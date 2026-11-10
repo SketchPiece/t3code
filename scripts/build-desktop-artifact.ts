@@ -2469,13 +2469,10 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
     );
     yield* fs.chmod(helmScreenPath, 0o755);
 
-    // Helm fork: Face ID on the phone for the Mac (native/helm-auth): the prompt watcher and
-    // the sudo PAM module, which `~/.helm/bin/helm-sudo-setup` copies into /usr/local/lib/pam.
+    // Helm fork: Touch ID sheets go to the password with an external display (native/helm-auth).
     const authSlices: string[] = [];
-    const pamSlices: string[] = [];
     for (const arch of archs) {
       const authSlice = path.join(input.repoRoot, "native/helm-auth/build", `helm-auth-${arch}`);
-      const pamSlice = path.join(input.repoRoot, "native/helm-auth/build", `pam_helm-${arch}.so`);
       yield* fs.makeDirectory(path.dirname(authSlice), { recursive: true });
       yield* runCommand(
         ChildProcess.make("xcrun", [
@@ -2491,27 +2488,7 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
         ]),
         { label: `swiftc helm-auth (${arch})`, verbose: input.verbose },
       );
-      yield* runCommand(
-        ChildProcess.make("xcrun", [
-          "clang",
-          "-O2",
-          "-bundle",
-          "-arch",
-          arch,
-          "-mmacosx-version-min=14.0",
-          path.join(input.repoRoot, "native/helm-auth/pam_helm.c"),
-          "-lpam",
-          "-framework",
-          "Security",
-          "-framework",
-          "CoreFoundation",
-          "-o",
-          pamSlice,
-        ]),
-        { label: `clang pam_helm (${arch})`, verbose: input.verbose },
-      );
       authSlices.push(authSlice);
-      pamSlices.push(pamSlice);
     }
     const helmAuthPath = path.join(destinationDirectory, "helm-auth");
     yield* runCommand(
@@ -2519,15 +2496,6 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
       { label: "lipo helm-auth", verbose: input.verbose },
     );
     yield* fs.chmod(helmAuthPath, 0o755);
-    yield* runCommand(
-      ChildProcess.make("lipo", [
-        "-create",
-        ...pamSlices,
-        "-output",
-        path.join(destinationDirectory, "pam_helm.so.2"),
-      ]),
-      { label: "lipo pam_helm", verbose: input.verbose },
-    );
   }
 });
 

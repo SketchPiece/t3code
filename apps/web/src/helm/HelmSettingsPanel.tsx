@@ -62,9 +62,9 @@ export function HelmSettingsPanel() {
           description="Helm Mobile can watch this Mac's screen and drive its mouse and keyboard. Experimental."
         />
         <ServerRow
-          id="helm-phone-confirm"
-          settingKey="helmPhoneConfirmEnabled"
-          description="Approve sudo and password dialogs on this Mac with Face ID on your phone. Off leaves them to the Mac."
+          id="helm-touch-id-password"
+          settingKey="helmTouchIdPasswordEnabled"
+          description="With an external display connected, Touch ID prompts on this Mac (1Password unlocking, apps asking for your login password) go straight to the password field."
         />
         <ServerRow
           id="helm-cloud-alerts"

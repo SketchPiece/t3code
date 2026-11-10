@@ -2,7 +2,6 @@ import type { HelmCommand, HelmCommandResult, HelmTopic, HelmTopicEvent } from "
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
-import { authEvents, registerApprover, respond } from "./authBridge.ts";
 import { draftEvents, setDraft } from "./drafts.ts";
 import { remoteCommands, sendRemoteCommand } from "./remoteCommands.ts";
 
@@ -24,16 +23,6 @@ export const runHelmCommand = (
         command: request.command,
         result,
       }));
-    case "auth.respond":
-      return Effect.map(respond(request.input), (result) => ({
-        command: request.command,
-        result,
-      }));
-    case "auth.registerApprover":
-      return Effect.map(registerApprover(request.input), (result) => ({
-        command: request.command,
-        result,
-      }));
   }
 };
 
@@ -46,7 +35,5 @@ export const helmTopicEvents = (
       return Stream.map(remoteCommands, (event) => ({ topic, event }));
     case "drafts":
       return Stream.map(draftEvents(stateDir), (event) => ({ topic, event }));
-    case "auth":
-      return Stream.map(authEvents, (event) => ({ topic, event }));
   }
 };

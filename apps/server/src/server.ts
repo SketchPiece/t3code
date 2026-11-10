@@ -222,7 +222,7 @@ import {
 import { nearbyAdvertiserLayer } from "./helm/nearbyAdvertiser.ts";
 import { tailnetPairRouteLayer } from "./helm/tailnetPairRoute.ts";
 import { screenRemoteRouteLayer } from "./helm/screenRemoteRoute.ts";
-import { authBridgeLayer } from "./helm/authBridge.ts";
+import { touchIdPasswordLayer } from "./helm/touchIdPassword.ts";
 import * as ServerActivation from "./serverActivation.ts";
 
 // Escaped MCP handoff provenance can exceed find-my-way's 100-character segment default.
@@ -801,7 +801,7 @@ const layerMakeRoutes = Layer.mergeAll(
     tailnetPairRouteLayer, // Helm fork: helm/tailnetPairRoute.ts
     nearbyAdvertiserLayer, // Helm fork: helm/nearbyAdvertiser.ts
     screenRemoteRouteLayer, // Helm fork: helm/screenRemoteRoute.ts
-    authBridgeLayer, // Helm fork: helm/authBridge.ts
+    touchIdPasswordLayer, // Helm fork: helm/touchIdPassword.ts
     ServerHttp.layerAttachmentUploadRoute,
     GuestHttp.layer,
     DeviceHubProxy.layer,

@@ -33,9 +33,8 @@ invented projects and threads.</sub>
 ## Why a fork
 
 T3 Code is fast, open and remote-ready, and I wanted to keep all of that. What I was missing was a
-setup where the phone is a full second seat at the Mac: see and steer agents from the couch, approve
-things with Face ID, keep typing a draft I started at the desk, and take over the Mac's screen when an
-agent needs a hand. Those changes are too specific to my setup to belong upstream, so they live here,
+setup where the phone is a full second seat at the Mac: see and steer agents from the couch, keep
+typing a draft I started at the desk, and take over the Mac's screen when an agent needs a hand. Those changes are too specific to my setup to belong upstream, so they live here,
 and the daily sync keeps the fork from drifting.
 
 ## What Helm adds
@@ -50,8 +49,8 @@ and the daily sync keeps the fork from drifting.
   pictures from the phone, scroll the timeline like a trackpad and send the draft, without bringing the
   window forward.
 - **Shared drafts.** Unsent drafts, text and uploads, sync between Helm and Helm Mobile.
-- **Face ID for the Mac.** `sudo` (through a small PAM module) and macOS password and Touch ID prompts
-  can be approved from the phone; the phone signs the approval and the Mac checks it.
+- **Password instead of Touch ID.** With an external display connected, a Touch ID prompt (1Password
+  unlocking, an app asking for the login password) goes straight to its password field.
 - **Pairing without copying tokens.** A phone on the tailnet asks to pair and the Mac asks you; a device
   on the local network gets an AirPlay-style four-digit code after you allow it. The server announces
   itself over Bonjour.

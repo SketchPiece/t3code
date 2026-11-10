@@ -10,8 +10,6 @@ import {
   requiredScopesForServerSettingsPatch,
   requiredScopesForProjectMutation,
   ProjectMutation,
-  HelmCommand,
-  HelmSubscribeInput,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
   AuthEnvironmentMaintainScope,
@@ -168,8 +166,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.attachmentsCreateUploadUrl]: AuthOrchestrationOperateScope,
   [WS_METHODS.attachmentsDelete]: AuthOrchestrationOperateScope,
   [WS_METHODS.voiceTranscribe]: AuthOrchestrationOperateScope,
-  // Helm fork: the least any command needs; requiredScopesForHelm checks each one.
-  [WS_METHODS.helmCommand]: AuthOrchestrationOperateScope,
+  [WS_METHODS.helmCommand]: AuthOrchestrationOperateScope, // Helm fork
   [WS_METHODS.providerUploadFeedback]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsCallTool]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsToolInfo]: AuthOrchestrationReadScope,
@@ -221,7 +218,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeServerLifecycle]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeAuthAccess]: AuthAccessReadScope,
   [WS_METHODS.subscribeBackgroundPolicy]: AuthOrchestrationReadScope,
-  [WS_METHODS.helmSubscribe]: AuthOrchestrationReadScope, // Helm fork: see requiredScopesForHelm
+  [WS_METHODS.helmSubscribe]: AuthOrchestrationReadScope, // Helm fork
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
 
 export function requiredScopeForRpcMethod(method: string): AuthEnvironmentScope {
@@ -260,29 +257,6 @@ const requiredScopesForSettingsUpdate = (payload: unknown) => {
 const decodeProjectMutation = Schema.decodeUnknownSync(ProjectMutation);
 const decodeAssetCreateUrlInput = Schema.decodeUnknownSync(AssetCreateUrlInput);
 
-const decodeHelmCommand = Schema.decodeUnknownSync(HelmCommand);
-const decodeHelmSubscribe = Schema.decodeUnknownSync(HelmSubscribeInput);
-
-// Helm fork: approving sudo or typing a password on the Mac, and seeing the command lines that
-// ask for it, is as much as a terminal.
-const requiredScopesForHelm = (
-  method: string,
-  payload: unknown,
-): ReadonlyArray<AuthEnvironmentScope> => {
-  if (method === WS_METHODS.helmSubscribe) {
-    return [
-      decodeHelmSubscribe(payload).topic === "auth"
-        ? AuthTerminalOperateScope
-        : AuthOrchestrationReadScope,
-    ];
-  }
-  return [
-    decodeHelmCommand(payload).command.startsWith("auth.")
-      ? AuthTerminalOperateScope
-      : AuthOrchestrationOperateScope,
-  ];
-};
-
 const requiredScopesForRpcCall = (
   method: string,
   payload: unknown,
@@ -301,9 +275,6 @@ const requiredScopesForRpcCall = (
     ];
   }
   if (method === WS_METHODS.serverUpdateSettings) return requiredScopesForSettingsUpdate(payload);
-  if (method === WS_METHODS.helmCommand || method === WS_METHODS.helmSubscribe) {
-    return requiredScopesForHelm(method, payload);
-  }
   if (method === WS_METHODS.projectsMutate) {
     return requiredScopesForProjectMutation(decodeProjectMutation(payload));
   }
