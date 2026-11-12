@@ -11,6 +11,7 @@ import { isElectron } from "./env";
 import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
 import { applyHelmLook } from "./helm/look";
+import { whenLocaleReady } from "./i18n/runtime";
 import { clearChunkReloadGuard, reloadOnceForChunkLoadError } from "./lib/chunkReloadGuard";
 
 // Helm fork: before the first paint, so Helm's type does not flash in or out.
@@ -42,7 +43,8 @@ const managedAuthShellModule =
 
 export const startup = Promise.all([
   managedAuthShellModule?.then((module) => module.default) ?? null,
-  router.load(),
+  // Chained so settings have usually hydrated; English resolves without a chunk load.
+  router.load().then(whenLocaleReady),
 ])
   .then(([ManagedAuthShell]) => {
     // Route chunk failures resolve router.load() and surface later through the error boundary.
