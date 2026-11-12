@@ -1840,7 +1840,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activePendingIsResponding ||
     activePendingProgress?.activeQuestion?.allowCustomAnswer === false ||
     // Helm fork: T3 Code's own dictation has a switch in Settings → Helm.
-    !settings.t3DictationEnabled;
+    !settings.t3LocalDictationEnabled;
   const speechInput = useEnvironmentSpeechInput({
     environmentId,
     projectId: activeProjectId,
@@ -3759,7 +3759,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     keepFullHistory={props.keepFullHistory}
                     onToggleKeepFullHistory={props.onToggleKeepFullHistory}
                   >
-                    {speechInput.available && settings.t3DictationEnabled ? (
+                    {speechInput.available && settings.t3LocalDictationEnabled ? (
                       <>
                         <ComposerSpeechRecordingPill
                           state={speechInput.state}

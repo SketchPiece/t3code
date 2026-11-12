@@ -31,7 +31,7 @@ export function HelmSettingsPanel() {
         />
         <ClientRow
           id="t3-dictation"
-          settingKey="t3DictationEnabled"
+          settingKey="t3LocalDictationEnabled"
           description="T3 Code's own dictation with local speech models. Set it up in Settings → Voice."
         />
         <ClientRow
