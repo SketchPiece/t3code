@@ -12,7 +12,7 @@ import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
 import { applyHelmLook } from "./helm/look";
 import { whenLocaleReady } from "./i18n/runtime";
-import { clearChunkReloadGuard, reloadOnceForChunkLoadError } from "./lib/chunkReloadGuard";
+import { reloadOnceForChunkLoadError } from "./lib/chunkReloadGuard";
 
 // Helm fork: before the first paint, so Helm's type does not flash in or out.
 applyHelmLook();
@@ -21,10 +21,8 @@ const router = startAppServices();
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
-let chunkLoadFailed = false;
 let reloadScheduled = false;
 window.addEventListener("vite:preloadError", (event) => {
-  chunkLoadFailed = true;
   if (reloadOnceForChunkLoadError()) {
     reloadScheduled = true;
     event.preventDefault();
@@ -49,7 +47,6 @@ export const startup = Promise.all([
   .then(([ManagedAuthShell]) => {
     // Route chunk failures resolve router.load() and surface later through the error boundary.
     if (reloadScheduled) return;
-    if (!chunkLoadFailed) clearChunkReloadGuard();
     ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <React.StrictMode>
         {ManagedAuthShell && clerkPublishableKey ? (

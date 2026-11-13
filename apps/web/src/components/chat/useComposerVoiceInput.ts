@@ -170,8 +170,6 @@ function createComposerVoiceSession(input: {
         ownerKey: current.ownerKey,
         text: current.readPrompt(),
         selection: current.readSelection(),
-        // The editor is read-only while dictation runs, so the text alone tells a stale draft.
-        revision: 0,
       };
     },
     commitDraft: (text, selection) => input.latestInput().commitPrompt(text, selection),
