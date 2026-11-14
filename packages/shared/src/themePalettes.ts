@@ -105,6 +105,8 @@ export type ThemeDefinition = Readonly<{
   collection?: Readonly<{ id: string; label: string }>;
   sidebarArtwork?: boolean;
   managed?: boolean;
+  /** Custom styles for web and desktop. */
+  css?: string;
 }>;
 
 /** @public */

@@ -19,6 +19,7 @@ import {
 import { usePullRequestDraftThread } from "./chat/usePullRequestDraftThread";
 import { usePullRequestLinking } from "../hooks/usePullRequestLinking";
 import { useComposerSelection } from "./chat/useComposerSelection";
+import { useComposerFocus } from "./chat/useComposerFocus";
 import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
 import { useAttachmentPreviewHandoff } from "./chat/useAttachmentPreviewHandoff";
 import {
@@ -122,7 +123,15 @@ import { orchestrationV2WorktreePending } from "@t3tools/shared/orchestrationV2T
 import { resolveThreadReferenceCopyTarget } from "@t3tools/client-runtime/thread-reference";
 import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
-import { type SetStateAction, use, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  type SetStateAction,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -202,7 +211,6 @@ import { makeScrollGlide } from "../helm/remoteScrollGlide";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
-import { isModelPickerOpen } from "../modelPickerVisibility";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
 import { projectScriptIdFromCommand } from "~/projectScripts";
@@ -225,6 +233,7 @@ import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
+import { draftModelSelectionApplies, threadHasStarted } from "../lib/chatThreadActions";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -348,6 +357,7 @@ import {
 import {
   buildLocalDraftThread,
   deriveCommittedServerUserMessageIds,
+  deriveTimelineWorking,
   dismissBranchMismatchForSession,
   shouldRenderPreviewMiniPlayer,
   deriveLockedProvider,
@@ -358,6 +368,7 @@ import {
   startNewThreadForProject,
   codexArtifactTemplatePromptToAppend,
   shouldRefocusComposerOnWindowFocus,
+  hasCompactableConversation,
 } from "./ChatView.logic";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useComposerHandleContext } from "../composerHandleContext";
@@ -607,15 +618,15 @@ export default function ChatView(props: ChatViewProps) {
   const composerActiveProvider = useComposerDraftStore(
     (store) => store.getComposerDraft(composerDraftTarget)?.activeProvider ?? null,
   );
+  const composerModelSelectionExplicit = useComposerDraftStore(
+    (store) => store.getComposerDraft(composerDraftTarget)?.modelSelectionExplicit === true,
+  );
   const composerSelectedModelSelection = useComposerDraftStore((store) => {
     const draft = store.getComposerDraft(composerDraftTarget);
     return draft?.activeProvider
       ? (draft.modelSelectionByProvider[draft.activeProvider] ?? null)
       : null;
   });
-  const composerModelSelectionExplicit = useComposerDraftStore(
-    (store) => store.getComposerDraft(composerDraftTarget)?.modelSelectionExplicit === true,
-  );
   const composerHasAttachments = useComposerDraftStore((store) => {
     const draft = store.getComposerDraft(composerDraftTarget);
     return (draft?.images.length ?? 0) > 0 || (draft?.files.length ?? 0) > 0;
@@ -746,7 +757,6 @@ export default function ChatView(props: ChatViewProps) {
   ] = useState<Record<string, boolean>>({});
   const legendListRef = useRef<LegendListRef | null>(null);
   const conversationArea = workspaceAreaProps("conversation", 1, "Conversation");
-  const composerArea = workspaceAreaProps("composer", 2, "Message input");
   const [composerOverlayElement, setComposerOverlayElement] = useState<HTMLDivElement | null>(null);
   const [composerTimelineInset, setComposerTimelineInset] = useState(0);
   const composerTimelineInsetRef = useRef(0);
@@ -1267,7 +1277,11 @@ export default function ChatView(props: ChatViewProps) {
       : providersByEnvironment.get(providerEnvironmentId)) ?? EMPTY_PROVIDERS,
     gitCwd,
   );
-  const selectedProviderByThreadId = composerActiveProvider ?? null;
+  const composerModelSelectionApplies = draftModelSelectionApplies(
+    { modelSelectionExplicit: composerModelSelectionExplicit },
+    threadHasStarted(activeThread),
+  );
+  const selectedProviderByThreadId = composerModelSelectionApplies ? composerActiveProvider : null;
   const threadProvider =
     activeThread?.modelSelection.instanceId ??
     activeProjectDefaultModelSelection?.instanceId ??
@@ -1446,6 +1460,7 @@ export default function ChatView(props: ChatViewProps) {
     isSendBusy,
     backgroundSubmissionPending,
   } = useLocalDispatchState({
+    environmentId,
     activeThread,
     activeLatestRun,
     latestUserMessageId:
@@ -1495,8 +1510,12 @@ export default function ChatView(props: ChatViewProps) {
     run: serverProjection?.runs.find((run) => run.id === activeRuntime?.activeRunId),
     messages: serverProjection?.messages,
   });
-  const isWorking =
-    phase === "running" || isSendBusy || isCompacting || runlessWorkStartedAt !== null;
+  const isWorking = deriveTimelineWorking({
+    phase,
+    isSendBusy,
+    isCompacting,
+    runlessWorkStartedAt,
+  });
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     serverVisibleTurnItems ?? [],
     activeThreadLiveTokenUsage,
@@ -1846,10 +1865,8 @@ export default function ChatView(props: ChatViewProps) {
     sendInFlightRef,
   });
 
-  const focusComposer = () => {
-    composerRef.current?.focusAtEnd();
-  };
-  const focusComposerStable = useStableCallback(focusComposer);
+  const { focusComposer: focusComposerStable, scheduleComposerFocus: scheduleComposerFocusStable } =
+    useComposerFocus(composerRef);
   const canInterruptRunningThread =
     canOperateThread && deriveCanInterruptRunningThread(activeThread !== undefined, activeRuntime);
   const onInterrupt = async () => {
@@ -1876,13 +1893,6 @@ export default function ChatView(props: ChatViewProps) {
     () => (embedded ? undefined : subscribeSnapShotComposerFocus(focusComposerStable)),
     [embedded, focusComposerStable],
   );
-  const scheduleComposerFocus = () => {
-    window.requestAnimationFrame(() => {
-      // The model picker stays open through its own changes, so it keeps focus.
-      if (!isModelPickerOpen()) focusComposer();
-    });
-  };
-  const scheduleComposerFocusStable = useStableCallback(scheduleComposerFocus);
   const insertArtifactTemplate = (template: CodexArtifactTemplate) => {
     const composer = composerRef.current;
     if (!composer) return;
@@ -1897,7 +1907,7 @@ export default function ChatView(props: ChatViewProps) {
       });
       return;
     }
-    scheduleComposerFocus();
+    scheduleComposerFocusStable();
   };
   const insertArtifactTemplateStable = useStableCallback(insertArtifactTemplate);
   const sendAppMessage = async (text: string) => {
@@ -2528,12 +2538,14 @@ export default function ChatView(props: ChatViewProps) {
     scrollToEnd,
     persistThreadSettingsForNextTurn,
   });
-  const activeThreadHasCompactableConversation = serverVisibleTurnItems.some(
-    ({ item }) =>
-      item.type === "user_message" &&
-      (item.text.trim().toLowerCase() !== "/compact" || item.attachments.length > 0),
-  );
-  const pendingHandoffSelection = composerSelectedModelSelection ?? activeThread?.modelSelection;
+  const activeThreadHasCompactableConversation = hasCompactableConversation({
+    visibleTurnItems: serverVisibleTurnItems,
+    hasMoreHistory: serverThreadHistory.hasMoreHistory,
+    latestUserMessageAt: serverThread?.latestUserMessageAt ?? null,
+  });
+  const pendingHandoffSelection =
+    (composerModelSelectionApplies ? composerSelectedModelSelection : null) ??
+    activeThread?.modelSelection;
   const pendingHandoffSelectionUsable = providerInstanceEntries.some(
     (entry) =>
       entry.instanceId === pendingHandoffSelection?.instanceId &&
@@ -2942,7 +2954,7 @@ export default function ChatView(props: ChatViewProps) {
     canOverrideServerThreadEnvMode,
     setPendingServerThreadEnvModeEntry,
     setPendingServerThreadStartFromOriginByThreadId,
-    scheduleComposerFocus,
+    scheduleComposerFocus: scheduleComposerFocusStable,
   });
   const { onResume, isResuming } = useComposerResume({
     environmentId,
@@ -3385,6 +3397,7 @@ export default function ChatView(props: ChatViewProps) {
         data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
         data-chat-column
         inert={rightPanelMaximized}
+        onMouseUp={preventMiddleClickPasteOutsideEditable}
       >
         {embedded ? null : (
           <header
@@ -3585,7 +3598,11 @@ export default function ChatView(props: ChatViewProps) {
             </div>
 
             <div
-              {...composerArea}
+              {...workspaceAreaProps(
+                "composer",
+                2,
+                showProviderSubagentBar ? "Subagent" : undefined,
+              )}
               ref={(overlay: HTMLDivElement | null) => {
                 setComposerOverlayElement(overlay);
                 attachFollowComposerOverlay(overlay);
@@ -4095,6 +4112,7 @@ export default function ChatView(props: ChatViewProps) {
       <RevertConfirmHost
         threadKey={routeThreadKey}
         checkpoints={serverProjection?.checkpoints}
+        worktreePath={activeThread?.worktreePath ?? null}
         onConfirm={onConfirmRevertStable}
       />
       {embedded ? null : <LinkPullRequestDialogHost />}
@@ -4111,6 +4129,12 @@ export default function ChatView(props: ChatViewProps) {
       {content}
     </FileMetadataThreadProvider>
   );
+}
+
+// Chromium on Linux pastes PRIMARY into the focused editable unless the middle mouseup is cancelled.
+function preventMiddleClickPasteOutsideEditable(event: ReactMouseEvent) {
+  if (event.button !== 1 || isEditableFocused(event.target)) return;
+  event.preventDefault();
 }
 
 function PreviewSessionSync(props: { readonly threadRef: ScopedThreadRef }) {
