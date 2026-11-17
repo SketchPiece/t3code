@@ -1,5 +1,6 @@
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
+import { attachmentUploadError } from "@t3tools/client-runtime/state/attachment-uploads";
 import {
   deletePendingAttachmentUpload,
   runAttachmentUploadCycle,
@@ -12,6 +13,7 @@ import {
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@t3tools/client-runtime/voice-input";
+import * as Effect from "effect/Effect";
 import { useEffect, useRef, useState } from "react";
 
 import { useStableCallback } from "~/hooks/useStableCallback";
@@ -33,42 +35,50 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
+async function postRecording(
+  url: string,
+  recording: { readonly blob: Blob; readonly mimeType: string },
+  signal: AbortSignal,
+): Promise<void> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": recording.mimeType },
+    body: recording.blob,
+    signal,
+  });
+  if (!response.ok) throw new Error(`Recording upload rejected (${response.status}).`);
+}
+
 async function uploadVoiceRecording(
   environmentId: EnvironmentId,
   recording: { readonly blob: Blob; readonly mimeType: string; readonly fileName: string },
   signal: AbortSignal,
 ): Promise<string> {
-  const result = await runAttachmentUploadCycle({
-    registry: appAtomRegistry,
-    createUploadUrl: attachmentEnvironment.createUploadUrl,
-    remove: attachmentEnvironment.remove,
-    environmentId,
-    upload: {
-      type: "file",
-      name: recording.fileName,
-      mimeType: recording.mimeType,
-      sizeBytes: recording.blob.size,
-    },
-    resolveUploadUrl: (relativeUrl) => {
-      const connection = readPreparedConnection(environmentId);
-      return connection ? resolveAssetUrl(connection.httpBaseUrl, relativeUrl) : null;
-    },
-    onMinted: () => (signal.aborted ? "cancel" : "continue"),
-    transport: (url) => {
-      const controller = new AbortController();
-      return {
-        abort: () => controller.abort(),
-        done: fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": recording.mimeType },
-          body: recording.blob,
-          signal: AbortSignal.any([controller.signal, signal]),
-        }).then((response) => {
-          if (!response.ok) throw new Error(`Recording upload rejected (${response.status}).`);
+  // Aborting the signal interrupts the cycle, which deletes the half-made upload itself.
+  const result = await Effect.runPromise(
+    runAttachmentUploadCycle({
+      registry: appAtomRegistry,
+      createUploadUrl: attachmentEnvironment.createUploadUrl,
+      remove: attachmentEnvironment.remove,
+      environmentId,
+      upload: {
+        type: "file",
+        name: recording.fileName,
+        mimeType: recording.mimeType,
+        sizeBytes: recording.blob.size,
+      },
+      resolveUploadUrl: (relativeUrl) => {
+        const connection = readPreparedConnection(environmentId);
+        return connection ? resolveAssetUrl(connection.httpBaseUrl, relativeUrl) : null;
+      },
+      transport: (url) =>
+        Effect.tryPromise({
+          try: (transferSignal) => postRecording(url, recording, transferSignal),
+          catch: attachmentUploadError,
         }),
-      };
-    },
-  });
+    }),
+    { signal },
+  );
   if (result.status === "uploaded") return result.attachmentId;
   if (result.attachmentId && result.status === "failed") {
     deletePendingAttachmentUpload({
@@ -78,7 +88,7 @@ async function uploadVoiceRecording(
       attachmentId: result.attachmentId,
     });
   }
-  throw result.status === "failed" ? result.error : new Error("Recording upload was cancelled.");
+  throw result.error;
 }
 
 type ComposerVoiceInput = {

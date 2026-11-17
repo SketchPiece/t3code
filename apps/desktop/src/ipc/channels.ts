@@ -145,3 +145,5 @@ export const COMPLETE_LEGACY_LOCAL_STORAGE_CHANNEL = "desktop:complete-legacy-lo
 export const GET_SCREEN_UNLOCK_ENABLED_CHANNEL = "desktop:get-screen-unlock-enabled";
 export const SET_SCREEN_UNLOCK_ENABLED_CHANNEL = "desktop:set-screen-unlock-enabled";
 export const RESTART_AUDIO_SERVICE_CHANNEL = "desktop:restart-audio-service";
+
+export const START_FILE_DRAG_CHANNEL = "desktop:start-file-drag";
