@@ -1,4 +1,7 @@
 import type { EnvironmentId, ManagedPolicySummary, ProviderDriverKind } from "@t3tools/contracts";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "../i18n/messages";
 
 import { useServerConfigs } from "./entities";
 import { usePrimaryEnvironmentId } from "./environments";
@@ -34,9 +37,14 @@ export function firstManagedDenial(
 /** @public Helm fork: Helm shows its own no-usage-data text instead. */
 export function managedTelemetryOffMessage(
   policy: ManagedPolicySummary | undefined,
+  resolve: MessageResolver = m,
 ): string | undefined {
   return policy?.limits?.telemetry === false
-    ? `${policy.organization} turned off anonymous usage data.`
+    ? resolve(
+        msg("{organization} turned off anonymous usage data.", {
+          organization: policy.organization,
+        }),
+      )
     : undefined;
 }
 
@@ -54,6 +62,7 @@ export interface ManagedInstanceLocks {
 export function managedInstanceLocks(
   policy: ManagedPolicySummary | undefined,
   driver: ProviderDriverKind,
+  resolve: MessageResolver = m,
 ): ManagedInstanceLocks | undefined {
   const paths = policy?.limits?.providers?.lockedInstanceFields?.[driver];
   if (policy === undefined || paths === undefined || paths.length === 0) return undefined;
@@ -63,6 +72,6 @@ export function managedInstanceLocks(
     configKeys: fieldsUnder("config."),
     environmentNames: fieldsUnder("environment."),
     wholeEnvironment: paths.includes("environment"),
-    reason: `Managed by ${policy.organization}.`,
+    reason: resolve(msg("Managed by {organization}.", { organization: policy.organization })),
   };
 }

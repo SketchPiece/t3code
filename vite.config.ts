@@ -583,6 +583,25 @@ export default defineConfig({
           ],
         },
       },
+      // Registered always so a disable comment for intentional English counts as used.
+      // `vp run i18n:untranslated` counts what it flags.
+      {
+        files: ["apps/web/src/**", "apps/mobile/src/**", "packages/client-runtime/src/**"],
+        excludeFiles: [
+          "**/*.{test,spec,bench}.{ts,tsx}",
+          "**/{test,testkit,testing,fixtures}/**",
+          "**/*.test-fixtures.ts",
+          "**/{test-fixtures,*TestFixtures}.ts",
+          "apps/mobile/src/features/development/**",
+          "packages/client-runtime/src/rpc/**",
+          // Helm fork: Helm's own UI stays English.
+          "apps/web/src/helm/**",
+          "apps/web/src/components/chat/ComposerDictation.tsx",
+          "apps/web/src/components/chat/ComposerRemoteDictation.tsx",
+          "apps/web/src/components/settings/ScreenUnlockSetting.tsx",
+        ],
+        rules: { "t3code/no-untranslated-copy": "error" },
+      },
       {
         // React Compiler owns memoization; upstream rules do not ban redundant useMemo/useCallback.
         files: ["apps/web/src/**/*.{ts,tsx}"],

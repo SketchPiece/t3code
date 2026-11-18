@@ -43,6 +43,8 @@ import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 import { importT3CodeData } from "../helm/importT3CodeData.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 // Helm fork: its own port, so T3 Code running beside it never takes the address
 // phones saved for Helm. 3773 stays T3 Code's.
@@ -150,7 +152,7 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
   const wasQuitting = yield* Ref.getAndSet(state.quitting, true);
   if (!wasQuitting) {
     yield* electronDialog.showErrorBox(
-      "Helm failed to start",
+      m(msg("Helm failed to start")),
       `Stage: ${stage}\n${message}${detail}`,
     );
   }
@@ -219,7 +221,7 @@ const startLocalBackend = Effect.gen(function* () {
       owner: Option.getOrNull(owner),
     });
     yield* (yield* ElectronDialog.ElectronDialog).showErrorBox(
-      "This T3 home is unavailable",
+      m(msg("This T3 home is unavailable")),
       DesktopHomeOwner.homeOwnedMessage(owner),
     );
     yield* (yield* ElectronApp.ElectronApp).quit;

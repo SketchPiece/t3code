@@ -8,7 +8,10 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../components/settings/settingsLayout";
-import { searchableSetting } from "../components/settings/settingsSearch";
+import {
+  type SettingsSearchItemId,
+  useSearchableSetting,
+} from "../components/settings/settingsSearch";
 import {
   useScopedSettings,
   useUpdateScopedSettings,
@@ -84,6 +87,7 @@ export function HelmSettingsPanel() {
 }
 
 function HelmLookRow() {
+  const searchableSetting = useSearchableSetting();
   const [enabled, setEnabled] = useState(isHelmLookEnabled);
   return (
     <SettingsRow
@@ -105,13 +109,13 @@ function HelmLookRow() {
 }
 
 function ClientRow(props: {
-  readonly id: Parameters<typeof searchableSetting>[0];
+  readonly id: SettingsSearchItemId;
   readonly settingKey: keyof typeof HelmClientSettingsFields;
   readonly description: string;
 }) {
   const checked = useScopedSettings((settings) => settings[props.settingKey]);
   const updateSettings = useUpdateScopedSettings();
-  const searchable = searchableSetting(props.id);
+  const searchable = useSearchableSetting()(props.id);
   return (
     <SettingsRow
       {...searchable}
@@ -128,13 +132,13 @@ function ClientRow(props: {
 }
 
 function ServerRow(props: {
-  readonly id: Parameters<typeof searchableSetting>[0];
+  readonly id: SettingsSearchItemId;
   readonly settingKey: keyof typeof HelmServerSettingsFields;
   readonly description: string;
 }) {
   const checked = useScopedSettings((settings) => settings[props.settingKey]);
   const updateSettings = useUpdateScopedSettings();
-  const searchable = searchableSetting(props.id);
+  const searchable = useSearchableSetting()(props.id);
   return (
     <SettingsRow
       serverScoped

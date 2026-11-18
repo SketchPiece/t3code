@@ -2,10 +2,11 @@ import { useState } from "react";
 
 import { Switch } from "../ui/switch";
 import { SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 
 /** Consent belongs to this desktop, not to an environment's remotely writable settings. */
 export function ScreenUnlockSetting() {
+  const searchableSetting = useSearchableSetting();
   const bridge = window.desktopBridge;
   const [enabled, setEnabled] = useState(() => bridge?.getScreenUnlockEnabled?.() === true);
   const [updating, setUpdating] = useState(false);
