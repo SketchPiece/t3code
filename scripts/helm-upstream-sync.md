@@ -56,6 +56,17 @@ Fix these yourself:
 - upstream moved or renamed code a Helm hook lives in: move the hook along;
 - anything in `apps/mobile`: take upstream's side. The fork's mobile app is no
   longer developed; Helm Mobile is a separate project.
+- the product name in UI text (decided Nov 18, 2026, when upstream made the UI
+  translatable): take upstream's `gt()` / `<T>` / `msg()` text as is, "T3 Code"
+  included. Say Helm only where the app names itself or where the user must find
+  it by name: window title, sidebar mark, desktop menu, update and install
+  prompts, the Welcome page title, macOS permission instructions (Full Disk
+  Access, the drag-into-System-Settings helper), client labels, and "update Helm
+  on host" messages. There, keep upstream's wrapper and write Helm in place of
+  T3 Code. Helm's usage-data notes stay Helm's own (Helm sends none by default).
+  Helm-only UI (`apps/web/src/helm/`, the dictation and screen unlock
+  components) is exempt from `t3code/no-untranslated-copy` in `vite.config.ts`
+  and stays English.
 
 Stop and ask when:
 
