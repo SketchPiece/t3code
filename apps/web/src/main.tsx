@@ -6,6 +6,7 @@ import "./index.css";
 // Helm fork: Helm type and touches (helm/helm.css).
 import "./helm/helm.css";
 
+import { trackKeyboardLayout } from "./keyboardLayout";
 import { hasCloudPublicConfig } from "./cloud/publicConfig";
 import { isElectron } from "./env";
 import { startAppServices } from "./appInit";
@@ -16,6 +17,8 @@ import { chunkLoadState } from "./lib/chunkReloadGuard";
 
 // Helm fork: before the first paint, so Helm's type does not flash in or out.
 applyHelmLook();
+const stopTrackingKeyboardLayout = trackKeyboardLayout();
+import.meta.hot?.dispose(stopTrackingKeyboardLayout);
 
 const router = startAppServices();
 
